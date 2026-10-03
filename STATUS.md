@@ -112,10 +112,17 @@
 2. **Команда Apple (Team ID)** нового аккаунта — в Xcode-проекте пока
    `SGS6KFDCD4` (команда an-Nur).
 3. **Ключ App Store Connect API** нового аккаунта → `secrets/`.
-4. **Свой GitHub-репозиторий** для Quran Ing (сейчас remote для push нет).
+4. ~~Свой GitHub~~ — 2026-10-03: `killianche/quran-ing` (публичный, решение
+   владельца: бесплатные сборки; в открытый доступ ушли и тафсир QF, и базы
+   ингушского перевода — владелец знает), сайт `killianche/quran-ing-site`.
+   Для iOS-сборки в Actions нужны секреты репозитория ASC_KEY_P8, ASC_KEY_ID,
+   ASC_ISSUER_ID, ASC_APP_ID — появятся вместе с ключом нового аккаунта.
 5. **Аудио Люхайдана** грузится с `l.asrbook.ru` (сервер an-Nur) — оставить
    общим или завести своё хранилище.
-6. **Веб-версия**: нужен ли сайт, на каком домене и сервере.
+6. ~~Сайт~~ — юридические страницы на GitHub Pages: Privacy
+   https://killianche.github.io/quran-ing-site/privacy.html, Support
+   https://killianche.github.io/quran-ing-site/support.html (для App Store).
+   Веб-версии самого приложения нет — решение владельца при необходимости.
 7. Иконка, заставка и тексты App Store (`APP_STORE.md`) — пока от an-Nur.
 8. ~~Ингушский, сура 50~~ — решено 2026-10-03: записи переставлены на свои
    места (`INH_REMAP`). Открыто: имя переводчика и разрешение автора

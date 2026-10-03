@@ -65,3 +65,6 @@ secrets/
 
 # Предпросмотр вариантов логотипа (scripts/brand/design-logo.py --preview)
 brand-preview/
+
+# Рабочая копия публичного сайта (scripts/site/publish-site.sh)
+.site-publish/

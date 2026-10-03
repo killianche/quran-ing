@@ -10,9 +10,16 @@
 
 - локальный корень: `/root/projects/QuranIng` (этот сервер);
 - git: история an-Nur сохранена; remote `annur` — только для чтения (fetch),
-  push в него отключён намеренно. Собственный remote Quran Ing — не заведён
-  (см. STATUS.md → Блокеры);
-- публичный сайт, сервер и webroot — **не назначены**;
+  push в него отключён намеренно. Свой репозиторий — `origin` =
+  `git@github.com:killianche/quran-ing.git` (**публичный** — решение владельца
+  2026-10-03 ради бесплатных сборок в Actions; push по SSH);
+- сайт — только юридические страницы на GitHub Pages:
+  https://killianche.github.io/quran-ing-site/ (публичный репозиторий
+  `killianche/quran-ing-site`; выкладка — `bash scripts/site/publish-site.sh`
+  из `public/{privacy,support,terms}.html`). Веб-версии приложения, сервера и
+  webroot нет;
+- GitHub CLI: `/root/.local/bin/gh` (вход как `killianche`, токен в
+  `/root/.config/gh/hosts.yml`);
 - App Store: другой аккаунт, Apple ID приложения — в `secrets/asc.env`
   (`ASC_APP_ID`), ещё не создан.
 
@@ -52,8 +59,9 @@ an-Nur. До публикации Quran Ing решить, своё ли хран
   одной production-сборки `dist/`.
 - Перед изменением явно определить целевой контур: Web, iOS или Android.
   Публиковать остальные контуры автоматически запрещено.
-- Web-релиз: цель не назначена. До решения владельца веб Quran Ing никуда
-  не выкладывается — тем более не в webroot an-Nur.
+- Web-релиз приложения: цель не назначена. До решения владельца веб Quran Ing
+  никуда не выкладывается — тем более не в webroot an-Nur. Юридические
+  страницы — отдельно, `scripts/site/publish-site.sh` (GitHub Pages).
 - Нативный релиз: `npm run sync`, затем отдельная сборка/проверка выбранной
   платформы.
 - В итоговом отчёте отдельно указывать фактическое состояние Web, iOS, Android.
