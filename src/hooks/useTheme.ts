@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
  *   aurora  — светло-бежевое поле с редкой сеткой точек
  *   aurora2 — чёрная канва + зелёное свечение, растекающееся из центра
  *
- * В QuranIng было двенадцать тем и одиннадцать пресетов поверх них,
+ * В прежнем QuranIng было двенадцать тем и одиннадцать пресетов поверх них,
  * плюс бумажные паттерны и фото-обои.  Здесь модель плоская: id темы
  * это и есть всё её состояние.  `themeMode` сохранён отдельной
  * функцией, потому что весь остальной код рассуждает в терминах
@@ -62,7 +62,7 @@ export const FIRST_RUN_DEFAULT: Theme = 'aurora';
 const STORAGE_KEY = 'theme';
 
 /**
- * Миграция сохранённых значений из QuranIng: там id темы был вида
+ * Миграция сохранённых значений из прежнего QuranIng: там id темы был вида
  * `light-ivory` / `dark-velvet` / `cosmic-night`.  Сводим всё
  * семейство к одной из трёх новых тем по префиксу, чтобы человек,
  * открывший приложение поверх старого localStorage, не улетел на
@@ -74,7 +74,7 @@ const STORAGE_KEY = 'theme';
 // даст один кадр не с той темой, и человек увидит вспышку.
 function migrateLegacy(v: string): Theme | null {
   if (v.startsWith('cosmic')) return 'aurora2';
-  // Кремовые светлые темы QuranIng ближе всего к «Мусхафу».
+  // Кремовые светлые темы прежнего QuranIng ближе всего к «Мусхафу».
   if (v === 'light-cream' || v === 'light-ivory') return 'mushaf';
   if (v.startsWith('light'))  return 'light';
   if (v.startsWith('dark'))   return 'dark';

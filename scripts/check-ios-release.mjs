@@ -80,7 +80,7 @@ add('App Store export options', existsSync(join(root, 'ios/ExportOptions-AppStor
 for (const size of [16, 32, 48, 72, 96, 128, 180, 192, 256, 512]) {
   add(`Web icon ${size}`, existsSync(join(root, `public/icons/icon-${size}.png`)));
 }
-add('PWA name an-Nur', manifest.name === 'an-Nur' && manifest.short_name === 'an-Nur');
+add('PWA name Quran Ing', manifest.name === 'Quran Ing' && manifest.short_name === 'Quran Ing');
 add('PWA icon paths', manifest.icons.every(icon => icon.src.endsWith('.png')));
 
 const appIcon = picture('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png');

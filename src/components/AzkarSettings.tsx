@@ -36,7 +36,7 @@ const KEY_AZKAR_LANG_TAB = 'azkar.langTab';
 function readLangTab(): AzkarLangTab {
   if (typeof window === 'undefined') return 'arabic';
   const v = window.localStorage.getItem(KEY_AZKAR_LANG_TAB);
-  // Легаси-значение 'ingush' (из QuranIng) больше не существует —
+  // Легаси-значение 'ingush' (из прежнего QuranIng) больше не существует —
   // предикат отправит такого пользователя на вкладку арабского.
   return v === 'arabic' || v === 'russian' || v === 'translit'
     ? v

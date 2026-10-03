@@ -111,7 +111,7 @@ const EAGER_AYAHS = 8;
 const LATIN_IDS:   LatinFontId[]  = ['inter-semibold', 'inter-regular', 'garamond', 'alice'];
 const ARABIC_IDS:  ArabicFontId[] = ARABIC_FONT_IDS;
 // Белый список для readPref: сохранённый id чтеца, которого больше нет
-// в каталоге (QuranIng знал восемь), молча падает на DEFAULT_RECITER.
+// в каталоге (прежний QuranIng знал восемь), молча падает на DEFAULT_RECITER.
 
 function migrateLegacyScale() {
   // Режим «Только арабский» снят владельцем. Старый ключ больше ни на

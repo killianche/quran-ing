@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate every an-Nur app icon and splash image from ``logo.png``.
+"""Generate every Quran Ing app icon and splash image from ``logo.png``.
 
 The source is intentionally kept as a regular opaque PNG: App Store icons
 must not contain an alpha channel, and using one file prevents Web, iOS and
@@ -60,17 +60,17 @@ def extract_wordmark(source: Image.Image) -> Image.Image:
     rgba.putalpha(mask)
     bbox = mask.getbbox()
     if bbox is None:
-        raise SystemExit("Could not extract an-Nur wordmark from logo.png")
+        raise SystemExit("Could not extract the wordmark from logo.png")
     return rgba.crop(bbox)
 
 
 def splash_background(size: tuple[int, int]) -> Image.Image:
-    """Исходный бледно-бежевый фон фирменной плитки an-Nur."""
+    """Бледно-бежевый фон фирменной плитки (унаследован от an-Nur)."""
     return Image.new("RGB", size, "#f4dfc0")
 
 
 def save_wordmark(wordmark: Image.Image) -> None:
-    target = ROOT / "public/brand/annur-wordmark.png"
+    target = ROOT / "public/brand/wordmark.png"
     target.parent.mkdir(parents=True, exist_ok=True)
     wordmark.save(target, "PNG", optimize=True)
 

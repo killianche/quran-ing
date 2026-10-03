@@ -74,7 +74,7 @@ const VISIBILITY_DEFAULTS = {
 // Per-language defaults.
 //
 //  Arabic   — KFGQPC Uthmanic, large (1.4 / SCALE_OPTIONS[3])
-//  Russian  — Inter Regular, medium (1.0 / SCALE_OPTIONS[1]).  В QuranIng
+//  Russian  — Inter Regular, medium (1.0 / SCALE_OPTIONS[1]).  В прежнем QuranIng
 //             русский шёл третьим языком и стоял на 0.85; здесь он
 //             основной перевод, поэтому поднят на шаг.
 //  Translit — Inter Regular, small (0.85 / SCALE_OPTIONS[0])

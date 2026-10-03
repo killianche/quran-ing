@@ -111,7 +111,7 @@ def download(url: str, target: Path) -> None:
     last_error: Exception | None = None
     for attempt in range(1, 5):
         try:
-            request = urllib.request.Request(url, headers={"User-Agent": "an-Nur-audio-builder/1"})
+            request = urllib.request.Request(url, headers={"User-Agent": "quran-ing-audio-builder/1"})
             with urllib.request.urlopen(request, timeout=60) as response:
                 target.write_bytes(response.read())
             return

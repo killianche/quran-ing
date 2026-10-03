@@ -7,7 +7,7 @@
  *  • в Capacitor Android (после foreground service + WAKE_LOCK)
  *
  * Без вызова setMediaSessionMetadata Lock Screen покажет дефолтную
- * иконку Safari/«QuranIng» без обложки — это и так работает, но
+ * иконку Safari/«Quran Ing» без обложки — это и так работает, но
  * пользователь не видит, какая сура играет.  С полным metadata + artwork
  * получаем proper Now Playing card с обложкой, названием суры, ayah'ем.
  *
@@ -42,7 +42,7 @@ export function setMediaSessionMetadata(meta: MediaSessionMetadata) {
   if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: meta.title,
-    artist: meta.artist ?? 'QuranIng',
+    artist: meta.artist ?? 'Quran Ing',
     album: meta.album ?? '',
     artwork: [
       // Несколько размеров — система подберёт лучшую под Lock Screen.

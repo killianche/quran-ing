@@ -72,7 +72,7 @@
  *  - Направление ('top' / 'bottom' / 'frame')
  *  Палитра больше не выбирается — в QuranRu «Аврора» это одна тема с
  *  фиксированным ледяным свечением (AURORA_ICE в lib/cosmic.ts), а не
- *  конструктор из шести палитр, как было в QuranIng.
+ *  конструктор из шести палитр, как было в прежнем QuranIng.
  */
 
 import { memo, useEffect, useState } from 'react';
