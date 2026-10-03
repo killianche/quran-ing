@@ -17,7 +17,7 @@
  */
 import { credentialsFromEnv, ascGet } from './asc-client.mjs';
 
-const BUNDLE_ID = 'ru.annur.quran';
+const BUNDLE_ID = 'ing.quran.app';
 
 function printAttributes(prefix, attributes) {
   for (const [key, value] of Object.entries(attributes ?? {})) {

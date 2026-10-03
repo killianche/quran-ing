@@ -1,4 +1,4 @@
-package app.quranru;
+package ing.quran.app;
 
 import com.getcapacitor.BridgeActivity;
 

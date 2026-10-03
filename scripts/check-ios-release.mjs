@@ -54,7 +54,14 @@ const project = text('ios/App/App.xcodeproj/project.pbxproj');
 const privacy = text('ios/App/App/PrivacyInfo.xcprivacy');
 const manifest = JSON.parse(text('public/manifest.webmanifest'));
 
-add('Bundle ID', /PRODUCT_BUNDLE_IDENTIFIER = ru\.annur\.quran;/.test(project));
+add('Bundle ID', /PRODUCT_BUNDLE_IDENTIFIER = ing\.quran\.app;/.test(project));
+// Quran Ing выпускается в ДРУГОМ аккаунте Apple. SGS6KFDCD4 — команда an-Nur:
+// с ней Archive либо падает без профилей для ing.quran.app, либо Xcode
+// регистрирует App ID в чужом аккаунте. Пока Team ID нового аккаунта не
+// вписан в project.pbxproj, сборку выпускать нельзя.
+const teams = [...project.matchAll(/DEVELOPMENT_TEAM = ([A-Z0-9]+);/g)].map(m => m[1]);
+add('Team ID нового аккаунта (не an-Nur SGS6KFDCD4)',
+  teams.length > 0 && teams.every(team => team !== 'SGS6KFDCD4'));
 // Версию и номер сборки держим в package.json — единственном месте, где их
 // правят. Раньше ожидаемые числа были зашиты прямо здесь, и подъём версии
 // ронял собственный preflight: гард сообщал не «забыли поднять», а «забыли

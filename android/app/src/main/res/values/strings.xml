@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Quran Ing</string>
     <string name="title_activity_main">Quran Ing</string>
-    <string name="package_name">ru.annur.quran</string>
-    <string name="custom_url_scheme">ru.annur.quran</string>
+    <string name="package_name">ing.quran.app</string>
+    <string name="custom_url_scheme">ing.quran.app</string>
 </resources>

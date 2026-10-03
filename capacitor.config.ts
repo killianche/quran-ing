@@ -12,8 +12,9 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   // ВНИМАНИЕ: appId после первой публикации в сторах не меняется.
-  // Значение временное — подтвердить у владельца до первого релиза.
-  appId: 'ru.annur.quran',
+  // ing.quran.app — решение владельца 2026-10-03 (у an-Nur был
+  // ru.annur.quran; его в другом аккаунте не зарегистрировать).
+  appId: 'ing.quran.app',
   appName: 'Quran Ing',
   webDir: 'dist',
   server: {

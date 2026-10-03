@@ -87,9 +87,12 @@
 
 ### Блокеры (нужны решения владельца)
 
-1. **Bundle ID / applicationId.** Пока стоит `ru.annur.quran` — это id an-Nur.
-   В другом аккаунте его не зарегистрировать, а на Android сборка с ним
-   заменит установленный an-Nur. После первой публикации не меняется.
+1. ~~Bundle ID~~ — решено 2026-10-03: `ing.quran.app` (iOS, Android,
+   Capacitor, скрипты). Свободен ли он в App Store, станет ясно при
+   регистрации в новом аккаунте. Android-класс `MainActivity` перенесён в
+   пакет `ing.quran.app` — у an-Nur он лежал в `app.quranru` при namespace
+   `ru.annur.quran`, и `.MainActivity` из манифеста не находился бы.
+   Сборка Android на этом сервере не проверена (нет Android SDK).
 2. **Команда Apple (Team ID)** нового аккаунта — в Xcode-проекте пока
    `SGS6KFDCD4` (команда an-Nur).
 3. **Ключ App Store Connect API** нового аккаунта → `secrets/`.
