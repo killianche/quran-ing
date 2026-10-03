@@ -42,6 +42,10 @@ on:
         description: 'Выгружать в App Store Connect (false — только собрать и проверить)'
         type: boolean
         default: false
+      prune_certs:
+        description: 'Отозвать сертификаты разработки «Created via API» (аккаунт общий с xtrud — только осознанно)'
+        type: boolean
+        default: false
 
 concurrency:
   # Две одновременные сборки релиза не нужны никогда: они борются за один и
@@ -135,7 +139,12 @@ jobs:
       # Каждый запуск идёт на чистой машине и выпускает новый; на тринадцатом
       # Apple отвечает «maximum number of certificates», и архив падает —
       # ровно это и случилось 05.09.2026. Подробности в самом скрипте.
+      # 🔴 Аккаунт Apple у Quran Ing общий с приложением xtrud: сертификаты
+      # «Created via API» обоих проектов неотличимы, а отзыв необратим.
+      # Поэтому чистка — только по явной галочке prune_certs при запуске,
+      # когда Apple начнёт отвечать «maximum number of certificates».
       - name: Чистка сертификатов прошлых сборок
+        if: ${{ inputs.prune_certs }}
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}

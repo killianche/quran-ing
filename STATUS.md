@@ -112,9 +112,13 @@
    android-check: тесты, гард, debug-APK ✓): в APK пакет `ing.quran.app`,
    класс `ing/quran/app/MainActivity`, тафсир внутри. На устройстве не
    запускалась.
-2. **Команда Apple (Team ID)** нового аккаунта — в Xcode-проекте пока
-   `SGS6KFDCD4` (команда an-Nur).
-3. **Ключ App Store Connect API** нового аккаунта → `secrets/`.
+2. ~~Team ID~~ — 2026-10-03: `ZNK264PD9Y` (Individual). 🔴 Аккаунт общий с
+   приложением xtrud (`com.xtrud.app`) — его не трогать; чистка сертификатов
+   в ios-release выключена по умолчанию (галочка `prune_certs`).
+3. ~~Ключ ASC~~ — 2026-10-03: Key ID `3WF45ZJ6XR` (Admin), `secrets/asc.env`,
+   секреты репозитория ASC_KEY_P8/ASC_KEY_ID/ASC_ISSUER_ID заданы. Bundle ID
+   `ing.quran.app` зарегистрирован. Ждём Apple ID записи приложения →
+   `ASC_APP_ID` (в asc.env и секреты). Версия сброшена на 1.0 (1).
 4. ~~Свой GitHub~~ — 2026-10-03: `killianche/quran-ing` (публичный, решение
    владельца: бесплатные сборки; в открытый доступ ушли и тафсир QF, и базы
    ингушского перевода — владелец знает), сайт `killianche/quran-ing-site`.
