@@ -551,29 +551,42 @@ group('Ингушский перевод: показ и поиск', () => {
   const { search, snippet, normalise } = searchMod;
   const sources = lazySourcesMod.getQuranSources();
   const raw = k => sources[k].translations.inh;
+  const show = k => inhDisplayText(k, raw);
 
   // Показ: обычный аят — как есть, символ в символ.
-  check('1:1 показывается дословно', inhDisplayText('1:1', raw('1:1')), raw('1:1'));
+  check('1:1 показывается дословно', show('1:1'), raw('1:1'));
   // Хвост после <p> — не перевод этого аята.
   check('20:32: без тега <p>',
-    inhDisplayText('20:32', raw('20:32')), raw('20:32').slice(0, raw('20:32').indexOf('<p>')).trimEnd());
+    show('20:32'), raw('20:32').slice(0, raw('20:32').indexOf('<p>')).trimEnd());
   check('50:40: без приклеенного перевода 50:41',
-    inhDisplayText('50:40', raw('50:40')).includes('41.'), false);
-  // Сдвиг в конце суры 50 — не показываем, пока владелец не решил.
-  check('50:41–50:44 скрыты',
-    ['50:41', '50:42', '50:43', '50:44'].map(k => inhDisplayText(k, raw(k))),
-    [undefined, undefined, undefined, undefined]);
-  check('50:45 пуст в источнике', inhDisplayText('50:45', raw('50:45')), undefined);
+    show('50:40'), raw('50:40').slice(0, raw('50:40').indexOf('<p>')).trimEnd());
+
+  // Конец суры 50 переставлен на свои места (решение владельца 2026-10-03):
+  // перевод 50:41 — хвост записи 50:40 без номера «41. », дальше каждая
+  // запись сдвинута на один аят вперёд.  Текст источника не меняется.
+  const tail40 = raw('50:40').slice(raw('50:40').indexOf('<p>') + 3).trim();
+  check('50:41 — хвост записи 50:40 без номера',
+    [show('50:41'), tail40.startsWith('41. ')], [tail40.slice(4), true]);
+  check('50:42…50:45 — записи 50:41…50:44 дословно',
+    ['50:42', '50:43', '50:44', '50:45'].map(show),
+    ['50:41', '50:42', '50:43', '50:44'].map(raw));
+  check('перевод 50:41 — «прислушайся» (сверка по смыслу с Кулиевым)',
+    show('50:41').startsWith('Iа ладувгIалахь'), true);
 
   // По всему Корану: на экран не попадает разметка, символы приватной
-  // зоны (квадраты) и арабские обрывки.
+  // зоны (квадраты), арабские обрывки и номера аятов.
   const bad = Object.keys(sources).filter(k => {
-    const t = inhDisplayText(k, raw(k));
-    return t !== undefined && /[<>\uE000-\uF8FF\u0600-\u06FF]/.test(t);
+    const t = show(k);
+    return t !== undefined && /[<>\uE000-\uF8FF\u0600-\u06FF]|(^|\s)\d{1,3}\.\s/.test(t);
   });
   check('ни одного показанного аята с мусором источника', bad, []);
-  const shown = Object.keys(sources).filter(k => inhDisplayText(k, raw(k)) !== undefined).length;
-  check('ингушский показывается в 6231 аяте (6236 − 50:41…50:45)', shown, 6231);
+  const shown = Object.keys(sources).filter(k => show(k) !== undefined).length;
+  check('ингушский показывается во всех 6236 аятах', shown, 6236);
+  // Во всём Коране одинаковые тексты законны (повторяющиеся аяты, как
+  // рефрен суры 55), поэтому уникальность — только в зоне перестановки.
+  const tail50 = ['50:39', '50:40', '50:41', '50:42', '50:43', '50:44', '50:45'].map(show);
+  check('в конце суры 50 ни одна запись не показана под двумя аятами',
+    new Set(tail50).size, tail50.length);
 
   // Поиск: ингушский находится, подсветка — из оригинала.
   const kh = search('Къахетам беши');
@@ -616,9 +629,10 @@ group('Ингушский перевод: показ и поиск', () => {
     ruOnly.ayahs.every(a => a.lang === 'ru'), true);
 
   // Скрытые записи не находятся: иначе поиск привёл бы к чужому переводу.
-  const hidden = search('хьахозача дийнахьа');
-  check('текст скрытого 50:41 не находится как 50:41',
-    hidden.ayahs.some(a => a.surah === 50 && a.ayah === 41), false);
+  const moved = search('хьахозача дийнахьа');
+  check('перенесённый перевод находится под своим аятом 50:42, а не 50:41',
+    [moved.ayahs.some(a => a.surah === 50 && a.ayah === 42 && a.lang === 'inh'),
+     moved.ayahs.some(a => a.surah === 50 && a.ayah === 41 && a.lang === 'inh')], [true, false]);
 
   // Русский поиск не сломан складыванием символов.
   const ru = search('Господу миров');

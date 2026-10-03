@@ -1080,7 +1080,7 @@ export function SurahScreen({
                   key={entry.verseKey}
                   entry={entry}
                   translation={quranSources[entry.verseKey]?.translations.ru}
-                  inhTranslation={inhDisplayText(entry.verseKey, quranSources[entry.verseKey]?.translations.inh)}
+                  inhTranslation={inhDisplayText(entry.verseKey, k => quranSources[k]?.translations.inh)}
                   showArabic={showArabic}
                   showRu={showRu}
                   showInh={showInh}

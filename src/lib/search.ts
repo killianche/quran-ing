@@ -271,7 +271,7 @@ function prepareStep(sources: Record<string, SourceEntry[1]>, limit: number): vo
     // Ингушский — тем же фильтром, что и на экране чтения: найти можно
     // только то, что под аятом и показывается (см. lib/inhTranslation.ts).
     const texts: [AyahLang, string | undefined][] = [
-      ['inh', inhDisplayText(key, src.translations.inh)],
+      ['inh', inhDisplayText(key, k => sources[k]?.translations.inh)],
       ['ru', src.translations.ru],
     ];
     for (const [lang, original] of texts) {

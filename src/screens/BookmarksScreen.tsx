@@ -192,7 +192,7 @@ function BookmarkRow({
   // (lib/inhTranslation.ts).  Arabic is shown right-aligned in a smaller,
   // dimmer hint row so the saved verse is still recognisable as a
   // citation, not just a number.
-  const inh = readShowInh() ? inhDisplayText(verseKey, source?.translations.inh) : undefined;
+  const inh = readShowInh() ? inhDisplayText(verseKey, k => sources?.[k]?.translations.inh) : undefined;
   const preview = inh ?? source?.translations.ru ?? '';
   const previewLang = inh ? 'inh' : 'ru';
 

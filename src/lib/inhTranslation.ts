@@ -21,12 +21,13 @@
  *      50:40 — «41. Iа ладувгIалахь…» — перевод СЛЕДУЮЩЕГО аята 50:41.
  *    Показываем только часть до `<p>`: это и есть перевод самого аята.
  *
- * 2. Начиная с 50:41 и до конца суры источник сдвинут на один аят: в записи
+ * 2. Начиная с 50:41 и до конца суры источник сдвинут на один аят: перевод
+ *    50:41 приклеен к записи 50:40 (после `<p>`, с номером «41.»), в записи
  *    50:41 лежит перевод 50:42, …, в 50:44 — перевод 50:45, а 50:45 пуст
- *    (в базе тафсира `ing_tafs` тот же сдвиг). Показать их как есть —
- *    подписать под аятом перевод чужого аята. Перенести на свои места —
- *    решение владельца, не наше. Пока он не решил, 50:41–50:45 ингушский
- *    не показывается.
+ *    (в базе тафсира `ing_tafs` тот же сдвиг). Сверено по смыслу с Кулиевым
+ *    для каждого аята. Решение владельца 2026-10-03: переставить записи на
+ *    свои места — см. INH_REMAP. Текст не меняется; у перевода 50:41
+ *    отбрасывается только номер «41. », стоящий перед ним в источнике.
  */
 
 import { LATIN_FONTS, latinStack, type LatinFontId } from './typography';
@@ -35,13 +36,25 @@ import { LATIN_FONTS, latinStack, type LatinFontId } from './typography';
 export const INH_SOURCE_TITLE = 'ГӀалгӀай — Сийдолча КъорӀан маӀана таржам (2023)';
 export const INH_SOURCE_APP = '«Коран и Сунна» (ing.galgaev.quran)';
 
-/**
- * Аяты, где перевод в источнике относится к соседнему аяту. См. п. 2 шапки.
- * 50:45 в источнике пуст и сюда не входит — он и так не показывается.
- */
-const INH_WITHHELD = new Set(['50:41', '50:42', '50:43', '50:44']);
-
 const PARAGRAPH_TAG = '<p>';
+
+/**
+ * Перестановка сдвинутых записей конца суры 50 (п. 2 шапки).
+ * `from` — чья запись источника, `part` — какая её часть:
+ *   'after-p' — то, что идёт после `<p>` (без номера аята перед текстом);
+ *   'whole'   — вся запись (с обычной обрезкой хвоста после `<p>`).
+ * Ключи без записи здесь берут свою собственную запись.
+ */
+const INH_REMAP: Record<string, { from: string; part: 'after-p' | 'whole' }> = {
+  '50:41': { from: '50:40', part: 'after-p' },
+  '50:42': { from: '50:41', part: 'whole' },
+  '50:43': { from: '50:42', part: 'whole' },
+  '50:44': { from: '50:43', part: 'whole' },
+  '50:45': { from: '50:44', part: 'whole' },
+};
+
+/** Запись источника по ключу аята — обычно `sources[key]?.translations.inh`. */
+export type InhRawLookup = (verseKey: string) => string | undefined;
 
 /** Ключ localStorage «показывать ингушский перевод» ('0' — скрыт). */
 export const INH_VISIBLE_KEY = 'showInh';
@@ -57,12 +70,21 @@ export function readShowInh(): boolean {
 
 /**
  * Текст ингушского перевода для показа под аятом, или `undefined`, если
- * показывать нечего (нет в источнике или запись под сомнением).
+ * показывать нечего.  Принимает доступ к записям источника, а не одну
+ * запись: для конца суры 50 перевод лежит в соседней записи (INH_REMAP).
  */
-export function inhDisplayText(verseKey: string, raw: string | undefined): string | undefined {
+export function inhDisplayText(verseKey: string, rawOf: InhRawLookup): string | undefined {
+  const remap = INH_REMAP[verseKey];
+  const raw = rawOf(remap ? remap.from : verseKey);
   if (!raw) return undefined;
-  if (INH_WITHHELD.has(verseKey)) return undefined;
   const cut = raw.indexOf(PARAGRAPH_TAG);
+  if (remap?.part === 'after-p') {
+    if (cut === -1) return undefined;
+    const ayah = verseKey.split(':')[1];
+    const tail = raw.slice(cut + PARAGRAPH_TAG.length).trim();
+    const numbered = `${ayah}. `;
+    return (tail.startsWith(numbered) ? tail.slice(numbered.length) : tail) || undefined;
+  }
   const text = cut === -1 ? raw : raw.slice(0, cut).trimEnd();
   return text || undefined;
 }
