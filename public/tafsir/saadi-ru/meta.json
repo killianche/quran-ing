@@ -1,0 +1,17 @@
+{
+  "title": "Тафсир ас-Саади «Облегчение от Великодушного и Милостивого»",
+  "translator": "Эльмир Кулиев",
+  "text": {
+    "provider": "Quran Foundation (quran.com)",
+    "resource": 170,
+    "slug": "ru-tafseer-al-saddi"
+  },
+  "boundaries": {
+    "provider": "QUL (Tarteel) via spa5k/tafsir_api",
+    "resource": 310,
+    "commit": "eb82bb6294efe30ad5c135c03b1864afaa70e855"
+  },
+  "fetchedAt": "2026-10-03",
+  "groups": 1658,
+  "sha256": "ce05c6d19961a774b6005fd04014b421fc111a99f7ac2c316bb6f9eb6199b3d0"
+}

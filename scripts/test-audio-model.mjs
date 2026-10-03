@@ -647,6 +647,60 @@ group('Ингушский перевод: показ и поиск', () => {
     new Set(both.ayahs.map(a => a.surah + ':' + a.ayah)).size, both.ayahs.length);
 });
 
+// ─── Тафсир ас-Саади ──────────────────────────────────────────────────
+//
+// Данные собирает scripts/gen/build-saadi-tafsir.py: текст — Quran
+// Foundation (ресурс 170), границы — QUL 310.  Здесь проверяется то, на
+// чём держится окно тафсира: каждый аят каждой суры попадает ровно в один
+// фрагмент, и поиск фрагмента по аяту не промахивается.
+const tafsirMod = await import(pathToFileURL(resolve(ROOT, 'src/lib/tafsir.ts')).href);
+group('Тафсир ас-Саади: данные и поиск фрагмента', () => {
+  const { tafsirGroupFor, tafsirParagraphs } = tafsirMod;
+  const dir = resolve(ROOT, 'public/tafsir/saadi-ru');
+  const read = s => JSON.parse(readFileSync(resolve(dir, `${String(s).padStart(3, '0')}.json`), 'utf8'));
+
+  let holes = [];
+  let emptyText = [];
+  let groups = 0;
+  for (let s = 1; s <= TOTAL_SURAHS; s++) {
+    const data = read(s);
+    if (data.surah !== s) holes.push(`${s}: surah=${data.surah}`);
+    let expected = 1;
+    for (const g of data.groups) {
+      groups++;
+      if (g.from !== expected || g.to < g.from) holes.push(`${s}:${g.from}-${g.to}`);
+      if (!g.text || !g.text.trim()) emptyText.push(`${s}:${g.from}`);
+      expected = g.to + 1;
+    }
+    if (expected !== ayahsInSurah(s) + 1) holes.push(`${s}: до ${expected - 1} из ${ayahsInSurah(s)}`);
+  }
+  check('фрагменты покрывают все 114 сур подряд, без дыр и нахлёстов', holes, []);
+  check('у каждого фрагмента есть текст', emptyText, []);
+  const meta = JSON.parse(readFileSync(resolve(dir, 'meta.json'), 'utf8'));
+  check('meta.json: число фрагментов совпадает с файлами', meta.groups, groups);
+
+  // Поиск фрагмента — двоичный: проверяем края и середину.
+  const fatiha = read(1);
+  check('Аль-Фатиха — один фрагмент 1–7',
+    [1, 4, 7].map(a => tafsirGroupFor(fatiha, a)).map(g => [g.from, g.to]), [[1, 7], [1, 7], [1, 7]]);
+  check('аята вне суры нет', tafsirGroupFor(fatiha, 8), undefined);
+
+  // Места, где API Quran Foundation по аяту отдаёт чужое: 112:1 → тафсир
+  // суры 111 («Абу Лахаб…»).  Здесь фрагмент — своя сура.
+  const ikhlas = tafsirGroupFor(read(112), 1);
+  check('112:1 — фрагмент 1–4 суры Аль-Ихлас, а не про Абу Лахаба',
+    [ikhlas.from, ikhlas.to, ikhlas.text.includes('Абу Лахаб')], [1, 4, false]);
+  // 51:1–6 в ресурсе 170 разложены по записям 51:1…51:4 — собраны вместе.
+  const zariyat = tafsirGroupFor(read(51), 3);
+  check('51:3 — фрагмент 1–6 сура Аз-Зарийат', [zariyat.from, zariyat.to], [1, 6]);
+  check('51:7 — следующий фрагмент начинается с 7', tafsirGroupFor(read(51), 7).from, 7);
+  const kursi = tafsirGroupFor(read(2), 255);
+  check('2:255 — Аят аль-Курси толкуется отдельно', [kursi.from, kursi.to], [255, 255]);
+
+  check('абзацы делятся по пустой строке, текст не меняется',
+    tafsirParagraphs('Первый.\n\nВторой.'), ['Первый.', 'Второй.']);
+});
+
 // ─── Время намаза ─────────────────────────────────────────────────────
 //
 // Зачем это здесь.  Время намаза — не косметика: ошибка в углах или

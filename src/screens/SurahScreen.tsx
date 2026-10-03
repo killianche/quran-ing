@@ -67,7 +67,7 @@ import { ThemeSettings, TypographySettings } from '../components/ReadingSettings
 import { AudioSpinner, BottomDock } from '../components/BottomDock';
 import {
   Typography, Appearance,
-  Bookmark as BookmarkIcon, Play, Pause, ICON_SIZE } from '../components/icons';
+  Bookmark as BookmarkIcon, BookOpen, Play, Pause, ICON_SIZE } from '../components/icons';
 import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
 import { type Theme } from '../hooks/useTheme';
 import { getAutoScroll, subscribeAudioPrefs } from '../lib/audioPrefs';
@@ -82,6 +82,7 @@ import {
 } from '../lib/typography';
 import { usesWholeAyahHighlight } from '../lib/reciters';
 import { INH_FONT_FEATURES, INH_VISIBLE_KEY, inhDisplayText, inhFontStack, readShowInh } from '../lib/inhTranslation';
+import { TafsirSheet } from '../components/TafsirSheet';
 import { fontFamilyForPage } from '../content/quran-tajweed-meta';
 
 type Props = {
@@ -310,6 +311,17 @@ export function SurahScreen({
     audioRef.current.handlePlay(surah, ayah, metaRef.current?.ayahs ?? 9999);
   }, []);
 
+  // ── Тафсир ────────────────────────────────────────────────────────────────
+  // Аят, для которого открыт тафсир (null — окно закрыто). Колбэк стабилен:
+  // AyahRow в memo, и новый пропс на каждый рендер ломал бы оптимизацию.
+  const [tafsirAyah, setTafsirAyah] = useState<number | null>(null);
+  const handleAyahTafsir = useCallback((_surah: number, ayah: number) => {
+    setJumpOpen(false); setThemeOpen(false); setTypographyOpen(false);
+    setTafsirAyah(ayah);
+  }, []);
+  useEffect(() => setTafsirAyah(null), [surahNumber]);
+  const closeTafsir = useCallback(() => setTafsirAyah(null), []);
+
   /**
    * Аят, с которого человек начнёт читать, — он и несколько следующих
    * просят шрифт сразу, минуя наблюдатель видимости (см. `eager` в
@@ -361,6 +373,15 @@ export function SurahScreen({
   const quranSources = useQuranSources();
   const { feed, loading: feedLoading, error: feedError } =
     useQcfAyahFeed(surahNumber, eagerAnchor === 1);
+
+  // Данные ленты по номеру аята — окну тафсира, чтобы арабский там был тем
+  // же начертанием, что и в ленте.
+  const feedByAyah = useMemo(() => {
+    const map = new Map<number, QcfAyahEntry>();
+    for (const entry of feed?.ayahs ?? []) if (entry.surah === surahNumber) map.set(entry.ayah, entry);
+    return map;
+  }, [feed, surahNumber]);
+  const entryOfAyah = useCallback((ayah: number) => feedByAyah.get(ayah), [feedByAyah]);
 
   // Шрифт первого экрана заказываем, не дожидаясь всей суры.
   //
@@ -958,6 +979,24 @@ export function SurahScreen({
           anchorEl={themeBtnRef.current}
         />
       )}
+      {tafsirAyah !== null && quranSources && (
+        <TafsirSheet
+          surah={surahNumber}
+          ayah={tafsirAyah}
+          surahTitle={meta?.transliteration ?? `Сура ${surahNumber}`}
+          entryOf={entryOfAyah}
+          sources={quranSources}
+          arabicFont={arabicFont}
+          arabicScale={arabicScale}
+          showInh={showInh}
+          showRu={showRu}
+          inhFont={inhFont}
+          inhScale={inhScale}
+          ruFont={ruFont}
+          ruScale={ruScale}
+          onClose={closeTafsir}
+        />
+      )}
       {typographyOpen && (
         <TypographySettings
           reciter={reciter} setReciter={setReciter}
@@ -1099,6 +1138,7 @@ export function SurahScreen({
                   audioState={isActiveAyah ? audio.audioState : 'idle'}
                   eager={entry.ayah >= eagerAnchor && entry.ayah < eagerAnchor + EAGER_AYAHS}
                   onPlay={handleAyahPlay}
+                  onTafsir={handleAyahTafsir}
                 />
               );
             })}
@@ -1358,7 +1398,7 @@ function SurahTitleBlock({ meta, decor }: {
 const AyahRow = memo(function AyahRow({
   entry, translation, inhTranslation, showArabic, showRu, showInh, arabicFont, arabicScale,
   ruFont, ruScale, inhFont, inhScale, wholeAyahHighlight, isActive, activeWordPos, audioState,
-  eager, onPlay,
+  eager, onPlay, onTafsir,
 }: {
   entry: QcfAyahEntry;
   translation: string | undefined;
@@ -1379,6 +1419,7 @@ const AyahRow = memo(function AyahRow({
   audioState: 'idle' | 'loading' | 'playing' | 'paused';
   eager: boolean;
   onPlay: (surah: number, ayah: number) => void;
+  onTafsir: (surah: number, ayah: number) => void;
 }) {
   // Per-scale bump for serif faces (EB Garamond + Alice):
   //   scales 0.85 / 1.0 / 1.2 → +5px   (gentle lift over Inter)
@@ -1485,6 +1526,8 @@ const AyahRow = memo(function AyahRow({
 
         <BookmarkBtn surah={entry.surah} ayah={entry.ayah} />
 
+        <TafsirBtn verseKey={entry.verseKey} onOpen={() => onTafsir(entry.surah, entry.ayah)} />
+
         <PlayBtn
           isActive={isActive}
           audioState={audioState}
@@ -1540,6 +1583,26 @@ function BookmarkBtn({ surah, ayah }: { surah: number; ayah: number }) {
       }}
     >
       <BookmarkIcon isFilled={marked} />
+    </button>
+  );
+}
+
+/** Тафсир ас-Саади для аята — открывает TafsirSheet. */
+function TafsirBtn({ verseKey, onOpen }: { verseKey: string; onOpen: () => void }) {
+  return (
+    <button
+      // С номером: в ротаторе VoiceOver все кнопки ленты рядом, и без него
+      // они неразличимы.
+      aria-label={`Тафсир аята ${verseKey}`}
+      title="Тафсир ас-Саади"
+      onClick={e => { e.stopPropagation(); onOpen(); }}
+      className="icon-btn"
+      style={{
+        width: '40px', height: '40px',
+        color: 'var(--text-tertiary)',
+      }}
+    >
+      <BookOpen size={ICON_SIZE.md} />
     </button>
   );
 }
