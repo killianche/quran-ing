@@ -1,4 +1,7 @@
-import { SkipBack, SkipForward, Play as PlayIc, Pause as PauseIc, Close as CloseIc } from './icons';
+import {
+  SkipBack, SkipForward, SeekBack10, SeekForward10,
+  Play as PlayIc, Pause as PauseIc, Close as CloseIc,
+} from './icons';
 import { GLASS_BLUR } from '../lib/glass';
 
 type AudioState = 'idle' | 'loading' | 'playing' | 'paused';
@@ -20,6 +23,9 @@ type Props = {
   onPlayPause: () => void;
   onPrev: () => void;
   onNext: () => void;
+  /** Чтец без границ аятов: `onPrev`/`onNext` перематывают на 10 секунд,
+   *  и кнопки показывают это, а не «соседний аят». */
+  timelineSeek?: boolean;
   onCyclePlaybackRate: () => void;
   onClose: () => void;
 };
@@ -31,7 +37,7 @@ type Props = {
  */
 export function BottomDock({
   audioState, progress = 0, playbackRate = 1,
-  onPlayPause, onPrev, onNext, onCyclePlaybackRate, onClose,
+  onPlayPause, onPrev, onNext, timelineSeek = false, onCyclePlaybackRate, onClose,
 }: Props) {
   const playing = audioState === 'playing';
   const loading = audioState === 'loading';
@@ -107,8 +113,11 @@ export function BottomDock({
         </span>
       </DockBtn>
 
-      <DockBtn aria-label="Previous ayah" onClick={onPrev}>
-        <SkipBack size={DOCK_ICON} />
+      <DockBtn
+        aria-label={timelineSeek ? 'Назад на 10 секунд' : 'Previous ayah'}
+        onClick={onPrev}
+      >
+        {timelineSeek ? <SeekBack10 size={DOCK_ICON} /> : <SkipBack size={DOCK_ICON} />}
       </DockBtn>
 
       {/* Play / pause — used to be a 56 px filled-ink CTA that visually
@@ -131,8 +140,11 @@ export function BottomDock({
             : <PlayIc size={DOCK_ICON} />}
       </DockBtn>
 
-      <DockBtn aria-label="Next ayah" onClick={onNext}>
-        <SkipForward size={DOCK_ICON} />
+      <DockBtn
+        aria-label={timelineSeek ? 'Вперёд на 10 секунд' : 'Next ayah'}
+        onClick={onNext}
+      >
+        {timelineSeek ? <SeekForward10 size={DOCK_ICON} /> : <SkipForward size={DOCK_ICON} />}
       </DockBtn>
 
       <DockBtn aria-label="Закрыть плеер" onClick={onClose}>

@@ -38,6 +38,9 @@ const tajweedPageMod = await import(
 const recitersMod = await import(
   pathToFileURL(resolve(ROOT, 'src/lib/reciters.ts')).href
 );
+const playbackTimeMod = await import(
+  pathToFileURL(resolve(ROOT, 'src/lib/playbackTime.ts')).href
+);
 const quranUtilsMod = await import(
   pathToFileURL(resolve(ROOT, 'src/lib/quranUtils.ts')).href
 );
@@ -64,8 +67,9 @@ const { tajweedVisualWordPosition } = tajweedAudioMod;
 const { tajweedPageJsonPath, tajweedAyahFromPage } = tajweedPageMod;
 const {
   RECITERS, RECITERS_WITH_SEGMENTS, reciterById, supportsAyahOffline,
-  requiresSurahAudioStream, surahAudioUrl, usesWholeAyahHighlight,
+  requiresSurahAudioStream, surahAudioUrl, usesWholeAyahHighlight, usesTimelineSeek,
 } = recitersMod;
+const { formatPlaybackTime } = playbackTimeMod;
 const { ayahAudioUrl } = quranUtilsMod;
 const { ayahAudioRange } = ayahAudioRangeMod;
 const { timetableRow, timetableDays } = timetableMod;
@@ -128,6 +132,28 @@ group('Лента аятов: быстрый постраничный таджв
     tajweedAyahFromPage(page2, '1:1'), null);
   check('путь страницы дополнен нулями',
     tajweedPageJsonPath(7), '/tajweed/pages/007.json');
+});
+
+group('Чтец без границ аятов: перемотка по времени', () => {
+  // Режим держится на двух допущениях: звук берётся из записи целой суры, а
+  // поаятного источника нет. С поаятным источником `mediaCacheKey` развёл бы
+  // такого чтеца по отдельным файлам аятов, и «±10 с» перематывали бы
+  // короткий файл одного аята.
+  check('у каждого timelineOnly-чтеца есть запись суры и нет поаятного источника',
+    RECITERS
+      .filter(r => r.timelineOnly)
+      .filter(r => !r.surahAudioBase || r.ayahAudioBase || r.slug || r.everyayahDir)
+      .map(r => r.id),
+    []);
+  check('признак перемотки по времени повторяет флаг каталога',
+    RECITERS.map(r => usesTimelineSeek(r.id)),
+    RECITERS.map(r => Boolean(r.timelineOnly)));
+  check('время позиции: секунды, минуты, часы',
+    [0, 9, 75, 600, 3725].map(formatPlaybackTime),
+    ['0:00', '0:09', '1:15', '10:00', '1:02:05']);
+  check('время позиции: дробное отбрасывается, мусор даёт ноль',
+    [59.99, -5, Number.NaN, Number.POSITIVE_INFINITY].map(formatPlaybackTime),
+    ['0:59', '0:00', '0:00', '0:00']);
 });
 
 group('Каталог чтецов и источники аудио', () => {

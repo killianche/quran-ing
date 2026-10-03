@@ -33,6 +33,9 @@ export type MediaSessionHandlers = {
   onPrev?: () => void;
   onNext?: () => void;
   onSeekTo?: (positionSec: number) => void;
+  /** Перемотка назад/вперёд на шаг; система может прислать свой шаг. */
+  onSeekBackward?: (offsetSec?: number) => void;
+  onSeekForward?: (offsetSec?: number) => void;
 };
 
 let handlersBound = false;
@@ -82,16 +85,29 @@ export function bindMediaSessionHandlers(h: MediaSessionHandlers) {
   ms.setActionHandler('previoustrack', h.onPrev ? () => h.onPrev!() : null);
   ms.setActionHandler('nexttrack',     h.onNext ? () => h.onNext!() : null);
 
-  // 'seekto' (с granular position) — поддержан современным WebKit/iOS.
-  if (h.onSeekTo) {
-    try {
-      ms.setActionHandler('seekto', (details) => {
-        if (details.seekTime != null) h.onSeekTo!(details.seekTime);
-      });
-    } catch {
-      // Старые браузеры — игнор, базовые кнопки всё равно работают.
-    }
-  }
+  // Перемотка по времени. Привязка повторная (смена чтеца), поэтому
+  // отсутствующий обработчик явно снимается — иначе на замке осталась бы
+  // перемотка от прошлого чтеца. iOS показывает «±10 с» вместо «трек
+  // назад/вперёд», когда заданы seekbackward/seekforward, а
+  // previoustrack/nexttrack сняты.
+  //
+  // Каждое действие в своём try: старый WebKit бросает на незнакомом имени,
+  // и одно неподдержанное действие не должно отменять остальные.
+  const bindSafe = (
+    action: MediaSessionAction,
+    handler: MediaSessionActionHandler | null,
+  ) => {
+    try { ms.setActionHandler(action, handler); } catch { /* не поддержано */ }
+  };
+  bindSafe('seekto', h.onSeekTo
+    ? (details) => { if (details.seekTime != null) h.onSeekTo!(details.seekTime); }
+    : null);
+  bindSafe('seekbackward', h.onSeekBackward
+    ? (details) => h.onSeekBackward!(details.seekOffset ?? undefined)
+    : null);
+  bindSafe('seekforward', h.onSeekForward
+    ? (details) => h.onSeekForward!(details.seekOffset ?? undefined)
+    : null);
   handlersBound = true;
 }
 

@@ -3,8 +3,8 @@ import { ayahAudioUrl } from '../lib/quranUtils';
 import { ayahAudioRange } from '../lib/ayahAudioRange';
 import { localAyahSrc, localSurahSrc, unmarkSurahFile } from '../lib/audioStore';
 import {
-  DEFAULT_RECITER, RECITERS_WITH_SEGMENTS, hasSurahAudio, requiresSurahAudioStream,
-  surahAudioUrl, type ReciterId,
+  DEFAULT_RECITER, RECITERS_WITH_SEGMENTS, TIMELINE_SEEK_STEP_SECONDS, hasSurahAudio,
+  requiresSurahAudioStream, surahAudioUrl, usesTimelineSeek, type ReciterId,
 } from '../lib/reciters';
 import {
   setMediaSessionMetadata, setMediaSessionPlaybackState,
@@ -42,6 +42,9 @@ export type AudioFailure = {
   surah: number;
   ayah: number;
   lastAyah: number;
+  /** Где оборвалось, секунды записи — у чтеца без границ аятов, где «аят»
+   *  ничего не говорит. Повтор продолжает отсюда, а не с начала суры. */
+  positionSeconds?: number;
   /** Устройство сообщает, что сети нет вовсе. */
   offline: boolean;
 };
@@ -279,7 +282,23 @@ function usesContinuousAudio(reciter: ReciterId) {
 }
 
 function rangeForMedia(reciter: ReciterId, surah: number, ayah: number) {
+  if (usesTimelineSeek(reciter)) return null;
   return usesContinuousAudio(reciter) ? ayahAudioRange(reciter, surah, ayah) : null;
+}
+
+/**
+ * Очередь чтеца без границ аятов — ровно один «аят»: вся запись суры.
+ *
+ * 🔴 Без этого очередь шла бы от аята к аяту, как у остальных чтецов. Но
+ * без таблицы границ каждый следующий аят — это перемотка в НОЛЬ записи:
+ * сура проигрывалась бы заново столько раз, сколько в ней аятов, и только
+ * потом уходила бы в следующую. Логический аят здесь всегда первый, конец
+ * очереди — конец файла.
+ */
+function timelineQueueBounds(reciter: ReciterId, fromAyah: number, lastAyah: number) {
+  return usesTimelineSeek(reciter)
+    ? { fromAyah: 1, lastAyah: 1 }
+    : { fromAyah, lastAyah };
 }
 
 /** Continuous-only sources reuse one decoder per surah. Reciters with an
@@ -575,6 +594,14 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
   const [activeKey, setActiveKey]   = useState<string | null>(null);
   const [audioState, setAudioState] = useState<AudioState>('idle');
   const [progress, setProgress]     = useState(0);          // 0..1 within current ayah
+  /**
+   * Длина звучащего файла, секунды; 0 — пока неизвестна.
+   *
+   * Нужна ползунку чтеца без границ аятов: у него `progress` считается по
+   * всей записи суры, и время на ползунке — это `progress × duration`.
+   * Меняется раз на файл, поэтому отдельный state не добавляет тиков.
+   */
+  const [duration, setDuration]     = useState(0);
   const [playbackRate, setPlaybackRateS] = useState<PlaybackRate>(readStoredRate);
   // 1-based word position inside the active ayah, or null if no segment data
   // exists for it / nothing is playing. Driven by the same rAF that powers
@@ -644,6 +671,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     setActiveKey(null);
     setAudioState('idle');
     setProgress(0);
+    setDuration(0);
     setCurrentWordPos(null);
     queueRef.current = null;
     activeAudioRef.current = null;
@@ -653,6 +681,9 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     surah: number,
     ayah: number,
     transition: 'manual' | 'automatic' = 'manual',
+    /** Начать не с начала аята, а с этой секунды записи — повтор после
+     *  сбоя у чтеца без границ аятов. */
+    startAtSeconds?: number,
   ) => {
     // Любая новая попытка снимает прежнее сообщение об отказе.
     setFailure(null);
@@ -698,6 +729,16 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     logicalKeyForAudio.set(audio, k);
     completedRange.delete(audio);
 
+    // Длина файла для ползунка: у прогретого элемента она известна сразу,
+    // у нового приходит с `durationchange`. Проверка владельца та же, что
+    // у `ended`: поздние метаданные прежнего элемента не подменят длину.
+    const syncDuration = () => {
+      if (activeAudioRef.current !== audio) return;
+      setDuration(Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0);
+    };
+    audio.ondurationchange = syncDuration;
+    syncDuration();
+
     // Switching to a different ayah → restart from 0. We also need this
     // when `activeKey` is null but the cached <audio> for `k` was left
     // mid-track from a previous SurahScreen mount (audioCache lives at
@@ -716,7 +757,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       // включивший суру целиком, не услышал бы её начала. У Аляфаси и
       // Аш-Шатри граница равна нулю, поэтому там ничего не меняется.
       const atSurahStart = startedWholeSurah && playbackMode === 'surah' && ayah === 1;
-      seekAudio(audio, atSurahStart ? 0 : (range?.startSeconds ?? 0));
+      seekAudio(audio, atSurahStart ? 0 : (startAtSeconds ?? range?.startSeconds ?? 0));
     }
 
     setActiveKey(k);
@@ -738,7 +779,9 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       const surahMeta = SURAH_BY_NUMBER[surah];
       setMediaSessionMetadata({
         title:      surahMeta?.transliteration ?? `Surah ${surah}`,
-        album:      `Аят ${ayah}`,
+        // У чтеца без границ аятов номер аята неизвестен — «Аят 1» на замке
+        // всю суру был бы неправдой.
+        album:      usesTimelineSeek(r) ? undefined : `Аят ${ayah}`,
         artist:     reciterRef.current,
         // PNG надёжнее SVG на Android — некоторые WebView версии
         // не рендерят SVG в Lock Screen artwork.
@@ -816,7 +859,10 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       playbackMode = hasSurahAudio(r) ? 'surah' : 'ayah';
       startedWholeSurah = true;
       queueRef.current = {
-        surah: следующая, first: 1, last: метаСледующей.ayahs, current: 1,
+        surah: следующая,
+        first: 1,
+        last: timelineQueueBounds(r, 1, метаСледующей.ayahs).lastAyah,
+        current: 1,
       };
       playOne(следующая, 1, 'automatic');
     };
@@ -826,6 +872,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       setActiveKey(null);
       queueRef.current = null;
       setProgress(0);
+      setDuration(0);
       activeAudioRef.current = null;
     };
 
@@ -834,6 +881,9 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     // from an obsolete element cannot stop a newer ayah selected by the user.
     let failed = false;
     let stallTimer = 0;
+    /** Позиция до повтора: после `load()` неудачного файла `currentTime`
+     *  остаётся нулём, и место обрыва иначе потерялось бы. */
+    let lastKnownPosition = startAtSeconds ?? 0;
     const stopStallWatch = () => {
       if (stallTimer) { window.clearTimeout(stallTimer); stallTimer = 0; }
     };
@@ -878,11 +928,16 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       // приложение будет молча долбиться в мёртвую сеть.
       if (!retriedOnce.has(audio) && playbackMode === 'surah') {
         retriedOnce.add(audio);
+        // У чтеца без границ аятов «начало аята» — это начало суры. Обрыв на
+        // 25-й минуте не должен отбрасывать к нулю: повтор идёт с того места,
+        // где замолчало. Позицию берём сейчас — `load()` её сбросит.
+        const resumeAt = usesTimelineSeek(r) ? audio.currentTime : (range?.startSeconds ?? 0);
+        lastKnownPosition = Math.max(lastKnownPosition, resumeAt);
         window.setTimeout(() => {
           if (activeAudioRef.current !== audio || logicalKeyForAudio.get(audio) !== k) return;
           failed = false;
           audio.load();
-          seekAudio(audio, range?.startSeconds ?? 0);
+          seekAudio(audio, resumeAt);
           startStallWatch();
           void audio.play().catch(() => failAndStop('retry-failed'));
         }, RETRY_DELAY_MS);
@@ -917,6 +972,10 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       // Stop the queue on the SAME ayah.  A downloaded local file still plays
       // normally offline because ayahAudioUrl() chooses it before the network
       // URL; this branch is reached only when the selected source truly fails.
+      // Место обрыва — до `stopAll`: остановка кэша может сбросить позицию.
+      const местоОбрыва = usesTimelineSeek(r)
+        ? Math.max(lastKnownPosition, Number.isFinite(audio.currentTime) ? audio.currentTime : 0)
+        : undefined;
       stopAll();
       if (audioCache.get(mediaK) === audio) audioCache.delete(mediaK);
       audio.onended = null;
@@ -927,6 +986,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
         surah,
         ayah,
         lastAyah: queueRef.current?.last ?? SURAH_BY_NUMBER[surah]?.ayahs ?? ayah,
+        positionSeconds: местоОбрыва,
         offline: typeof navigator !== 'undefined' && navigator.onLine === false,
       });
     };
@@ -1013,7 +1073,17 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
   }, [activeKey, stopAll]);
 
   /** Tap on an ayah — play / pause that ayah, joining the queue. */
-  const handlePlay = useCallback((surah: number, ayah: number, lastAyah?: number) => {
+  const handlePlay = useCallback((
+    surah: number,
+    requestedAyah: number,
+    requestedLast?: number,
+    startAtSeconds?: number,
+  ) => {
+    // У чтеца без границ аятов тап по любому аяту — это вся запись суры:
+    // начать её, а на звучащей суре — пауза или продолжение с того же места.
+    const timeline = usesTimelineSeek(reciterRef.current);
+    const ayah = timeline ? 1 : requestedAyah;
+    const lastAyah = timeline ? 1 : requestedLast;
     const k = cacheKey(reciterRef.current, surah, ayah);
 
     if (queueRef.current?.surah !== surah) {
@@ -1070,8 +1140,11 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       снятьАварийныйРежим();
       забытьНеудачи();
       playbackMode = hasSurahAudio(r) ? 'surah' : 'ayah';
-      startedWholeSurah = false;
-      playOne(surah, ayah);
+      // Тап по звучащей суре у чтеца без границ аятов — это «продолжить», а
+      // не новое намерение: начатое «слушать суру целиком» должно и дальше
+      // уходить в следующую суру.
+      if (!(timeline && activeKey === k)) startedWholeSurah = false;
+      playOne(surah, ayah, 'manual', startAtSeconds);
     };
 
     if (activeKey === k) {
@@ -1091,8 +1164,11 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
    * никакой существующий вызов не сменил поведение молча.
    */
   const playFrom = useCallback((
-    surah: number, fromAyah: number, lastAyah: number, mode: PlaybackMode = 'ayah',
+    surah: number, requestedFrom: number, requestedLast: number, mode: PlaybackMode = 'ayah',
   ) => {
+    const { fromAyah, lastAyah } = timelineQueueBounds(
+      reciterRef.current, requestedFrom, requestedLast,
+    );
     // Режим тот же, что и при тапе: сплошная запись, пока она есть у чтеца.
     // Локальный файл предпочитается сетевому внутри `getOrCreateAudio`, а
     // отсутствие и того и другого разбирает аварийная ветка в `failAndStop`.
@@ -1202,7 +1278,11 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       }
 
       // Последний аят перед следующей сурой: заранее грузим её файл.
-      if (!прогретаСледующая && range && !completedRange.has(audio)
+      // У чтеца без границ аятов `range` нет, а прогрев нужен тем более:
+      // переход у него идёт за 50 мс до конца большого файла, и без запаса
+      // следующая сура начинала бы грузиться с нуля в тишине.
+      if (!прогретаСледующая && (range || usesTimelineSeek(reciterId as ReciterId))
+        && !completedRange.has(audio)
         && Number.isFinite(audio.duration)
         && audio.duration - audio.currentTime <= PREWARM_NEXT_SURAH_SECONDS
         && уходитВСледующуюСуру(queueRef.current, Number(surahPart), Number(ayahPart))) {
@@ -1300,19 +1380,55 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     };
   }, [audioState, activeKey]);
 
+  /**
+   * Перемотка по времени — только у чтеца без границ аятов.
+   *
+   * У остальных позиция в записи привязана к логическому аяту, и прыжок на
+   * произвольную секунду развёл бы звучащее с подсвеченным; там перемотка
+   * идёт по аятам (`next`/`prev`).
+   *
+   * Самый конец не отдаём: последняя секунда остаётся доиграть, и переход к
+   * следующей суре (или остановка) идёт обычной дорогой — через ранний
+   * переход в кадровом цикле, а не через особый случай «перемотали в конец».
+   */
+  const seekTo = useCallback((seconds: number) => {
+    if (!usesTimelineSeek(reciterRef.current)) return;
+    const audio = activeAudioRef.current;
+    if (!audio || !queueRef.current) return;
+    const d = audio.duration;
+    if (!Number.isFinite(d) || d <= 0) return;
+    const target = Math.min(Math.max(0, d - 1), Math.max(0, seconds));
+    seekAudio(audio, target);
+    // На паузе кадровый цикл стоит — ползунок и экран блокировки обновляем
+    // сами, иначе они остались бы на прежнем месте до запуска.
+    setProgress(target / d);
+    setMediaSessionPosition(target, d, audio.playbackRate);
+  }, []);
+
+  const seekBy = useCallback((deltaSeconds: number) => {
+    const audio = activeAudioRef.current;
+    if (!audio) return;
+    seekTo(audio.currentTime + deltaSeconds);
+  }, [seekTo]);
+
+  // У чтеца без границ аятов «соседний аят» — это шаг по времени. Так одни
+  // и те же кнопки дока, стрелки клавиатуры и экран блокировки работают
+  // для любого чтеца, и ни одна из них не перезапускает суру с нуля.
   const next = useCallback(() => {
+    if (usesTimelineSeek(reciterRef.current)) { seekBy(TIMELINE_SEEK_STEP_SECONDS); return; }
     const q = queueRef.current;
     if (!q) return;
     const ayah = Math.min(q.current + 1, q.last);
     if (ayah !== q.current) { q.current = ayah; playOne(q.surah, ayah); }
-  }, [playOne]);
+  }, [playOne, seekBy]);
 
   const prev = useCallback(() => {
+    if (usesTimelineSeek(reciterRef.current)) { seekBy(-TIMELINE_SEEK_STEP_SECONDS); return; }
     const q = queueRef.current;
     if (!q) return;
     const ayah = Math.max(q.current - 1, q.first);
     if (ayah !== q.current) { q.current = ayah; playOne(q.surah, ayah); }
-  }, [playOne]);
+  }, [playOne, seekBy]);
 
   /**
    * Wall-clock seconds left in the active ayah, divided by playback rate
@@ -1375,6 +1491,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     activeKey,
     audioState,
     progress,
+    duration,
     playbackRate,
     cyclePlaybackRate,
     currentSurah: queueRef.current?.surah ?? null,
@@ -1388,6 +1505,8 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     currentMode: () => playbackMode,
     next,
     prev,
+    seekTo,
+    seekBy,
     pause: pauseCurrent,
     resume,
     stopAll,

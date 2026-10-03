@@ -80,7 +80,7 @@ import {
   arabicFontConfig,
   type LatinFontId, type ArabicFontId,
 } from '../lib/typography';
-import { usesWholeAyahHighlight } from '../lib/reciters';
+import { usesTimelineSeek, usesWholeAyahHighlight } from '../lib/reciters';
 import { INH_FONT_FEATURES, INH_VISIBLE_KEY, inhDisplayText, inhFontStack, readShowInh } from '../lib/inhTranslation';
 import { TafsirSheet } from '../components/TafsirSheet';
 import { fontFamilyForPage } from '../content/quran-tajweed-meta';
@@ -302,12 +302,19 @@ export function SurahScreen({
   // AyahRow ниже обёрнут в memo, поэтому на тик перерисовывается только
   // звучащая строка — но лишь при условии, что все пропсы стабильны по ссылке.
   const wholeAyahHighlight = usesWholeAyahHighlight(reciter);
+  // Чтец без границ аятов: звучащий аят неизвестен. Ни подсветки, ни
+  // автопрокрутки — иначе весь звук «висел» бы на первом аяте.
+  const timelineSeek = usesTimelineSeek(reciter);
+  const timelineSeekRef = useRef(timelineSeek);
+  timelineSeekRef.current = timelineSeek;
   const audioRef = useRef(audio);
   audioRef.current = audio;
   const metaRef = useRef(meta);
   metaRef.current = meta;
   const handleAyahPlay = useCallback((surah: number, ayah: number) => {
-    updateRecentAyah(surah, ayah);
+    // У чтеца без границ аятов звук идёт с начала суры, а не с этого аята —
+    // записать его в «недавнее» значило бы запомнить место, которого не было.
+    if (!timelineSeekRef.current) updateRecentAyah(surah, ayah);
     audioRef.current.handlePlay(surah, ayah, metaRef.current?.ayahs ?? 9999);
   }, []);
 
@@ -660,6 +667,7 @@ export function SurahScreen({
     // Пока палец ведёт быструю прокрутку, звучащий аят не уносит страницу
     // к себе: иначе в пузыре один номер, а на экране другой.
     if (isScrubbing()) return;
+    if (timelineSeek) return;
     const ayah  = audio.currentAyah;
     const surah = audio.currentSurah;
     if (!ayah || !surah || surah !== surahNumber) return;
@@ -706,7 +714,7 @@ export function SurahScreen({
       isAutoScrollingRef.current = false;
     }, settle);
     updateRecentAyah(surah, ayah);
-  }, [audio.currentAyah, audio.currentSurah, surahNumber]);
+  }, [audio.currentAyah, audio.currentSurah, surahNumber, timelineSeek]);
 
   useEffect(() => {
     lastAutoAyahRef.current = null;
@@ -905,7 +913,7 @@ export function SurahScreen({
   }, []);
 
   // ── Derived: which ayah is "active" right now (playing) ────────────────────
-  const activeVerseKey = (audio.currentSurah && audio.currentAyah)
+  const activeVerseKey = (audio.currentSurah && audio.currentAyah && !timelineSeek)
     ? `${audio.currentSurah}:${audio.currentAyah}`
     : null;
 
@@ -1114,6 +1122,10 @@ export function SurahScreen({
           <div>
             {feed.ayahs.slice(0, visibleCount).map(entry => {
               const isActiveAyah = activeVerseKey === entry.verseKey;
+              // У чтеца без границ аятов кнопка каждой строки управляет всей
+              // записью суры и показывает её состояние. Строки перерисовываются
+              // только на смене состояния (старт, пауза), не на тиках.
+              const surahControl = timelineSeek && audio.currentSurah === surahNumber;
               return (
                 <AyahRow
                   key={entry.verseKey}
@@ -1135,7 +1147,8 @@ export function SurahScreen({
                   // нужны — иначе memo срабатывал бы вхолостую на каждом
                   // тике аудио у всех 286 аятов сразу.
                   activeWordPos={isActiveAyah ? tick.currentWordPos : null}
-                  audioState={isActiveAyah ? audio.audioState : 'idle'}
+                  audioState={isActiveAyah || surahControl ? audio.audioState : 'idle'}
+                  surahScope={timelineSeek}
                   eager={entry.ayah >= eagerAnchor && entry.ayah < eagerAnchor + EAGER_AYAHS}
                   onPlay={handleAyahPlay}
                   onTafsir={handleAyahTafsir}
@@ -1159,6 +1172,7 @@ export function SurahScreen({
           onPlayPause={handlePlayPause}
           onPrev={audio.prev}
           onNext={audio.next}
+          timelineSeek={timelineSeek}
           onCyclePlaybackRate={audio.cyclePlaybackRate}
           onClose={audio.stopAll}
         />
@@ -1398,7 +1412,7 @@ function SurahTitleBlock({ meta, decor }: {
 const AyahRow = memo(function AyahRow({
   entry, translation, inhTranslation, showArabic, showRu, showInh, arabicFont, arabicScale,
   ruFont, ruScale, inhFont, inhScale, wholeAyahHighlight, isActive, activeWordPos, audioState,
-  eager, onPlay, onTafsir,
+  surahScope, eager, onPlay, onTafsir,
 }: {
   entry: QcfAyahEntry;
   translation: string | undefined;
@@ -1417,6 +1431,8 @@ const AyahRow = memo(function AyahRow({
   isActive: boolean;
   activeWordPos: number | null;
   audioState: 'idle' | 'loading' | 'playing' | 'paused';
+  /** Кнопка строки играет всю суру (чтец без границ аятов). */
+  surahScope: boolean;
   eager: boolean;
   onPlay: (surah: number, ayah: number) => void;
   onTafsir: (surah: number, ayah: number) => void;
@@ -1531,6 +1547,7 @@ const AyahRow = memo(function AyahRow({
         <PlayBtn
           isActive={isActive}
           audioState={audioState}
+          surahScope={surahScope}
           onPlay={() => onPlay(entry.surah, entry.ayah)}
         />
       </div>
@@ -1609,17 +1626,25 @@ function TafsirBtn({ verseKey, onOpen }: { verseKey: string; onOpen: () => void 
 
 /** Play/pause button for a single ayah */
 function PlayBtn({
-  isActive, audioState, onPlay,
+  isActive, audioState, surahScope, onPlay,
 }: {
   isActive: boolean;
   audioState: 'idle' | 'loading' | 'playing' | 'paused';
+  /** Чтец без границ аятов: кнопка играет и ставит на паузу всю суру. */
+  surahScope: boolean;
   onPlay: () => void;
 }) {
-  const playing = isActive && audioState === 'playing';
-  const loading = isActive && audioState === 'loading';
+  // «Задействована» — управляет тем, что звучит: звучащий аят или, у чтеца
+  // без границ аятов, звучащая сура (подсветки строки при этом нет).
+  const engaged = isActive || (surahScope && audioState !== 'idle');
+  const playing = engaged && audioState === 'playing';
+  const loading = engaged && audioState === 'loading';
+  const label = surahScope
+    ? (loading ? 'Загрузка суры' : playing ? 'Пауза' : 'Слушать суру')
+    : (loading ? 'Загрузка аята' : playing ? 'Пауза' : 'Слушать аят');
   return (
     <button
-      aria-label={loading ? 'Загрузка аята' : playing ? 'Пауза' : 'Слушать аят'}
+      aria-label={label}
       // aria-disabled, а не disabled. У заблокированного контрола WebKit
       // не доставляет указательные события самому контролу, и распознаватель
       // тапа по области чтения видел нажатие на <article> — панель прыгала
@@ -1632,11 +1657,11 @@ function PlayBtn({
         onPlay();
       }}
       className="icon-btn"
-      data-active={isActive}
+      data-active={engaged}
       aria-disabled={loading || undefined}
       style={{
         width: '40px', height: '40px',
-        color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+        color: engaged ? 'var(--text-primary)' : 'var(--text-tertiary)',
         cursor: loading ? 'wait' : 'pointer',
       }}
     >

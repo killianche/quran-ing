@@ -18,15 +18,25 @@
  * единица: человек мыслит аятами. Поэтому позиция показана аятом, а
  * перемотка — по аятам.
  *
+ * Исключение — чтец без границ аятов (`usesTimelineSeek`). У него аята
+ * узнать неоткуда, поэтому сура слушается как трек музыкального плеера:
+ * ползунок по времени и перемотка на 10 секунд (решение владельца
+ * 03.10.2026).
+ *
  * Нет текста аята: для чтения есть лента, и дублировать её здесь значило
  * бы сделать второй, худший читатель.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
 import { ReciterCard } from '../components/ReadingSettings';
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, ICON_SIZE } from '../components/icons';
-import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
+import {
+  Play, Pause, SkipBack, SkipForward, SeekBack10, SeekForward10,
+  ChevronLeft, ChevronRight, ICON_SIZE,
+} from '../components/icons';
+import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
+import { TIMELINE_SEEK_STEP_SECONDS, usesTimelineSeek } from '../lib/reciters';
+import { formatPlaybackTime } from '../lib/playbackTime';
 import { SURAH_BY_NUMBER, SURAHS } from '../content/surahs';
 import { TOTAL_SURAHS } from '../lib/ayahNumbering';
 
@@ -53,6 +63,7 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
   const finished = !currentSurah && Boolean(surah);
   const playing = audioState === 'playing';
   const loading = audioState === 'loading';
+  const timeline = usesTimelineSeek(reciter);
 
   const playSurah = (n: number) => {
     const m = SURAH_BY_NUMBER[n];
@@ -145,7 +156,16 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
 
         {/* ── Где мы в суре ──────────────────────────────────────────
             Позиция аятом, а не временем: человек, слушающий Коран,
-            мыслит аятами, а не минутами записи. */}
+            мыслит аятами, а не минутами записи. Кроме чтеца без
+            границ аятов — у него ползунок времени. */}
+        {timeline ? (
+          <SeekBar
+            // Своя сура — свой ползунок: незавершённое перетаскивание не
+            // переезжает на следующую.
+            key={surah}
+            status={loading ? 'Загрузка…' : finished ? 'Сура дочитана' : null}
+          />
+        ) : (
         <section style={{ display: 'grid', gap: 'var(--space-tight)' }}>
           <div style={{
             height: '4px',
@@ -169,6 +189,7 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
             {loading ? 'Загрузка…' : finished ? 'Сура дочитана' : `Аят ${ayah} из ${total}`}
           </p>
         </section>
+        )}
 
         {/* ── Управление ─────────────────────────────────────────────── */}
         <section style={{
@@ -177,11 +198,11 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
         }}>
           <button
             onClick={() => audio.prev()}
-            aria-label="Предыдущий аят"
+            aria-label={timeline ? 'Назад на 10 секунд' : 'Предыдущий аят'}
             className="icon-btn"
             style={{ width: '52px', height: '52px', color: 'var(--text-secondary)' }}
           >
-            <SkipBack size={ICON_SIZE.lg} />
+            {timeline ? <SeekBack10 size={ICON_SIZE.lg} /> : <SkipBack size={ICON_SIZE.lg} />}
           </button>
 
           <button
@@ -210,11 +231,11 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
 
           <button
             onClick={() => audio.next()}
-            aria-label="Следующий аят"
+            aria-label={timeline ? 'Вперёд на 10 секунд' : 'Следующий аят'}
             className="icon-btn"
             style={{ width: '52px', height: '52px', color: 'var(--text-secondary)' }}
           >
-            <SkipForward size={ICON_SIZE.lg} />
+            {timeline ? <SeekForward10 size={ICON_SIZE.lg} /> : <SkipForward size={ICON_SIZE.lg} />}
           </button>
         </section>
 
@@ -338,5 +359,117 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
         </>)}
       </div>
     </div>
+  );
+}
+
+/**
+ * Ползунок времени — для чтеца без границ аятов.
+ *
+ * Живёт отдельным компонентом ради подписки на тик: прогресс меняется
+ * ~12 раз в секунду, и перерисовываться с этой частотой должен только
+ * ползунок, а не весь экран с карточкой чтеца и списком сур.
+ *
+ * 🔴 Перемотка — по ОТПУСКАНИЮ, а не на каждое движение пальца. Пока палец
+ * ведёт бегунок, показывается только время под ним (`drag`); звук прыгает
+ * один раз. Иначе каждое движение запускало бы новую подгрузку сетевого
+ * файла с середины, и звук заикался бы всё время, пока палец на ползунке.
+ *
+ * Отпускание ловится и нативным `change`, и концом касания. Одного
+ * `change` мало: если палец сдвинул бегунок и вернул его на то же
+ * значение, `input` пришёл, а `change` — нет, и ползунок застывал бы на
+ * месте пальца, пока звук идёт дальше (ревью 03.10.2026).
+ *
+ * Клавиатура перематывает тем же шагом, что и кнопки (10 с): шаг самого
+ * поля — `any`, иначе браузер округлял бы позицию до целых секунд, и
+ * бегунок расходился бы с заливкой.
+ */
+function SeekBar({ status }: { status: string | null }) {
+  const { progress, duration } = useAudioTick();
+  const audio = useAudioActions();
+  const [drag, setDrag] = useState<number | null>(null);
+  // Копия для нативных обработчиков: они вешаются один раз и не видят
+  // свежий state.
+  const dragRef = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startDrag = (value: number) => {
+    dragRef.current = value;
+    setDrag(value);
+  };
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const commit = () => {
+      if (dragRef.current === null) return;
+      dragRef.current = null;
+      setDrag(null);
+      audio.seekTo(Number(el.value));
+    };
+    const events = ['change', 'pointerup', 'pointercancel', 'touchend', 'touchcancel', 'blur'];
+    events.forEach(name => el.addEventListener(name, commit));
+    return () => events.forEach(name => el.removeEventListener(name, commit));
+  }, [audio]);
+
+  // Новый файл (смена чтеца, автопереход) — незавершённое перетаскивание
+  // не должно перенести старую позицию на другую запись.
+  useEffect(() => {
+    dragRef.current = null;
+    setDrag(null);
+  }, [duration]);
+
+  const known = duration > 0;
+  const current = Math.min(duration, drag ?? progress * duration);
+  const pct = known ? (current / duration) * 100 : 0;
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    const step = TIMELINE_SEEK_STEP_SECONDS;
+    const deltas: Record<string, number> = {
+      ArrowLeft: -step, ArrowDown: -step, ArrowRight: step, ArrowUp: step,
+      PageDown: -6 * step, PageUp: 6 * step,
+    };
+    if (e.key in deltas) {
+      e.preventDefault();
+      audio.seekBy(deltas[e.key]);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      audio.seekTo(0);
+    }
+  };
+
+  return (
+    <section style={{ display: 'grid', gap: 'var(--space-hair)' }}>
+      <input
+        ref={inputRef}
+        type="range"
+        className="seek-slider"
+        min={0}
+        max={known ? duration : 1}
+        step="any"
+        value={known ? current : 0}
+        disabled={!known}
+        onChange={e => startDrag(Number(e.currentTarget.value))}
+        onKeyDown={onKeyDown}
+        aria-label="Позиция в записи суры"
+        aria-valuetext={known
+          ? `${formatPlaybackTime(current)} из ${formatPlaybackTime(duration)}`
+          : undefined}
+        style={{ '--seek-pct': `${pct}%` } as CSSProperties}
+      />
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        gap: 'var(--space-tight)',
+        fontSize: 'var(--font-caption2)',
+        lineHeight: 'var(--leading-caption2)',
+        color: 'var(--text-tertiary)',
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        <span>{known ? formatPlaybackTime(current) : '0:00'}</span>
+        {status && <span>{status}</span>}
+        {/* Остаток, а не общая длина: так считают системные плееры, и он
+            отвечает на вопрос «сколько ещё слушать». */}
+        <span>{known ? `\u2212${formatPlaybackTime(duration - current)}` : '--:--'}</span>
+      </div>
+    </section>
   );
 }

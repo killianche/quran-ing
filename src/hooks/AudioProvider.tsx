@@ -42,7 +42,9 @@ import {
   type ReactNode,
 } from 'react';
 import { useAyahAudio, type AudioFailure, type PlaybackMode, type PlaybackRate } from './useAyahAudio';
-import { DEFAULT_RECITER, RECITERS, type ReciterId } from '../lib/reciters';
+import {
+  DEFAULT_RECITER, RECITERS, TIMELINE_SEEK_STEP_SECONDS, usesTimelineSeek, type ReciterId,
+} from '../lib/reciters';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { bindMediaSessionHandlers } from '../lib/mediaSession';
 import { readPref } from '../lib/typography';
@@ -64,17 +66,27 @@ export type AudioSession = {
 /** Как идёт текущий аят. Меняется несколько раз в секунду. */
 export type AudioTick = {
   progress: number;
+  /** Длина звучащего файла в секундах, 0 — неизвестна. Для ползунка
+   *  чтеца без границ аятов: там `progress` идёт по всей записи суры. */
+  duration: number;
   currentWordPos: number | null;
 };
 
 /** Неизменная часть: ссылка на этот объект живёт всё время работы. */
 export type AudioActions = {
-  handlePlay: (surah: number, ayah: number, lastAyah?: number) => void;
+  /** `startAtSeconds` — продолжить с секунды записи (повтор после сбоя у
+   *  чтеца без границ аятов). */
+  handlePlay: (surah: number, ayah: number, lastAyah?: number, startAtSeconds?: number) => void;
   playFrom: (surah: number, fromAyah: number, lastAyah: number, mode?: PlaybackMode) => void;
   /** Включить суру целиком с начала — непрерывной записью, без швов. */
   playSurah: (surah: number, ayahCount: number) => void;
+  /** Следующий аят; у чтеца без границ аятов — вперёд на 10 с. */
   next: () => void;
+  /** Предыдущий аят; у чтеца без границ аятов — назад на 10 с. */
   prev: () => void;
+  /** Перемотка по времени — только у чтеца без границ аятов. */
+  seekTo: (seconds: number) => void;
+  seekBy: (deltaSeconds: number) => void;
   pause: () => void;
   /** Продолжить с места паузы. */
   resume: () => void;
@@ -116,8 +128,22 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const prevReciter = useRef(reciter);
   useEffect(() => {
     if (prevReciter.current === reciter) return;
+    const previous = prevReciter.current;
     prevReciter.current = reciter;
     const a = live.current;
+    // 🔴 Смена режима перемотки на паузе — сессия закрывается.
+    //
+    // Очередь и звучащий элемент принадлежат прежнему чтецу, а кнопки и
+    // подсветка уже следуют новому. Пауза у Ясира на 50-м аяте плюс выбор
+    // чтеца без границ аятов давали бы «±10 с» по чужой записи с поаятной
+    // очередью; обратный случай — очередь из одного «аята» у обычного чтеца,
+    // где «следующий аят» не делает ничего. Возобновлять такую смесь нечем,
+    // честнее остановить: следующий запуск начнётся уже новым голосом.
+    if (a.audioState === 'paused'
+      && usesTimelineSeek(previous) !== usesTimelineSeek(reciter)) {
+      a.stopAll();
+      return;
+    }
     if (a.audioState !== 'playing' && a.audioState !== 'loading') return;
     if (!a.currentSurah || !a.currentAyah) return;
     const meta = SURAH_BY_NUMBER[a.currentSurah];
@@ -140,15 +166,29 @@ export function AudioProvider({ children }: { children: ReactNode }) {
    * Обращаемся через `live.current`, поэтому привязка одноразовая и не
    * пересоздаётся на каждом обновлении состояния.
    */
+  //
+  // У чтеца без границ аятов на замке перемотка по времени, как у
+  // музыкального плеера: «±10 с» и ползунок. Перепривязка — по смене этого
+  // признака, а не каждого чтеца.
+  const timeline = usesTimelineSeek(reciter);
   useEffect(() => {
+    const step = TIMELINE_SEEK_STEP_SECONDS;
     bindMediaSessionHandlers({
       // Продолжаем с места паузы, а не с начала аята: это делает `resume`.
       onPlay: () => live.current.resume(),
       onPause: () => live.current.pause(),
-      onPrev: () => live.current.prev(),
-      onNext: () => live.current.next(),
+      ...(timeline
+        ? {
+          onSeekTo: (sec: number) => live.current.seekTo(sec),
+          onSeekBackward: (offset?: number) => live.current.seekBy(-(offset ?? step)),
+          onSeekForward: (offset?: number) => live.current.seekBy(offset ?? step),
+        }
+        : {
+          onPrev: () => live.current.prev(),
+          onNext: () => live.current.next(),
+        }),
     });
-  }, []);
+  }, [timeline]);
 
   const setReciter = useCallback((id: ReciterId) => {
     setReciterState(id);
@@ -156,11 +196,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const actions = useMemo<AudioActions>(() => ({
-    handlePlay: (surah, ayah, lastAyah) => live.current.handlePlay(surah, ayah, lastAyah),
+    handlePlay: (surah, ayah, lastAyah, startAt) => live.current.handlePlay(surah, ayah, lastAyah, startAt),
     playFrom: (surah, from, last, mode) => live.current.playFrom(surah, from, last, mode),
     playSurah: (surah, ayahCount) => live.current.playFrom(surah, 1, ayahCount, 'surah'),
     next: () => live.current.next(),
     prev: () => live.current.prev(),
+    seekTo: (seconds) => live.current.seekTo(seconds),
+    seekBy: (delta) => live.current.seekBy(delta),
     pause: () => live.current.pause(),
     resume: () => live.current.resume(),
     stopAll: () => live.current.stopAll(),
@@ -186,8 +228,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const tick = useMemo<AudioTick>(() => ({
     progress: audio.progress,
+    duration: audio.duration,
     currentWordPos: audio.currentWordPos,
-  }), [audio.progress, audio.currentWordPos]);
+  }), [audio.progress, audio.duration, audio.currentWordPos]);
 
   return (
     <AudioActionsContext.Provider value={actions}>

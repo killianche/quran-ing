@@ -45,10 +45,12 @@
  */
 
 import { useEffect } from 'react';
-import { Pause, Play, SkipBack, SkipForward, Close, ICON_SIZE } from './icons';
+import {
+  Pause, Play, SkipBack, SkipForward, SeekBack10, SeekForward10, Close, ICON_SIZE,
+} from './icons';
 import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
 import { SURAH_BY_NUMBER } from '../content/surahs';
-import { reciterById } from '../lib/reciters';
+import { reciterById, usesTimelineSeek } from '../lib/reciters';
 import { GLASS_BLUR } from '../lib/glass';
 import { TAB_BAR_HEIGHT, TAB_BAR_BOTTOM } from './TabBar';
 
@@ -76,6 +78,9 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
   const meta = SURAH_BY_NUMBER[currentSurah];
   const playing = audioState === 'playing';
   const loading = audioState === 'loading';
+  // Чтец без границ аятов: номер аята неизвестен, а соседние кнопки —
+  // перемотка на 10 секунд (её делают те же `prev`/`next`).
+  const timeline = usesTimelineSeek(reciter);
 
   return (
     <div
@@ -160,18 +165,19 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
             fontVariantNumeric: 'tabular-nums',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
-            {currentAyah ? `Аят ${currentAyah} · ` : ''}{reciterById(reciter).label}
+            {currentAyah && !timeline ? `Аят ${currentAyah} · ` : ''}{reciterById(reciter).label}
           </span>
         </span>
       </button>
 
       <button
         onClick={() => audio.prev()}
-        aria-label="Предыдущий аят"
+        aria-label={timeline ? 'Назад на 10 секунд' : 'Предыдущий аят'}
         className="icon-btn"
         style={{ flexShrink: 0, width: '38px', height: '44px', color: 'var(--text-secondary)' }}
       >
-        <SkipBack size={ICON_SIZE.sm} />
+        {/* Круговой стрелке нужен размер побольше: внутри неё цифры. */}
+        {timeline ? <SeekBack10 size={ICON_SIZE.md} /> : <SkipBack size={ICON_SIZE.sm} />}
       </button>
 
       <button
@@ -203,11 +209,11 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
 
       <button
         onClick={() => audio.next()}
-        aria-label="Следующий аят"
+        aria-label={timeline ? 'Вперёд на 10 секунд' : 'Следующий аят'}
         className="icon-btn"
         style={{ flexShrink: 0, width: '38px', height: '44px', color: 'var(--text-secondary)' }}
       >
-        <SkipForward size={ICON_SIZE.sm} />
+        {timeline ? <SeekForward10 size={ICON_SIZE.md} /> : <SkipForward size={ICON_SIZE.sm} />}
       </button>
 
       <button

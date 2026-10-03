@@ -63,6 +63,15 @@ export type Reciter = {
   surahAudioBase?: string;
   /** Имя файла суры: 001.mp3 вместо 1.mp3. */
   surahAudioPadded?: boolean;
+  /**
+   * У чтеца есть только записи целых сур, а границ аятов нет.
+   *
+   * Такая сура слушается как трек музыкального плеера: перемотка на 10
+   * секунд и ползунок по времени вместо перехода по аятам, без подсветки
+   * и автопрокрутки к аяту — показать звучащий аят нечем, а угадывать его
+   * значит показывать не то, что звучит. См. `usesTimelineSeek`.
+   */
+  timelineOnly?: true;
 };
 
 export const RECITERS: Reciter[] = [
@@ -148,6 +157,20 @@ export const RECITERS_WITH_SEGMENTS: ReadonlySet<ReciterId> = new Set([
 export function usesWholeAyahHighlight(id: ReciterId): boolean {
   return id === 'luhaidan' || id === 'ajmi';
 }
+
+/**
+ * Перемотка по времени вместо перехода по аятам.
+ *
+ * Флаг задаётся в каталоге явно, а не выводится из «нет таблицы границ»:
+ * таблицы аятов весят мегабайты и живут в отдельных чанках, а этот признак
+ * нужен главному чанку — плееру, ленте и экрану блокировки.
+ */
+export function usesTimelineSeek(id: ReciterId): boolean {
+  return Boolean(reciterById(id).timelineOnly);
+}
+
+/** Шаг перемотки кнопками и с экрана блокировки — как у музыкальных плееров. */
+export const TIMELINE_SEEK_STEP_SECONDS = 10;
 
 /** Поаятное офлайн-хранилище принимает только отдельные mp3 каждого аята. */
 export function supportsAyahOffline(id: ReciterId): boolean {

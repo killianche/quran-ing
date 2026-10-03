@@ -1103,6 +1103,63 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
+/* ─── Seek slider (чтец без границ аятов) ───────────────────────
+   Ползунок времени в полном плеере. Высота самого поля — 28px при
+   полосе в 4px: в узкую полосу пальцем не попасть. Заполненная часть
+   рисуется градиентом по `--seek-pct`, который ставит компонент:
+   у WebKit нет отдельного псевдоэлемента для пройденной части. */
+.seek-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.seek-slider:disabled { cursor: default; opacity: 0.45; }
+.seek-slider:focus { outline: none; }
+.seek-slider:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 4px; }
+.seek-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--ink) 0 var(--seek-pct, 0%),
+    var(--hairline) var(--seek-pct, 0%) 100%
+  );
+}
+.seek-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: none;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+/* Пока палец тянет — бегунок крупнее: видно, что его держат. */
+.seek-slider:active::-webkit-slider-thumb { transform: scale(1.35); }
+.seek-slider::-moz-range-track { height: 4px; border-radius: 2px; background: var(--hairline); }
+.seek-slider::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--ink); }
+.seek-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .seek-slider::-webkit-slider-thumb { transition: none; }
+}
+
 /* ─── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -25,6 +25,7 @@ import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
 import { GLASS_BLUR } from '../lib/glass';
 import { TAB_BAR_BOTTOM, TAB_BAR_HEIGHT } from './TabBar';
 import { SURAH_BY_NUMBER } from '../content/surahs';
+import { formatPlaybackTime } from '../lib/playbackTime';
 
 const GAP = 8;
 
@@ -38,9 +39,14 @@ export function AudioErrorPlate() {
   // про что именно. Длинный текст переносился на три строки и обрезался
   // многоточием, то есть сообщал меньше, чем короткий.
   const заголовок = failure.offline ? 'Нет связи' : 'Не удалось загрузить чтение';
+  // У чтеца без границ аятов место обрыва — время записи: «аят 1» на
+  // 25-й минуте был бы неправдой.
+  const место = failure.positionSeconds !== undefined
+    ? formatPlaybackTime(failure.positionSeconds)
+    : `аят ${failure.ayah}`;
   const пояснение = failure.offline
     ? `«${название}» читается из сети`
-    : `«${название}», аят ${failure.ayah}`;
+    : `«${название}», ${место}`;
 
   return (
     <div
@@ -90,7 +96,11 @@ export function AudioErrorPlate() {
       </div>
       <button
         type="button"
-        onClick={() => handlePlay(failure.surah, failure.ayah, failure.lastAyah)}
+        // Повтор — с места обрыва: у чтеца без границ аятов это секунда
+        // записи, у остальных начало того же аята.
+        onClick={() => handlePlay(
+          failure.surah, failure.ayah, failure.lastAyah, failure.positionSeconds,
+        )}
         style={{
           flexShrink: 0,
           minHeight: '38px',

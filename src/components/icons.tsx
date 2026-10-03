@@ -196,6 +196,45 @@ export const SkipBack = ({ size = ICON_SIZE.md, className, style }: Props) => (
 );
 
 /**
+ * Перемотка на 10 секунд — круговая стрелка с числом внутри, как у
+ * системных плееров. Нужна чтецу без границ аятов: у него «соседний аят»
+ * означает шаг по времени, и треугольники «трек назад/вперёд» обещали бы
+ * не то, что произойдёт.
+ *
+ * Число — текстом, а не контуром: семейство наследуется от интерфейса, и
+ * цифры совпадают с остальными подписями плеера.
+ */
+const SEEK_LABEL = (
+  <text
+    x="12" y="16.1"
+    textAnchor="middle"
+    fontSize="7.4"
+    fontWeight={600}
+    fill="currentColor"
+    stroke="none"
+    fontFamily="inherit"
+  >
+    10
+  </text>
+);
+
+export const SeekBack10 = ({ size = ICON_SIZE.md, className, style }: Props) => (
+  <svg {...stroke(size, className, style)}>
+    <path d="M12 5A8 8 0 1 1 6.34 7.34" />
+    <path d="M14.25 2.75 12 5l2.25 2.25" />
+    {SEEK_LABEL}
+  </svg>
+);
+
+export const SeekForward10 = ({ size = ICON_SIZE.md, className, style }: Props) => (
+  <svg {...stroke(size, className, style)}>
+    <path d="M12 5A8 8 0 1 0 17.66 7.34" />
+    <path d="M9.75 2.75 12 5 9.75 7.25" />
+    {SEEK_LABEL}
+  </svg>
+);
+
+/**
  * Закладка.  Единственная иконка, у которой значение по умолчанию —
  * `sm`: она стоит внутри строки аята, рядом с текстом, и на `md`
  * перевешивала бы номер аята.
