@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { readBookmarks, toggleBookmark } from '../lib/bookmarks';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { useQuranSources, type QuranSources } from '../content/quran-sources-lazy';
+import { inhDisplayText, readShowInh } from '../lib/inhTranslation';
 import { Bookmark as BookmarkIcon, ICON_SIZE } from '../components/icons';
 import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
 import type { Theme } from '../hooks/useTheme';
@@ -183,12 +184,17 @@ function BookmarkRow({
   onOpen: () => void;
   onRemove: () => void;
 }) {
-  const source = sources?.[`${entry.surah}:${entry.ayah}`];
-  // Russian gets the readable preview (it's the user's primary working
-  // language for the project).  Arabic is shown right-aligned in a
-  // smaller, dimmer hint row so the saved verse is still recognisable
-  // as a citation, not just a number.
-  const preview = source?.translations.ru ?? '';
+  const verseKey = `${entry.surah}:${entry.ayah}`;
+  const source = sources?.[verseKey];
+  // Превью — тот перевод, который человек читает первым: ингушский, если
+  // он не скрыт в настройках чтения (ключ `showInh`, тот же, что у экрана
+  // суры), иначе русский.  Ингушский — через тот же фильтр, что и в ленте
+  // (lib/inhTranslation.ts).  Arabic is shown right-aligned in a smaller,
+  // dimmer hint row so the saved verse is still recognisable as a
+  // citation, not just a number.
+  const inh = readShowInh() ? inhDisplayText(verseKey, source?.translations.inh) : undefined;
+  const preview = inh ?? source?.translations.ru ?? '';
+  const previewLang = inh ? 'inh' : 'ru';
 
   return (
     <div style={{
@@ -244,7 +250,7 @@ function BookmarkRow({
           )}
         </div>
         {preview && (
-          <p style={{
+          <p lang={previewLang} style={{
             margin: 0,
             fontSize: 'var(--font-subhead)',
             lineHeight: 'var(--leading-subhead)',

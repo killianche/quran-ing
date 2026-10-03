@@ -99,6 +99,28 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Inter для ингушского перевода — своё подмножество из официального
+   релиза Inter 4.1 (InterVariable.ttf, SIL OFL 1.1, лицензия рядом:
+   latin-fonts/inter/OFL-Inter-4.1.txt).
+
+   Зачем отдельно от подмножеств Google выше: в них (а) знак ударения
+   U+0301 над кириллицей встаёт над СЛЕДУЮЩЕЙ буквой — «Алла́хIа»
+   читалось как «Аллах́Ia»; (б) нет варианта cv08 — заглавной I с
+   засечками.  Ингушская палочка в источнике набрана латинской «I», и
+   без засечек она неотличима от «l».  Здесь сохранены mark/mkmk/ccmp и
+   cv08 (включается font-feature-settings у ингушского абзаца).
+
+   Сборка: opsz закреплён на 14, wght 400–600 (оба веса из настроек),
+   символы — латиница, кириллица, комбинирующие знаки, пунктуация.
+   ~59 КБ.  Русский текст по-прежнему идёт через 'Inter' выше. */
+@font-face {
+  font-family: 'Inter Ingush';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/latin-fonts/inter/Inter-ingush.woff2') format('woff2');
+}
+
 /* EB Garamond — variable weight (100–900). Single woff2 carries the
    whole axis, so any `font-weight` between 100 and 900 just works. */
 @font-face {
@@ -181,6 +203,31 @@
   src: url('/azkar/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype');
   unicode-range: U+060C;
   font-display: swap;
+}
+
+/* Ингушский перевод: лигатура ﷺ (U+FDFA) встречается в нём, но её нет ни в
+   одном шрифте чтения (Inter, EB Garamond, Alice).  Этот @font-face берёт из
+   Noto Naskh ровно этот один символ и стоит первым в стеке ингушского текста
+   (inhFontStack в lib/inhTranslation.ts).  Благодаря unicode-range файл не
+   скачивается, пока ﷺ нет на экране. */
+@font-face {
+  font-family: 'Inh Marks';
+  src: url('/azkar/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype');
+  unicode-range: U+FDFA;
+  /* Один файл на все веса чтения: без диапазона браузер рисовал бы ﷺ
+     синтетическим полужирным рядом с Inter SemiBold. */
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+/* Любой ингушский текст вне ленты (выдача поиска, превью закладок)
+   набирается тем же шрифтом, что и лента по умолчанию: в шрифте
+   интерфейса ударение встаёт не над той буквой, а палочка «I» похожа на
+   «l».  В ленте шрифт выбирает человек — там стоит inline-стиль, и он
+   сильнее этого правила. */
+[lang="inh"] {
+  font-family: 'Inh Marks', 'Inter Ingush', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv08' 1;
 }
 
 /* Mushaf typesetting lives entirely in QCF V4 (PUA glyphs from

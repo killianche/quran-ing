@@ -1,5 +1,6 @@
 /**
- * Поиск по Корану: по названиям сур и по тексту русского перевода.
+ * Поиск по Корану: по названиям сур и по тексту переводов — ингушского
+ * («ГӀалгӀай — Сийдолча КъорӀан маӀана таржам», 2023) и русского (Кулиев).
  *
  * ── Почему без индекса ────────────────────────────────────────────────
  *
@@ -17,6 +18,15 @@
  *    ищет «ее» — без этого половина запросов молча ничего не находит.
  *  • Знаки препинания в запросе игнорируются, несколько пробелов
  *    схлопываются: «Господу миров» найдётся и как «господу,  миров».
+ *  • Ингушская палочка набирается как угодно: «I», «Ӏ» или «1» рядом с
+ *    кириллицей — всё одна буква.  В источнике стоит латинская «I».
+ *  • Знаки ударения не мешают: «Алла́хӀа» найдётся как «аллахIа».  В
+ *    источнике ударные гласные иногда набраны латиницей посреди
+ *    кириллического слова («тóхар») — для сравнения они приводятся к
+ *    кириллице.
+ *
+ * Всё это — только правила СРАВНЕНИЯ.  На экран идёт исходный текст,
+ * подсветка вырезается из него по карте позиций.
  *
  * ── Ранжирование ──────────────────────────────────────────────────────
  *
@@ -28,6 +38,7 @@
 import { getQuranSources, loadQuranSources } from '../content/quran-sources-lazy';
 import { SURAHS, SURAH_BY_NUMBER, type SurahMeta } from '../content/surahs';
 import { globalAyahNumber } from './ayahNumbering';
+import { inhDisplayText } from './inhTranslation';
 
 /** Максимум результатов по аятам.  Больше человек всё равно не
  *  просмотрит, а рендер длинного списка стоит заметно. */
@@ -37,9 +48,19 @@ const MAX_AYAH_HITS = 60;
  *  буквах совпадёт половина Корана — это не результат, а шум. */
 const MIN_QUERY_FOR_TEXT = 3;
 
+export type AyahLang = 'inh' | 'ru';
+
+/** Подпись перевода в выдаче поиска. */
+export const AYAH_LANG_LABEL: Record<AyahLang, string> = {
+  inh: 'ингушский',
+  ru: 'русский',
+};
+
 export type AyahHit = {
   surah: number;
   ayah: number;
+  /** Чей перевод совпал — для атрибута lang и подписи результата. */
+  lang: AyahLang;
   /** Название суры для подписи результата. */
   surahTitle: string;
   /** Полный текст перевода — фрагмент вырезает уже компонент. */
@@ -67,14 +88,114 @@ export type SearchResult = {
   notReady: boolean;
 };
 
-/** Приведение к сравнимому виду: нижний регистр, ё→е, пунктуация в
- *  пробелы, схлопывание пробелов. */
+const COMBINING = /\p{M}/u;
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+/**
+ * Латинские двойники кириллицы, которые в ингушском источнике стоят внутри
+ * кириллических слов: ударные «тóхар», «Iáьржа» и просто опечатки набора —
+ * «cийле» (62:4), «Mи» (44:1).  В любом регистре похожи a c e o p x y,
+ * только заглавными — B H K M T.
+ */
+const LOOKALIKE_ANY_CASE: Record<string, string> = {
+  a: 'а', c: 'с', e: 'е', o: 'о', p: 'р', x: 'х', y: 'у',
+};
+const LOOKALIKE_UPPER: Record<string, string> = {
+  B: 'в', H: 'н', K: 'к', M: 'м', T: 'т',
+};
+
+function isCyrillicCode(code: number): boolean {
+  return code >= 0x400 && code <= 0x52f;
+}
+
+/** Стоит ли рядом с позицией i кириллическая буква.  За пределами строки
+ *  charCodeAt даёт NaN, и сравнение просто ложно. */
+function cyrNear(s: string, i: number): boolean {
+  return isCyrillicCode(s.charCodeAt(i - 1)) || isCyrillicCode(s.charCodeAt(i + 1));
+}
+
+/** Латинская буква A–Z/a–z (уже без диакритики) в позиции i. */
+function foldLatin(letter: string, s: string, i: number): string {
+  const lower = letter.toLowerCase();
+  const twin = LOOKALIKE_UPPER[letter] ?? LOOKALIKE_ANY_CASE[lower];
+  // Палочку «I» не трогаем: у неё нет кириллического двойника в словаре.
+  return twin && cyrNear(s, i) ? twin : lower;
+}
+
+/**
+ * Символ s[i] → его вид для сравнения.
+ * '' — символ не участвует (знак ударения); ' ' — разделитель слов.
+ *
+ * Сначала — проверки по коду символа: это горячий цикл по полутора
+ * миллионам символов двух переводов, и регулярные выражения на каждый
+ * символ стоили ~0.8 с на первом поиске.  Регулярки остались только для
+ * редких символов вне латиницы и основной кириллицы.
+ *
+ * Разложение NFD — только для латиницы с диакритикой: кириллическую «й»
+ * раскладывать нельзя, она превратилась бы в «и».
+ */
+function foldChar(s: string, i: number): string {
+  const code = s.charCodeAt(i);
+  const ch = s[i];
+
+  if (code < 0x80) {
+    if ((code >= 0x61 && code <= 0x7a) || (code >= 0x41 && code <= 0x5a)) return foldLatin(ch, s, i);
+    if (code >= 0x30 && code <= 0x39) return code === 0x31 && cyrNear(s, i) ? 'i' : ch;
+    return ' ';
+  }
+  if (code >= 0x430 && code <= 0x44f) return ch;                         // а–я
+  if (code >= 0x410 && code <= 0x42f) return String.fromCharCode(code + 32); // А–Я
+  if (code === 0x401 || code === 0x451) return 'е';                     // Ё ё
+  // Палочка: Ӏ ӏ, а также украинская І і, которой её часто набирают.
+  if (code === 0x4c0 || code === 0x4cf || code === 0x406 || code === 0x456) return 'i';
+  if (code === 0x40d || code === 0x45d) return 'и';                     // Ѝ ѝ
+  if (code >= 0x300 && code <= 0x36f) return '';                        // ударение и пр.
+  if (code >= 0xc0 && code <= 0x24f) {
+    const base = ch.normalize('NFD').charAt(0);
+    const b = base.charCodeAt(0);
+    if ((b >= 0x61 && b <= 0x7a) || (b >= 0x41 && b <= 0x5a)) return foldLatin(base, s, i);
+  }
+  if (COMBINING.test(ch)) return '';
+  const lower = ch.toLowerCase();
+  return WORD_CHAR.test(lower) ? lower : ' ';
+}
+
+/**
+ * Сравнимый вид строки и карта позиций: norm[i] пришёл из original[map[i]].
+ * Ведущие и повторные разделители схлопываются, хвостовой срезается.
+ */
+function fold(original: string): { norm: string; map: Int32Array } {
+  const parts: string[] = [];
+  const positions: number[] = [];
+  let lastWasSpace = true;   // ведущие пробелы съедаем
+  for (let i = 0; i < original.length; i++) {
+    const out = foldChar(original, i);
+    if (!out) continue;
+    if (out === ' ') {
+      if (lastWasSpace) continue;
+      positions.push(i);
+      parts.push(' ');
+      lastWasSpace = true;
+      continue;
+    }
+    // toLowerCase изредка даёт два символа («İ» → «i̇») — каждый со своей
+    // записью в карте, указывающей на один исходный символ.
+    for (let k = 0; k < out.length; k++) {
+      positions.push(i);
+      parts.push(out[k]);
+    }
+    lastWasSpace = false;
+  }
+  if (lastWasSpace && parts.length > 0) {
+    parts.pop();
+    positions.pop();
+  }
+  return { norm: parts.join(''), map: Int32Array.from(positions) };
+}
+
+/** Приведение к сравнимому виду: нижний регистр, ё→е, палочка и знаки
+ *  ударения (см. шапку), пунктуация в пробелы, схлопывание пробелов. */
 export function normalise(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim();
+  return fold(s).norm;
 }
 
 /**
@@ -93,51 +214,102 @@ type Prepared = {
   key: string;
   surah: number;
   ayah: number;
+  lang: AyahLang;
   original: string;
   norm: string;
   /** norm[i] пришёл из original[map[i]] */
   map: Int32Array;
 };
 
+type SourceEntry = [string, { surah: number; ayah: number; translations: { ru?: string; inh?: string } }];
+
 let prepared: Prepared[] | null = null;
+/** Недостроенный словарь: подготовка идёт порциями (см. warmSearchIndex). */
+let building: { entries: SourceEntry[]; next: number; out: Prepared[] } | null = null;
+let warming = false;
 
 /** Прогреть словарь переводов. Вызывать до первого search() по тексту. */
 export function ensureSearchReady(): Promise<unknown> {
   return loadQuranSources();
 }
 
-function prepare(sources: Record<string, { surah: number; ayah: number; translations: { ru?: string } }>): Prepared[] {
-  if (prepared) return prepared;
-  const out: Prepared[] = [];
-  for (const [key, src] of Object.entries(sources)) {
-    const original = src.translations.ru;
-    if (!original) continue;
-    const lower = original.toLowerCase().replace(/ё/g, 'е');
-    // Ручной проход вместо replace: нужна карта позиций.
-    let norm = '';
-    const map = new Int32Array(lower.length);
-    let lastWasSpace = true;   // ведущие пробелы съедаем
-    for (let i = 0; i < lower.length; i++) {
-      const ch = lower[i];
-      const isWord = /[\p{L}\p{N}]/u.test(ch);
-      if (isWord) {
-        map[norm.length] = i;
-        norm += ch;
-        lastWasSpace = false;
-      } else if (!lastWasSpace) {
-        map[norm.length] = i;
-        norm += ' ';
-        lastWasSpace = true;
-      }
+/** Сколько аятов готовить за одну порцию прогрева: ~10 мс на телефоне,
+ *  кадр не пропадает. */
+const WARM_SLICE = 250;
+
+/**
+ * Подготовить поисковый словарь заранее, порциями между кадрами.
+ *
+ * Два перевода — полтора миллиона символов; разом это ~0.15 с на сервере
+ * и заметно дольше на телефоне.  Если ждать первой буквы, ввод замирает.
+ * Поэтому панель поиска зовёт прогрев при открытии, а он режет работу на
+ * порции через setTimeout (не rAF — тот не тикает в скрытой вкладке, см.
+ * CLAUDE.md, «Грабли»).  Если человек начнёт искать раньше, search()
+ * синхронно доделает остаток — результат тот же.
+ */
+export function warmSearchIndex(): void {
+  if (prepared || warming) return;
+  warming = true;
+  void loadQuranSources().then(sources => {
+    const step = () => {
+      if (prepared) { warming = false; return; }
+      prepareStep(sources as unknown as Record<string, SourceEntry[1]>, WARM_SLICE);
+      if (prepared) warming = false;
+      else setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
+  }, () => { warming = false; });
+}
+
+function prepareStep(sources: Record<string, SourceEntry[1]>, limit: number): void {
+  if (prepared) return;
+  if (!building) building = { entries: Object.entries(sources), next: 0, out: [] };
+  const { entries, out } = building;
+  const end = Math.min(entries.length, building.next + limit);
+  for (let n = building.next; n < end; n++) {
+    const [key, src] = entries[n];
+    // Ингушский — тем же фильтром, что и на экране чтения: найти можно
+    // только то, что под аятом и показывается (см. lib/inhTranslation.ts).
+    const texts: [AyahLang, string | undefined][] = [
+      ['inh', inhDisplayText(key, src.translations.inh)],
+      ['ru', src.translations.ru],
+    ];
+    for (const [lang, original] of texts) {
+      if (!original) continue;
+      const { norm, map } = fold(original);
+      out.push({ key, surah: src.surah, ayah: src.ayah, lang, original, norm, map });
     }
-    norm = norm.trimEnd();
-    out.push({ key, surah: src.surah, ayah: src.ayah, original, norm, map });
   }
-  // Порядок мусхафа — выдача должна идти сверху вниз по Корану.
+  building.next = end;
+  if (end < entries.length) return;
+  // Порядок мусхафа — выдача должна идти сверху вниз по Корану.  Внутри
+  // одного аята ингушский раньше русского: sort стабилен, а порядок
+  // пушей выше уже такой.
   out.sort((a, b) =>
     globalAyahNumber(a.surah, a.ayah) - globalAyahNumber(b.surah, b.ayah));
   prepared = out;
-  return out;
+  building = null;
+}
+
+function prepare(sources: Record<string, SourceEntry[1]>): Prepared[] {
+  prepareStep(sources, Infinity);
+  return prepared!;
+}
+
+/**
+ * Какие переводы искать: те, что человек видит в ленте (ключи `showInh`
+ * и `showRu` экрана суры).  Если скрыты оба — ищем по обоим: читатель
+ * может оставить один арабский, но искать ему всё равно надо.
+ */
+export function visibleSearchLangs(): AyahLang[] {
+  try {
+    const langs: AyahLang[] = [];
+    if (localStorage.getItem('showInh') !== '0') langs.push('inh');
+    if (localStorage.getItem('showRu') !== '0') langs.push('ru');
+    return langs.length ? langs : ['inh', 'ru'];
+  } catch {
+    return ['inh', 'ru'];
+  }
 }
 
 /** Поиск сур по номеру, транслитерации, переводу названия и арабскому. */
@@ -160,6 +332,8 @@ export type SearchOptions = {
    * не выполняется: искать сам себя бессмысленно.
    */
   surah?: number;
+  /** В каких переводах искать; по умолчанию — в обоих. */
+  langs?: AyahLang[];
 };
 
 /**
@@ -208,10 +382,16 @@ export function search(raw: string, opts: SearchOptions = {}): SearchResult {
   // которого он и нужен.  Поймано тестом.
   let stoppedEarly = false;
 
+  // Один аят — один результат, даже если запрос нашёлся в обоих
+  // переводах: показываем первый (ингушский), русский пропускаем.
+  let lastHitKey = '';
   for (const p of prepare(sources)) {
     if (scoped && p.surah !== opts.surah) continue;
+    if (p.key === lastHitKey) continue;
+    if (opts.langs && !opts.langs.includes(p.lang)) continue;
     const at = p.norm.indexOf(norm);
     if (at === -1) continue;
+    lastHitKey = p.key;
     total++;
     // Конец совпадения в оригинале: берём позицию последнего символа
     // и добавляем единицу.  map хранит начало каждого символа, поэтому
@@ -225,6 +405,7 @@ export function search(raw: string, opts: SearchOptions = {}): SearchResult {
     const hit: AyahHit = {
       surah: p.surah,
       ayah: p.ayah,
+      lang: p.lang,
       surahTitle: SURAH_BY_NUMBER[p.surah]?.transliteration ?? `Сура ${p.surah}`,
       text: p.original,
       matchStart: startOrig,

@@ -31,6 +31,7 @@ import {
   MUSHAF_FONT_OPTIONS,
   type MushafFontId,
 } from '../lib/mushafFont';
+import { INH_FONT_OPTIONS, INH_SOURCE_APP, INH_SOURCE_TITLE } from '../lib/inhTranslation';
 
 const sectionTitle: CSSProperties = {
   margin: '0 0 8px',
@@ -931,8 +932,9 @@ function ThemePicker({ theme, setTheme }: {
 
 // ─── TypographySettings — `[A]` button ────────────────────────────────────
 //
-// Reciter picker + per-language tabs (Arabic / Russian) with
-// visibility toggle, scale and font.
+// Reciter picker + per-language tabs (Arabic / Ingush / Russian) with
+// visibility toggle, scale and font.  Each translation has its own
+// settings — they are read side by side and tuned separately.
 
 type TypographyProps = {
   reciter: ReciterId;
@@ -953,6 +955,14 @@ type TypographyProps = {
 
   ruFont: LatinFontId;
   setRuFont: (v: LatinFontId) => void;
+
+  showInh: boolean;
+  setShowInh: (v: boolean) => void;
+  inhScale: number;
+  setInhScale: (v: number) => void;
+  inhFont: LatinFontId;
+  setInhFont: (v: LatinFontId) => void;
+
   arabicFont: ArabicFontId;
   setArabicFont: (v: ArabicFontId) => void;
   tajweedStatus?: 'idle' | 'loading' | 'ready' | 'failed';
@@ -961,14 +971,12 @@ type TypographyProps = {
   anchorEl?: HTMLElement | null;
 };
 
-type LangTab = 'arabic' | 'russian';
+type LangTab = 'arabic' | 'ingush' | 'russian';
 
 const KEY_LANG_TAB = 'typography.langTab';
 function readLangTab(): LangTab {
   const v = localStorage.getItem(KEY_LANG_TAB);
-  // Легаси-значение 'ingush' (из QuranIng) больше не существует — предикат
-  // ниже отправит такого пользователя на вкладку арабского.
-  return v === 'arabic' || v === 'russian' ? v : 'arabic';
+  return v === 'arabic' || v === 'ingush' || v === 'russian' ? v : 'arabic';
 }
 function writeLangTab(v: LangTab) {
   localStorage.setItem(KEY_LANG_TAB, v);
@@ -1003,13 +1011,14 @@ export function TypographySettings(p: TypographyProps) {
 
         {/* Вкладки языка */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px',
+          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px',
           background: 'var(--bg)', border: '1px solid var(--hairline)',
           borderRadius: '10px', padding: '3px',
           marginBottom: '14px',
         }}>
           {([
             { id: 'arabic',  label: 'Арабский' },
+            { id: 'ingush',  label: 'Ингушский' },
             { id: 'russian', label: 'Русский'  },
 
           ] as const).map(t => (
@@ -1053,6 +1062,32 @@ export function TypographySettings(p: TypographyProps) {
             preview="بسم الله"
             dir="rtl"
           />
+        )}
+        {tab === 'ingush' && (
+          <>
+            <LangBody
+              visible={p.showInh}
+              onToggleVisible={() => p.setShowInh(!p.showInh)}
+              scale={p.inhScale}
+              onScale={p.setInhScale}
+              font={p.inhFont}
+              onFont={p.setInhFont}
+              options={INH_FONT_OPTIONS}
+              preview="ГӀалгӀай"
+            />
+            {/* Источник перевода — подписью, как его называет сам автор.
+                Атрибуция обязательна для любого перевода смыслов. */}
+            <p style={{
+              margin: '12px 0 0',
+              fontSize: 'var(--font-caption2)',
+              lineHeight: 1.4,
+              color: 'var(--text-tertiary)',
+            }}>
+              {INH_SOURCE_TITLE}
+              <br />
+              Источник: приложение {INH_SOURCE_APP}
+            </p>
+          </>
         )}
         {tab === 'russian' && (
           <LangBody

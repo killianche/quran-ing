@@ -43,7 +43,7 @@ import { FAST_SCROLL } from '../lib/fastScroll';
 import { SURAHS, SURAH_BY_NUMBER, type SurahMeta } from '../content/surahs';
 import { juzOfSurah } from '../lib/ayahNumbering';
 import { readRecents } from '../lib/recents';
-import { search, snippet, type AyahHit } from '../lib/search';
+import { AYAH_LANG_LABEL, search, snippet, visibleSearchLangs, warmSearchIndex, type AyahHit } from '../lib/search';
 import { useQuranSources } from '../content/quran-sources-lazy';
 import { Appearance, Search, Close, Bookmark as BookmarkIcon, Person, ICON_SIZE, Play, Pause } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
@@ -102,7 +102,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onAccount, theme, setT
   // (см. warmQuranSources в App.tsx), и ждать не приходится.
   const sourcesReady = useQuranSources(searching) != null;
   const results = useMemo(
-    () => search(deferredQuery),
+    () => search(deferredQuery, { langs: visibleSearchLangs() }),
     // sourcesReady в зависимостях намеренно: как только словарь доехал,
     // выдачу нужно пересчитать — сам запрос при этом не менялся.
     [deferredQuery, sourcesReady],
@@ -198,6 +198,9 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onAccount, theme, setT
           ref={inputRef}
           value={query}
           onChange={e => setQuery(e.target.value)}
+          // Фокус — сигнал, что сейчас будут искать: готовим поисковый
+          // словарь порциями, пока человек набирает первые буквы.
+          onFocus={warmSearchIndex}
           placeholder="Сура, номер или слово из перевода"
           aria-label="Поиск"
           enterKeyHint="search"
@@ -829,9 +832,9 @@ function AyahHitRow({ hit, onClick }: { hit: AyahHit; onClick: () => void }) {
         color: 'var(--text-tertiary)',
         fontVariantNumeric: 'tabular-nums',
       }}>
-        {hit.surahTitle} · {hit.surah}:{hit.ayah}
+        {hit.surahTitle} · {hit.surah}:{hit.ayah} · {AYAH_LANG_LABEL[hit.lang]}
       </span>
-      <span style={{
+      <span lang={hit.lang} style={{
         display: 'block',
         fontSize: 'var(--font-subhead)',
         lineHeight: 'var(--leading-subhead)',

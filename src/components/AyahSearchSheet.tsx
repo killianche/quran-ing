@@ -21,7 +21,7 @@
 
 import { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { SettingsSheet } from './ReadingSettings';
-import { search, snippet, type AyahHit } from '../lib/search';
+import { AYAH_LANG_LABEL, search, snippet, visibleSearchLangs, warmSearchIndex, type AyahHit } from '../lib/search';
 import { useQuranSources } from '../content/quran-sources-lazy';
 import { Search, Close, ICON_SIZE } from './icons';
 
@@ -57,8 +57,12 @@ export function AyahSearchSheet({
   // Панель поиска открывается явным действием — словарь переводов тянем
   // сразу при монтировании, не дожидаясь первой буквы.
   const sourcesReady = useQuranSources(true) != null;
+  // Поисковый словарь — порциями в фоне, пока человек набирает запрос.
+  useEffect(() => { warmSearchIndex(); }, []);
+  // Ищем в тех переводах, что видны в ленте; читаются один раз за открытие.
+  const langs = useMemo(visibleSearchLangs, []);
   const results = useMemo(
-    () => search(deferred, scope === 'surah' ? { surah: surahNumber } : {}),
+    () => search(deferred, scope === 'surah' ? { surah: surahNumber, langs } : { langs }),
     // sourcesReady намеренно в зависимостях: выдачу надо пересчитать, когда
     // словарь доехал, хотя сам запрос не менялся.
     [deferred, scope, surahNumber, sourcesReady],
@@ -70,8 +74,8 @@ export function AyahSearchSheet({
   const allCount = useMemo(() => {
     if (scope !== 'surah' || results.ayahs.length > 0) return 0;
     if (deferred.trim().length < 3) return 0;
-    return search(deferred).ayahs.length;
-  }, [deferred, scope, results.ayahs.length, sourcesReady]);
+    return search(deferred, { langs }).ayahs.length;
+  }, [deferred, scope, results.ayahs.length, sourcesReady, langs]);
 
   const searching = query.trim().length > 0;
 
@@ -163,7 +167,7 @@ export function AyahSearchSheet({
           padding: '18px 4px 6px', fontSize: 'var(--font-footnote)', lineHeight: 1.55,
           color: 'var(--text-tertiary)',
         }}>
-          Найдёт аят по любому слову из перевода Кулиева.
+          Найдёт аят по любому слову из ингушского или русского перевода.
         </p>
       )}
 
@@ -265,8 +269,9 @@ function HitRow({ hit, sameSurah, onClick }: {
       }}>
         {/* Внутри своей суры номер суры не нужен — он и так известен. */}
         {sameSurah ? `Аят ${hit.ayah}` : `${hit.surahTitle} · ${hit.surah}:${hit.ayah}`}
+        {' · '}{AYAH_LANG_LABEL[hit.lang]}
       </span>
-      <span style={{
+      <span lang={hit.lang} style={{
         display: 'block',
         fontSize: 'var(--font-footnote)', lineHeight: 1.5,
         color: 'var(--text-secondary)',

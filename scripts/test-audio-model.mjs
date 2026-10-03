@@ -648,6 +648,100 @@ group('Поиск по русскому переводу', () => {
     new Set(dup.ayahs.map(a => a.surah + ':' + a.ayah)).size, dup.ayahs.length);
 });
 
+// ─── Ингушский перевод ────────────────────────────────────────────────
+//
+// Что показывается под аятом и как его найти.  Сам текст перевода
+// дословно из источника (data/inh-quran), здесь проверяется только
+// фильтр показа и правила сравнения в поиске.
+const inhMod = await import(pathToFileURL(resolve(ROOT, 'src/lib/inhTranslation.ts')).href);
+const lazySourcesMod = await import(pathToFileURL(resolve(ROOT, 'src/content/quran-sources-lazy.ts')).href);
+group('Ингушский перевод: показ и поиск', () => {
+  const { inhDisplayText } = inhMod;
+  const { search, snippet, normalise } = searchMod;
+  const sources = lazySourcesMod.getQuranSources();
+  const raw = k => sources[k].translations.inh;
+
+  // Показ: обычный аят — как есть, символ в символ.
+  check('1:1 показывается дословно', inhDisplayText('1:1', raw('1:1')), raw('1:1'));
+  // Хвост после <p> — не перевод этого аята.
+  check('20:32: без тега <p>',
+    inhDisplayText('20:32', raw('20:32')), raw('20:32').slice(0, raw('20:32').indexOf('<p>')).trimEnd());
+  check('50:40: без приклеенного перевода 50:41',
+    inhDisplayText('50:40', raw('50:40')).includes('41.'), false);
+  // Сдвиг в конце суры 50 — не показываем, пока владелец не решил.
+  check('50:41–50:44 скрыты',
+    ['50:41', '50:42', '50:43', '50:44'].map(k => inhDisplayText(k, raw(k))),
+    [undefined, undefined, undefined, undefined]);
+  check('50:45 пуст в источнике', inhDisplayText('50:45', raw('50:45')), undefined);
+
+  // По всему Корану: на экран не попадает разметка, символы приватной
+  // зоны (квадраты) и арабские обрывки.
+  const bad = Object.keys(sources).filter(k => {
+    const t = inhDisplayText(k, raw(k));
+    return t !== undefined && /[<>\uE000-\uF8FF\u0600-\u06FF]/.test(t);
+  });
+  check('ни одного показанного аята с мусором источника', bad, []);
+  const shown = Object.keys(sources).filter(k => inhDisplayText(k, raw(k)) !== undefined).length;
+  check('ингушский показывается в 6231 аяте (6236 − 50:41…50:45)', shown, 6231);
+
+  // Поиск: ингушский находится, подсветка — из оригинала.
+  const kh = search('Къахетам беши');
+  check('ингушский запрос находит 1:1 первым',
+    [kh.ayahs[0].surah, kh.ayahs[0].ayah, kh.ayahs[0].lang], [1, 1, 'inh']);
+
+  // Палочку набирают тремя способами — все должны находить 67:1.
+  for (const q of ['ЦIена ва мулк', 'ЦӀена ва мулк', 'ц1ена ва мулк']) {
+    const r = search(q);
+    check(`«${q}» находит 67:1`,
+      r.ayahs.some(a => a.surah === 67 && a.ayah === 1 && a.lang === 'inh'), true);
+  }
+
+  // Знак ударения в источнике («Алла́хIа») не мешает поиску без него,
+  // а подсветка захватывает исходный текст вместе с ударением.
+  const acc = search('аллахIа цIерца');
+  check('запрос без ударения находит 1:1', [acc.ayahs[0].surah, acc.ayahs[0].ayah], [1, 1]);
+  const accSnip = snippet(acc.ayahs[0]);
+  check('подсветка — кусок оригинала с ударением',
+    accSnip.match, acc.ayahs[0].text.slice(acc.ayahs[0].matchStart, acc.ayahs[0].matchEnd));
+  check('…и ударение в ней сохранено', accSnip.match.includes('́'), true);
+
+  // Латинские двойники внутри кириллических слов источника: «cийле»
+  // (62:4, латинская c) и «Mи́м» (44:1, латинская M и ударение).
+  check('«сийле я» (кириллицей) находит 62:4 с латинской «c»',
+    search('сийле я').ayahs.some(a => a.surah === 62 && a.ayah === 4 && a.lang === 'inh'), true);
+  check('«Хьа. Мим» находит 44:1 с латинской «M» и ударением',
+    search('Хьа. Мим').ayahs.some(a => a.surah === 44 && a.ayah === 1 && a.lang === 'inh'), true);
+  // Палочку набирают и украинской «і».
+  check('«Ціена ва мулк» (украинская і) находит 67:1',
+    search('Ціена ва мулк').ayahs.some(a => a.surah === 67 && a.ayah === 1), true);
+
+  // Поиск только по видимым переводам.
+  check('скрытый русский не ищется: «Господу миров» только в ингушском — пусто',
+    search('Господу миров', { langs: ['inh'] }).ayahs.length, 0);
+  check('скрытый ингушский не ищется: «Къахетам беши» только в русском — пусто',
+    search('Къахетам беши', { langs: ['ru'] }).ayahs.length, 0);
+  const ruOnly = search('Аллах', { langs: ['ru'] });
+  check('при одном русском все результаты русские',
+    ruOnly.ayahs.every(a => a.lang === 'ru'), true);
+
+  // Скрытые записи не находятся: иначе поиск привёл бы к чужому переводу.
+  const hidden = search('хьахозача дийнахьа');
+  check('текст скрытого 50:41 не находится как 50:41',
+    hidden.ayahs.some(a => a.surah === 50 && a.ayah === 41), false);
+
+  // Русский поиск не сломан складыванием символов.
+  const ru = search('Господу миров');
+  check('русский запрос по-прежнему находит 1:2',
+    [ru.ayahs[0].surah, ru.ayahs[0].ayah, ru.ayahs[0].lang], [1, 2, 'ru']);
+  check('«й» не превращается в «и»', normalise('Мой Господь'), 'мой господь');
+  check('цифры вне кириллицы остаются цифрами', normalise('2 255'), '2 255');
+
+  // Аят, найденный в обоих переводах, — один результат.
+  const both = search('Аллах');
+  check('в выдаче нет повторов при поиске по двум переводам',
+    new Set(both.ayahs.map(a => a.surah + ':' + a.ayah)).size, both.ayahs.length);
+});
+
 // ─── Время намаза ─────────────────────────────────────────────────────
 //
 // Зачем это здесь.  Время намаза — не косметика: ошибка в углах или

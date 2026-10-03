@@ -82,6 +82,7 @@ import {
   type LatinFontId, type ArabicFontId,
 } from '../lib/typography';
 import { usesWholeAyahHighlight } from '../lib/reciters';
+import { INH_FONT_FEATURES, INH_VISIBLE_KEY, inhDisplayText, inhFontStack, readShowInh } from '../lib/inhTranslation';
 import { fontFamilyForPage } from '../content/quran-tajweed-meta';
 
 type Props = {
@@ -150,6 +151,10 @@ export function SurahScreen({
   const [arabicScale, setArabicScaleS] = useState<number>(() => readNumber('arabicScale', 1.0));
   const [ruScale,     setRuScaleS]     = useState<number>(() => readNumber('ruScale',     1.0));
   const [ruFont,      setRuFontS]      = useState<LatinFontId>(()  => readPref('ruFont',     'inter-regular', LATIN_IDS));
+  // Ингушский — свой набор настроек, независимый от русского: человек может
+  // читать один перевод крупно, а второй держать мельче или скрыть вовсе.
+  const [inhScale,    setInhScaleS]    = useState<number>(() => readNumber('inhScale',    1.0));
+  const [inhFont,     setInhFontS]     = useState<LatinFontId>(()  => readPref('inhFont',    'inter-regular', LATIN_IDS));
   // Дефолт — «Мусхаф» (QCF V4), а не юникодный «Усмани»: это глифы
   // мединского мусхафа от King Fahd Complex, то самое начертание, к
   // которому человек привык в печатном Коране.  Юникодный текст рядом
@@ -160,6 +165,7 @@ export function SurahScreen({
   const [arabicFont,  setArabicFontS]  = useState<ArabicFontId>(() => readPref('arabicFont', 'qcf-v4', ARABIC_IDS));
   const [showArabic,  setShowArabicS]  = useState<boolean>(() => localStorage.getItem('showArabic') !== '0');
   const [showRu,      setShowRuS]      = useState<boolean>(() => localStorage.getItem('showRu')     !== '0');
+  const [showInh,     setShowInhS]     = useState<boolean>(readShowInh);
 
   const persist = <T extends string | number | boolean>(key: string) => (v: T) => {
     localStorage.setItem(key, typeof v === 'boolean' ? (v ? '1' : '0') : String(v));
@@ -167,6 +173,8 @@ export function SurahScreen({
   const setArabicScale = (v: number)       => { setArabicScaleS(v); persist<number>('arabicScale')(v); };
   const setRuScale     = (v: number)       => { setRuScaleS(v);     persist<number>('ruScale')(v); };
   const setRuFont      = (v: LatinFontId)  => { setRuFontS(v);      persist<string>('ruFont')(v); };
+  const setInhScale    = (v: number)       => { setInhScaleS(v);    persist<number>('inhScale')(v); };
+  const setInhFont     = (v: LatinFontId)  => { setInhFontS(v);     persist<string>('inhFont')(v); };
   const setArabicFont  = (v: ArabicFontId) => {
     // Начинаем текущую страницу прямо в обработчике тапа, до закрытия
     // настроек и до следующего React-эффекта. JSON и шрифт едут параллельно.
@@ -184,6 +192,7 @@ export function SurahScreen({
   };
   const setShowArabic  = (v: boolean)      => { setShowArabicS(v);  persist<boolean>('showArabic')(v); };
   const setShowRu      = (v: boolean)      => { setShowRuS(v);      persist<boolean>('showRu')(v); };
+  const setShowInh     = (v: boolean)      => { setShowInhS(v);     persist<boolean>(INH_VISIBLE_KEY)(v); };
 
   // ── Header popovers ────────────────────────────────────────────────────────
   const [jumpOpen,       setJumpOpen]       = useState(false);
@@ -981,6 +990,9 @@ export function SurahScreen({
           arabicScale={arabicScale} setArabicScale={setArabicScale}
           ruScale={ruScale}         setRuScale={setRuScale}
           ruFont={ruFont}         setRuFont={setRuFont}
+          showInh={showInh}       setShowInh={setShowInh}
+          inhScale={inhScale}     setInhScale={setInhScale}
+          inhFont={inhFont}       setInhFont={setInhFont}
           arabicFont={arabicFont} setArabicFont={setArabicFont}
           tajweedStatus={tajweedUiStatus}
           onClose={() => setTypographyOpen(false)}
@@ -1092,12 +1104,16 @@ export function SurahScreen({
                   key={entry.verseKey}
                   entry={entry}
                   translation={quranSources[entry.verseKey]?.translations.ru}
+                  inhTranslation={inhDisplayText(entry.verseKey, quranSources[entry.verseKey]?.translations.inh)}
                   showArabic={showArabic}
                   showRu={showRu}
+                  showInh={showInh}
                   arabicFont={arabicFont}
                   arabicScale={arabicScale}
                   ruFont={ruFont}
                   ruScale={ruScale}
+                  inhFont={inhFont}
+                  inhScale={inhScale}
                   wholeAyahHighlight={wholeAyahHighlight}
                   isActive={isActiveAyah}
                   // Неактивной строке позиция слова и состояние плеера не
@@ -1364,18 +1380,23 @@ function SurahTitleBlock({ meta, decor }: {
  * есть её пропсы во время воспроизведения не меняются вовсе.
  */
 const AyahRow = memo(function AyahRow({
-  entry, translation, showArabic, showRu, arabicFont, arabicScale,
-  ruFont, ruScale, wholeAyahHighlight, isActive, activeWordPos, audioState,
+  entry, translation, inhTranslation, showArabic, showRu, showInh, arabicFont, arabicScale,
+  ruFont, ruScale, inhFont, inhScale, wholeAyahHighlight, isActive, activeWordPos, audioState,
   eager, onPlay,
 }: {
   entry: QcfAyahEntry;
   translation: string | undefined;
+  /** Уже отфильтрован inhDisplayText — показывать как есть. */
+  inhTranslation: string | undefined;
   showArabic: boolean;
   showRu: boolean;
+  showInh: boolean;
   arabicFont: ArabicFontId;
   arabicScale: number;
   ruFont: LatinFontId;
   ruScale: number;
+  inhFont: LatinFontId;
+  inhScale: number;
   wholeAyahHighlight: boolean;
   isActive: boolean;
   activeWordPos: number | null;
@@ -1390,10 +1411,13 @@ const AyahRow = memo(function AyahRow({
   //                                     deliberate)
   // Inter faces stay at the pure scale-based calc.
   const serifBump = (v: number): number => (v >= 1.4 ? 10 : 5);
-  const ruFontSize = latinIsSerif(ruFont)
-    ? `calc(16px * ${ruScale} + ${serifBump(ruScale)}px)`
-    : `calc(16px * ${ruScale})`;
+  const translationFontSize = (font: LatinFontId, scale: number) => latinIsSerif(font)
+    ? `calc(16px * ${scale} + ${serifBump(scale)}px)`
+    : `calc(16px * ${scale})`;
+  const ruFontSize = translationFontSize(ruFont, ruScale);
+  const inhFontSize = translationFontSize(inhFont, inhScale);
   const ruLineHeight = 1.48;
+  const inhVisible = showInh && !!inhTranslation;
 
   return (
     <article
@@ -1425,10 +1449,28 @@ const AyahRow = memo(function AyahRow({
         </div>
       )}
 
+      {/* Ingush — первый перевод под арабским: приложение ингушское.
+          Цвет основного текста, чтобы два перевода подряд не сливались:
+          русский ниже остаётся вторичным. */}
+      {inhVisible && (
+        <p lang="inh" style={{
+          margin: showArabic ? '14px 0 0' : 0,
+          fontFamily: inhFontStack(inhFont),
+          fontFeatureSettings: INH_FONT_FEATURES,
+          fontSize: inhFontSize,
+          fontWeight: latinWeight(inhFont),
+          lineHeight: ruLineHeight,
+          color: 'var(--text-primary)',
+          letterSpacing: '-0.005em',
+        }}>
+          {inhTranslation}
+        </p>
+      )}
+
       {/* Russian */}
       {showRu && translation && (
-        <p style={{
-          margin: showArabic ? '14px 0 0' : 0,
+        <p lang="ru" style={{
+          margin: showArabic || inhVisible ? (inhVisible ? '10px 0 0' : '14px 0 0') : 0,
           fontFamily: latinStack(ruFont),
           fontSize: ruFontSize,
           fontWeight: latinWeight(ruFont),
