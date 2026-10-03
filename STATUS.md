@@ -119,10 +119,13 @@
    секреты репозитория ASC_KEY_P8/ASC_KEY_ID/ASC_ISSUER_ID заданы. Bundle ID
    `ing.quran.app` зарегистрирован. Ждём Apple ID записи приложения →
    `ASC_APP_ID` (в asc.env и секреты). Версия сброшена на 1.0 (1).
-   Первая iOS-сборка (run 37148976793) упала на архиве: «Your team has no
-   devices from which to generate a provisioning profile» — для профиля
-   разработки нужен хотя бы один зарегистрированный iPhone. Ждём UDID
-   iPhone владельца (регистрация — через API, POST /v1/devices).
+   Apple ID приложения `6818864274` (ASC_APP_ID — в asc.env и секретах).
+   Подпись релиза — без устройств: сертификат Apple Distribution
+   `7RRH5Y4869` (до 03.10.2027) и профиль «Quran Ing App Store» `J3383D7SKV`,
+   выпуск — `scripts/appstore/create-distribution-signing.mjs`, ключ — только в
+   `secrets/dist/` и секретах GitHub. **1.0 (1) выгружена 2026-10-03**
+   (run 37149870043). TestFlight: внутренняя группа «Владелец» с доступом ко
+   всем сборкам.
 4. ~~Свой GitHub~~ — 2026-10-03: `killianche/quran-ing` (публичный, решение
    владельца: бесплатные сборки; в открытый доступ ушли и тафсир QF, и базы
    ингушского перевода — владелец знает), сайт `killianche/quran-ing-site`.
