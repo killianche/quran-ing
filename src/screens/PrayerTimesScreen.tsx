@@ -723,7 +723,7 @@ function AlarmStatus({ status, enabledCount, primaryLabel }: {
   const text = status === 'permission-denied'
     ? 'Разрешите уведомления в настройках устройства, чтобы включить напоминания.'
     : status === 'exact-alarm-denied'
-      ? 'Напоминания включены, но Android не разрешил точные будильники. Разрешите их в системных настройках an-Nur.'
+      ? 'Напоминания включены, но Android не разрешил точные будильники. Разрешите их в системных настройках Quran Ing.'
       : status === 'unsupported'
         ? 'Этот браузер не поддерживает уведомления. На iPhone и Android напоминания работают в фоне.'
         : status === 'error'

@@ -11,7 +11,7 @@
 		<string>ru</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-        <string>an-Nur</string>
+        <string>Quran Ing</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -19,7 +19,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>an-Nur</string>
+	<string>Quran Ing</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

@@ -35,9 +35,9 @@
  * версией → PATCH с `submitted: true`. Третий шаг не проходит без второго.
  */
 import { readFileSync } from 'node:fs';
-import { credentialsFromEnv, ascGet, ascSend } from './asc-client.mjs';
+import { credentialsFromEnv, appIdFromEnv, ascGet, ascSend } from './asc-client.mjs';
 
-const APP_ID = '6802455200';
+const APP_ID = appIdFromEnv();
 const PLATFORM = 'IOS';
 const LOCALE = 'ru';
 

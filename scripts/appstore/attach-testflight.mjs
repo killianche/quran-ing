@@ -20,9 +20,9 @@
  * Идемпотентен: повторный вызов на уже привязанной сборке безвреден.
  */
 
-import { credentialsFromEnv, ascGet, ascSend } from './asc-client.mjs';
+import { credentialsFromEnv, appIdFromEnv, ascGet, ascSend } from './asc-client.mjs';
 
-const APP = '6802455200';
+const APP = appIdFromEnv();
 
 const credentials = credentialsFromEnv();
 

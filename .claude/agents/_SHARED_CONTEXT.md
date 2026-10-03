@@ -7,7 +7,9 @@
 
 ## Проект
 
-**an-Nur** (репозиторий QuranRu) — русскоязычное приложение для чтения Корана:
+**Quran Ing** (`/root/projects/QuranIng`) — копия an-Nur (QuranRu) от 2026-10-03
+с новым дизайном и функционалом, выпускается в другом аккаунте App Store.
+Русскоязычное приложение для чтения Корана:
 арабский текст, перевод Кулиева, аудио пяти чтецов с пословной подсветкой,
 полноэкранный мусхаф, цветной таджвид, дуа, азкары, время намаза, кибла.
 
@@ -21,8 +23,8 @@ React Context не используется; состояние — локаль
 
 | Контур | Команда | Цель |
 |---|---|---|
-| Web | `npm run check:sacred` → `npm run build` → rsync `dist/` | `62.113.106.30:/var/www/an-nur`, публичный `https://l.asrbook.ru` |
-| iOS | `npm run ios:release-check` → Xcode Archive | App Store, Bundle ID `ru.annur.quran` |
+| Web | `npm run check:sacred` → `npm run build` | цель не назначена; сервер и сайт an-Nur — НЕ цель |
+| iOS | `npm run ios:release-check` → Xcode Archive | App Store нового аккаунта, Bundle ID ещё не выбран (`ru.annur.quran` — это an-Nur) |
 | Android | `npm run sync` → Gradle | не публиковался, подписи нет |
 
 Правка одного контура **не публикуется** в остальные автоматически.
@@ -44,9 +46,12 @@ React Context не используется; состояние — локаль
 
 ## Граница проекта
 
-Единственный рабочий проект — QuranRu / an-Nur. Другие репозитории на машине
-(QuranIng, старые копии Quran reader, QuranByMadinah) — **неприкосновенны**:
-не читать, не менять, не использовать как источник без прямого запроса владельца.
+Единственный рабочий проект — Quran Ing, `/root/projects/QuranIng`. an-Nur для
+него чужой: папка `/root/projects/QuranRu`, репозиторий `killianche/an-nur`
+(push запрещён), сайт `l.asrbook.ru`, серверы `62.113.106.30` и `85.198.86.41`,
+приложение App Store `6802455200` / `ru.annur.quran` — не трогать без прямого
+запроса владельца. Прочие проекты (QuranByMadinah, `~/Desktop/QuranIng` на Mac —
+старый одноимённый проект) тоже неприкосновенны.
 
 ## Грабли, которые уже стоили времени
 

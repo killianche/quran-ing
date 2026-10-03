@@ -100,6 +100,28 @@ export function credentialsFromEnv() {
 }
 
 /**
+ * Числовой Apple ID приложения в App Store Connect (App Information → Apple ID).
+ *
+ * Quran Ing — копия an-Nur для другого аккаунта. Раньше id был вписан в
+ * скрипты константой '6802455200' — это приложение an-Nur. Теперь id берётся
+ * только из ASC_APP_ID (secrets/asc.env), и без него скрипты падают, а не
+ * идут в чужое приложение.
+ */
+export function appIdFromEnv() {
+  const appId = process.env.ASC_APP_ID;
+  if (!appId) {
+    throw new Error(
+      'Не задан ASC_APP_ID — Apple ID приложения Quran Ing в App Store Connect.\n'
+      + 'Добавьте `export ASC_APP_ID=<id>` в secrets/asc.env.',
+    );
+  }
+  if (appId === '6802455200') {
+    throw new Error('ASC_APP_ID указывает на an-Nur (6802455200). Нужен id Quran Ing.');
+  }
+  return appId;
+}
+
+/**
  * GET к API. Возвращает разобранный JSON.
  *
  * Ошибки Apple приходят структурой `{ errors: [{ title, detail }] }` — их

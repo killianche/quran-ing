@@ -18,9 +18,9 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { credentialsFromEnv, ascGet } from './asc-client.mjs';
+import { credentialsFromEnv, appIdFromEnv, ascGet } from './asc-client.mjs';
 
-const APP = '6802455200';
+const APP = appIdFromEnv();
 
 const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 const наша = pkg.version.replace(/\.0$/, '');

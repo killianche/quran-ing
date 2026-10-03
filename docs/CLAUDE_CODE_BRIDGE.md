@@ -12,7 +12,7 @@
 ## Зачем так
 
 - Владелец работает через Cursor Remote SSH (`fornex-usa` /
-  `350672.fornex.cloud`), каталог `/root/projects/QuranRu`.
+  `350672.fornex.cloud`), каталог `/root/projects/QuranIng`.
 - Claude Code открыт в соседней панели того же workspace (сессия an-NUR /
   QuranRu) и уже держит длинный продуктовый контекст.
 - Мост не подменяет Claude Code: он **маршрутизирует** задачи и **докладывает**.
@@ -43,7 +43,7 @@
 
 **Добавлять:**
 
-- абсолютный рабочий каталог `/root/projects/QuranRu`;
+- абсолютный рабочий каталог `/root/projects/QuranIng`;
 - цель одним абзацем;
 - что уже есть в проекте (файлы, схема, экраны);
 - что уже выяснил мост (факты, пути, ловушки) — чтобы не дублировать разбор;
@@ -67,12 +67,12 @@
 
 Транскрипт:
 
-`/root/.claude/projects/-root-projects-QuranRu/<session-id>.jsonl`
+`/root/.claude/projects/-root-projects-QuranIng/<session-id>.jsonl`
 
 Отправка non-interactive (с сервера, из каталога проекта):
 
 ```bash
-cd /root/projects/QuranRu
+cd /root/projects/QuranIng
 claude -p \
   --resume <session-id> \
   --permission-mode bypassPermissions \
@@ -85,7 +85,7 @@ EOF
 
 Актуальный session id брать из живого процесса Claude Code
 (`ps` / `--resume=…`) или из самого свежего jsonl в
-`/root/.claude/projects/-root-projects-QuranRu/`.
+`/root/.claude/projects/-root-projects-QuranIng/`.
 
 ## Как отвечать владельцу
 

@@ -22,6 +22,9 @@ Apple даёт скачать ключ **один раз**. Потеряли —
 export ASC_ISSUER_ID=<issuer id>
 export ASC_KEY_ID=<key id>
 export ASC_KEY_PATH=secrets/AuthKey_<key id>.p8
+# Apple ID приложения Quran Ing (App Store Connect → App Information).
+# Не 6802455200 — это an-Nur, скрипты такой id отвергают.
+export ASC_APP_ID=<apple id приложения>
 ```
 
 Без этого файла скрипты выпуска останавливаются с понятной ошибкой, а не

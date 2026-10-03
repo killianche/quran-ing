@@ -14,7 +14,7 @@ const config: CapacitorConfig = {
   // ВНИМАНИЕ: appId после первой публикации в сторах не меняется.
   // Значение временное — подтвердить у владельца до первого релиза.
   appId: 'ru.annur.quran',
-  appName: 'an-Nur',
+  appName: 'Quran Ing',
   webDir: 'dist',
   server: {
     // Без этого Android грузит WebView по http://, что блокирует

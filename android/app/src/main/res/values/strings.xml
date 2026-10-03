@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">an-Nur</string>
-    <string name="title_activity_main">an-Nur</string>
+    <string name="app_name">Quran Ing</string>
+    <string name="title_activity_main">Quran Ing</string>
     <string name="package_name">ru.annur.quran</string>
     <string name="custom_url_scheme">ru.annur.quran</string>
 </resources>

@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "quran-ru",
+      "name": "quran-ing",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "/Users/ruslancherbizhev/Desktop/QuranRu",
+      "cwd": "/root/projects/QuranIng",
       "port": 5173
     }
   ]
