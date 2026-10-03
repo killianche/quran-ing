@@ -9,30 +9,35 @@ Android branding from drifting apart.
 from __future__ import annotations
 
 import argparse
+import json
+import re
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "logo.png"
 RESAMPLE = Image.Resampling.LANCZOS
 
-# Контур фирменной плашки внутри исходного logo.png. Он нужен только для
-# заставки: иконка приложения остаётся исходным квадратным логотипом, а на
-# заставке показывается чистый wordmark без белой подложки и большой плитки.
-WORDMARK_POLYGON = (
-    (234, 474),
-    (1068, 474),
-    (1106, 517),
-    (1053, 744),
-    (818, 744),
-    (804, 809),
-    (774, 810),
-    (740, 746),
-    (207, 746),
-    (177, 708),
-)
+WORDMARK = ROOT / "logo-wordmark.png"
+BRAND = ROOT / "brand.json"
+
+
+def brand() -> dict:
+    """Параметры знака из brand.json — его пишет scripts/brand/design-logo.py."""
+    if not BRAND.is_file():
+        raise SystemExit(f"Missing {BRAND.name}: run scripts/brand/design-logo.py --variant <id>")
+    data = json.loads(BRAND.read_text(encoding="utf-8"))
+    background = data.get("background", "")
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", background):
+        raise SystemExit(f"{BRAND.name}: background must be #RRGGBB, got {background!r}")
+    return data
+
+
+def brand_background() -> str:
+    """Цвет плитки: фон заставок и адаптивной иконки Android."""
+    return brand()["background"]
 
 
 def opaque_rgb(image: Image.Image) -> Image.Image:
@@ -50,29 +55,50 @@ def save_square(source: Image.Image, target: Path, size: int) -> None:
     source.resize((size, size), RESAMPLE).save(target, "PNG", optimize=True)
 
 
-def extract_wordmark(source: Image.Image) -> Image.Image:
-    """Вырезать точный wordmark из утверждённого logo.png."""
-    rgba = source.convert("RGBA")
-    mask = Image.new("L", source.size, 0)
-    ImageDraw.Draw(mask).polygon(WORDMARK_POLYGON, fill=255)
-    # Полупрозрачный край убирает ступеньки после масштабирования.
-    mask = mask.filter(ImageFilter.GaussianBlur(0.8))
-    rgba.putalpha(mask)
-    bbox = mask.getbbox()
-    if bbox is None:
-        raise SystemExit("Could not extract the wordmark from logo.png")
-    return rgba.crop(bbox)
+def load_wordmark() -> Image.Image:
+    """Знак для заставки — готовый файл от design-logo.py.
+
+    У an-Nur знак вырезался из logo.png по контуру, подогнанному под ту
+    картинку; у Quran Ing исходник логотипа — код, и знак он отдаёт сам.
+    """
+    if not WORDMARK.is_file():
+        raise SystemExit(f"Missing {WORDMARK.name}: run scripts/brand/design-logo.py --variant <id>")
+    return Image.open(WORDMARK).convert("RGBA")
 
 
 def splash_background(size: tuple[int, int]) -> Image.Image:
-    """Бледно-бежевый фон фирменной плитки (унаследован от an-Nur)."""
-    return Image.new("RGB", size, "#f4dfc0")
+    """Фон заставки — цвет плитки логотипа (brand.json)."""
+    return Image.new("RGB", size, brand_background())
 
 
 def save_wordmark(wordmark: Image.Image) -> None:
     target = ROOT / "public/brand/wordmark.png"
     target.parent.mkdir(parents=True, exist_ok=True)
     wordmark.save(target, "PNG", optimize=True)
+
+
+def save_adaptive_foreground(wordmark: Image.Image, target: Path, size: int) -> None:
+    """Передний слой адаптивной иконки Android: только знак, прозрачный фон.
+
+    Лаунчер показывает центральные 72 из 108 dp (66,7%) и режет их маской —
+    часто кругом. Целая плитка с крупным словом теряла бы края букв: углы
+    рамки слова выходили за круг. Знак вписывается так, чтобы его
+    полудиагональ была не больше 30% стороны — с запасом внутри круга
+    радиуса 33,3%. Фон даёт отдельный слой цвета плитки.
+    """
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    limit = 0.30 * size
+    half_diagonal = (wordmark.width ** 2 + wordmark.height ** 2) ** 0.5 / 2
+    scale = limit / half_diagonal
+    mark = wordmark.resize(
+        (max(1, round(wordmark.width * scale)), max(1, round(wordmark.height * scale))), RESAMPLE,
+    )
+    # Тот же оптический подъём, что и в logo.png, — иначе адаптивная иконка
+    # отличалась бы от обычной.
+    lift = round(size * float(brand().get("opticalLift", 0)))
+    canvas.paste(mark, ((size - mark.width) // 2, (size - mark.height) // 2 - lift), mark)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(target, "PNG", optimize=True)
 
 
 def save_splash(wordmark: Image.Image, target: Path, size: tuple[int, int]) -> None:
@@ -109,7 +135,7 @@ def main() -> None:
     if source.width != source.height:
         raise SystemExit(f"Logo must be square, got {source.size}")
 
-    wordmark = extract_wordmark(source)
+    wordmark = load_wordmark()
     save_wordmark(wordmark)
 
     splash = ROOT / "assets/splash.png"
@@ -156,12 +182,22 @@ def main() -> None:
         folder = ROOT / f"android/app/src/main/res/mipmap-{density}"
         save_square(source, folder / "ic_launcher.png", legacy_size)
         save_square(source, folder / "ic_launcher_round.png", legacy_size)
-        save_square(source, folder / "ic_launcher_foreground.png", adaptive_size)
+        save_adaptive_foreground(wordmark, folder / "ic_launcher_foreground.png", adaptive_size)
 
-        # Kept for the generated Android project even though the opaque
-        # supplied foreground fully covers it on current launchers.
-        background = Image.new("RGB", (adaptive_size, adaptive_size), "#f4dfc0")
+        background = Image.new("RGB", (adaptive_size, adaptive_size), brand_background())
         background.save(folder / "ic_launcher_background.png", "PNG", optimize=True)
+
+    # Цвет фонового слоя адаптивной иконки (mipmap-anydpi-v26 ссылается на
+    # @color/ic_launcher_background). У an-Nur он оставался белым шаблонным:
+    # его закрывал непрозрачный передний слой. Теперь передний слой
+    # прозрачный, и фон обязан быть цветом плитки.
+    (ROOT / "android/app/src/main/res/values/ic_launcher_background.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<resources>\n'
+        f'    <color name="ic_launcher_background">{brand_background().upper()}</color>\n'
+        '</resources>\n',
+        encoding="utf-8",
+    )
 
     android_splashes = {
         "drawable/splash.png": (320, 480),

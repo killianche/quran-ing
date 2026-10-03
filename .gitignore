@@ -62,3 +62,6 @@ secrets/
 *.ipa
 *.mp4
 *.mov
+
+# Предпросмотр вариантов логотипа (scripts/brand/design-logo.py --preview)
+brand-preview/
