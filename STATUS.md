@@ -108,7 +108,10 @@
    регистрации в новом аккаунте. Android-класс `MainActivity` перенесён в
    пакет `ing.quran.app` — у an-Nur он лежал в `app.quranru` при namespace
    `ru.annur.quran`, и `.MainActivity` из манифеста не находился бы.
-   Сборка Android на этом сервере не проверена (нет Android SDK).
+   Сборка Android проверена в GitHub Actions 2026-10-03 (run 37141127543,
+   android-check: тесты, гард, debug-APK ✓): в APK пакет `ing.quran.app`,
+   класс `ing/quran/app/MainActivity`, тафсир внутри. На устройстве не
+   запускалась.
 2. **Команда Apple (Team ID)** нового аккаунта — в Xcode-проекте пока
    `SGS6KFDCD4` (команда an-Nur).
 3. **Ключ App Store Connect API** нового аккаунта → `secrets/`.
