@@ -90,15 +90,6 @@ export function getPageSync(
   return pageCache.get(cacheKey(pageNum, edition)) ?? null;
 }
 
-/** Preload a page without subscribing to its state — fire-and-forget. */
-export function preloadPage(
-  pageNum: number | null,
-  edition: QcfEdition = DEFAULT_QCF_EDITION,
-): void {
-  if (pageNum === null || pageCache.has(cacheKey(pageNum, edition))) return;
-  fetchPage(pageNum, edition).catch(() => { /* ignore preload errors */ });
-}
-
 /**
  * Дождаться одной страницы.
  *

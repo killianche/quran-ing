@@ -22,10 +22,6 @@ type Props = {
   onNext: () => void;
   onCyclePlaybackRate: () => void;
   onClose: () => void;
-  /** Floating over the reader, or embedded in another surface (Mushaf sheet). */
-  layout?: 'floating' | 'inline';
-  /** Compact verse marker shown only in the embedded Mushaf player. */
-  inlineLabel?: React.ReactNode;
 };
 
 /**
@@ -36,12 +32,10 @@ type Props = {
 export function BottomDock({
   audioState, progress = 0, playbackRate = 1,
   onPlayPause, onPrev, onNext, onCyclePlaybackRate, onClose,
-  layout = 'floating', inlineLabel,
 }: Props) {
   const playing = audioState === 'playing';
   const loading = audioState === 'loading';
   const pct = Math.min(1, Math.max(0, progress));
-  const inline = layout === 'inline';
 
   return (
     <div
@@ -49,44 +43,26 @@ export function BottomDock({
       aria-label="Audio player"
       className="liquid-glass"
       style={{
-        position: inline ? 'relative' : 'fixed',
-        left: inline ? undefined : '50%',
-        bottom: inline
-          ? undefined
-          : 'max(var(--space-margin), env(safe-area-inset-bottom))',
-        transform: inline ? undefined : 'translateX(-50%)',
-        zIndex: inline ? undefined : 25,
-        height: inline ? '48px' : '76px',
-        borderRadius: inline ? 'var(--radius-card)' : 'var(--radius-pill)',
+        position: 'fixed',
+        left: '50%',
+        bottom: 'max(var(--space-margin), env(safe-area-inset-bottom))',
+        transform: 'translateX(-50%)',
+        zIndex: 25,
+        height: '76px',
+        borderRadius: 'var(--radius-pill)',
         display: 'flex',
         alignItems: 'center',
-        gap: inline ? 'var(--space-hair)' : 'var(--space-snug)',
-        padding: inline ? '0 var(--space-tight)' : '0 var(--space-cozy)',
+        gap: 'var(--space-snug)',
+        padding: '0 var(--space-cozy)',
         // Материал, грань, блик и тени — из общего класса `.liquid-glass`,
         // размытие — инлайном оттуда же, где и у остальных панелей: из CSS
         // его съедает минификатор (см. `src/lib/glass.ts`).
         ...GLASS_BLUR,
-        width: inline ? '100%' : undefined,
-        maxWidth: inline ? 'none' : 'min(96vw, 400px)',
-        justifyContent: inline ? 'space-between' : undefined,
+        maxWidth: 'min(96vw, 400px)',
         flexShrink: 0,
         overflow: 'hidden',
       }}
     >
-      {inline && inlineLabel && (
-        <span style={{
-          minWidth: 'var(--hit-min)',
-          padding: 'var(--space-tight) var(--space-snug)',
-          borderRadius: 'var(--radius-pill)',
-          border: '1px solid var(--hairline)', color: 'var(--text-secondary)',
-          fontSize: 'var(--font-caption2)',
-          fontWeight: 'var(--weight-semibold)', textAlign: 'center',
-          fontVariantNumeric: 'tabular-nums', lineHeight: 1,
-          flexShrink: 0,
-        }}>
-          {inlineLabel}
-        </span>
-      )}
       {/* Progress hairline — bottom edge of the pill, clipped by overflow:hidden */}
       <div
         aria-hidden
@@ -114,7 +90,6 @@ export function BottomDock({
           active background: the number itself is enough to communicate
           the non-default speed and does not compete with Play/Pause. */}
       <DockBtn
-        compact={inline}
         aria-label={`Скорость ${playbackRate}×`}
         title={`Скорость ${playbackRate}×`}
         onClick={onCyclePlaybackRate}
@@ -132,7 +107,7 @@ export function BottomDock({
         </span>
       </DockBtn>
 
-      <DockBtn compact={inline} aria-label="Previous ayah" onClick={onPrev}>
+      <DockBtn aria-label="Previous ayah" onClick={onPrev}>
         <SkipBack size={DOCK_ICON} />
       </DockBtn>
 
@@ -143,7 +118,6 @@ export function BottomDock({
           filled background, just text-secondary. Slight emphasis when
           playing (data-active) so the state stays glanceable. */}
       <DockBtn
-        compact={inline}
         onClick={onPlayPause}
         aria-label={loading ? 'Загрузка аята' : playing ? 'Pause' : 'Play'}
         disabled={loading}
@@ -157,11 +131,11 @@ export function BottomDock({
             : <PlayIc size={DOCK_ICON} />}
       </DockBtn>
 
-      <DockBtn compact={inline} aria-label="Next ayah" onClick={onNext}>
+      <DockBtn aria-label="Next ayah" onClick={onNext}>
         <SkipForward size={DOCK_ICON} />
       </DockBtn>
 
-      <DockBtn compact={inline} aria-label="Закрыть плеер" onClick={onClose}>
+      <DockBtn aria-label="Закрыть плеер" onClick={onClose}>
         <CloseIc size={DOCK_ICON} />
       </DockBtn>
     </div>
@@ -188,23 +162,21 @@ export function AudioSpinner({ size = 20 }: { size?: number }) {
 }
 
 function DockBtn({
-  children, style, compact = false, ...rest
+  children, style, ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   children: React.ReactNode;
-  compact?: boolean;
   'data-active'?: boolean;
 }) {
   const active = (rest as { 'data-active'?: boolean })['data-active'];
   return (
     <button
       {...rest}
-      // Класс держит прозрачный «доводчик» зоны касания до 44×44 —
-      // компактный вариант кнопки нарисован 40×40 (столько даёт высота
-      // встроенного плеера), а это меньше рекомендованного Apple
-      // минимума.  Видимый кружок и фон нажатия остаются прежними.
+      // Класс держит прозрачный «доводчик» зоны касания до 44×44.  Был
+      // нужен компактному 40×40 варианту встроенного плеера мусхафа;
+      // кнопки 48×48 его не требуют, но и не мешает.
       className="dock-btn"
       style={{
-        width: compact ? '40px' : '48px', height: compact ? '40px' : '48px',
+        width: '48px', height: '48px',
         borderRadius: 'var(--radius-pill)',
         border: 'none',
         background: active ? 'var(--accent-dim)' : 'transparent',

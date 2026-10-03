@@ -60,10 +60,15 @@ export const LOCAL_DATA_KEYS: readonly string[] = [
   // Кто я
   'profile.name',
   // Что читал
-  'recentReads', 'ayahBookmarks', 'bookmarks', 'mushaf.page', 'mushaf.font',
+  'recentReads', 'ayahBookmarks', 'bookmarks',
+  // `mushaf.page` / `mushaf.font` — наследие: полноэкранного мусхафа в
+  // Quran Ing нет, но установка поверх an-Nur (пока bundle ID общий)
+  // принесёт эти ключи, и «удалить мои данные» обязано вычистить и их.
+  'mushaf.page', 'mushaf.font',
   // Как читаю Коран
   'theme', 'reciter', 'arabicFont', 'ruFont', 'arabicScale', 'ruScale',
   'showArabic', 'showRu', 'fontScale', 'quran.feedMode',
+  'showInh', 'inhFont', 'inhScale',
   // Азкары
   'azkar.showArabic', 'azkar.showRussian', 'azkar.showTranslit',
   'azkar.arabicFont', 'azkar.russianFont', 'azkar.translitFont',

@@ -19,8 +19,8 @@ import { lockReaderOrientation } from './lib/screenOrientation';
 // от обычной страницы.
 if (Capacitor.isNativePlatform()) {
   document.documentElement.setAttribute('data-native', '');
-  // Физический поворот телефона сам по себе ничего не меняет. Горизонтальный
-  // мусхаф включается отдельной кнопкой и при выходе возвращает портрет.
+  // Физический поворот телефона сам по себе ничего не меняет: приложение
+  // читается в портрете.
   void lockReaderOrientation('portrait');
 }
 

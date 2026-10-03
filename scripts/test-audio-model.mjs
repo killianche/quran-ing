@@ -32,14 +32,8 @@ await searchMod.ensureSearchReady();
 const tajweedAudioMod = await import(
   pathToFileURL(resolve(ROOT, 'src/lib/tajweedAudioPosition.ts')).href
 );
-const mushafFontMod = await import(
-  pathToFileURL(resolve(ROOT, 'src/lib/mushafFont.ts')).href
-);
 const tajweedPageMod = await import(
   pathToFileURL(resolve(ROOT, 'src/lib/tajweedPage.ts')).href
-);
-const mushafAudioMod = await import(
-  pathToFileURL(resolve(ROOT, 'src/lib/mushafAudio.ts')).href
 );
 const recitersMod = await import(
   pathToFileURL(resolve(ROOT, 'src/lib/reciters.ts')).href
@@ -59,9 +53,6 @@ const prayerPreferencesMod = await import(
 const prayerNotificationsMod = await import(
   pathToFileURL(resolve(ROOT, 'src/lib/prayerNotifications.ts')).href
 );
-const mushafPagesMod = await import(
-  pathToFileURL(resolve(ROOT, 'src/lib/mushafPages.ts')).href
-);
 const timetableMod = await import(
   pathToFileURL(resolve(ROOT, 'src/content/nazranPrayerTimetables.ts')).href
 );
@@ -70,15 +61,7 @@ const {
   TOTAL_AYAHS, TOTAL_SURAHS,
 } = mod;
 const { tajweedVisualWordPosition } = tajweedAudioMod;
-const {
-  normaliseMushafFont, MUSHAF_FONT_OPTIONS, toggleMushafFont,
-  mushafEdition, mushafFontLabel,
-} = mushafFontMod;
 const { tajweedPageJsonPath, tajweedAyahFromPage } = tajweedPageMod;
-const {
-  mushafActiveVerseKey,
-  audioStateForVerse,
-} = mushafAudioMod;
 const {
   RECITERS, RECITERS_WITH_SEGMENTS, reciterById, supportsAyahOffline,
   requiresSurahAudioStream, surahAudioUrl, usesWholeAyahHighlight,
@@ -86,7 +69,6 @@ const {
 const { ayahAudioUrl } = quranUtilsMod;
 const { ayahAudioRange } = ayahAudioRangeMod;
 const { timetableRow, timetableDays } = timetableMod;
-const { mushafPageWindow } = mushafPagesMod;
 const { settingsForNewPrayerPlace } = prayerCitiesMod;
 const {
   normalisePrimaryPrayerSource,
@@ -135,84 +117,6 @@ group('Цветной таджвид: аудиопозиция совпадае�
     tajweedVisualWordPosition('37:130', null), null);
 });
 
-group('Полноэкранный мусхаф: выбор шрифта', () => {
-  check('доступны обычный, цветной и «Мадани 1405»',
-    MUSHAF_FONT_OPTIONS.map(option => option.id),
-    ['qcf-v4', 'qpc-v4-tajweed', 'qcf-v1']);
-  check('сохранённый цветной вариант восстанавливается',
-    normaliseMushafFont('qpc-v4-tajweed'), 'qpc-v4-tajweed');
-  // Обратная совместимость: значение, сохранённое до появления третьего
-  // варианта, должно открывать ровно тот же мусхаф, что и раньше.
-  check('сохранённый обычный вариант восстанавливается',
-    normaliseMushafFont('qcf-v4'), 'qcf-v4');
-  check('сохранённый «Мадани 1405» восстанавливается',
-    normaliseMushafFont('qcf-v1'), 'qcf-v1');
-  check('неизвестное значение безопасно возвращает обычный мусхаф',
-    normaliseMushafFont('old-font'), 'qcf-v4');
-  check('пустое хранилище даёт обычный мусхаф',
-    normaliseMushafFont(null), 'qcf-v4');
-
-  // Переключатель — цикл по списку вариантов, а не пара значений: иначе
-  // третий вариант оказался бы недоступен из шапки экрана.
-  check('быстрый переключатель включает цветной таджвид',
-    toggleMushafFont('qcf-v4'), 'qpc-v4-tajweed');
-  check('следующим идёт «Мадани 1405»',
-    toggleMushafFont('qpc-v4-tajweed'), 'qcf-v1');
-  check('круг замыкается на обычном мусхафе',
-    toggleMushafFont('qcf-v1'), 'qcf-v4');
-  check('цикл проходит все варианты ровно по разу',
-    (() => {
-      const seen = [];
-      let font = 'qcf-v4';
-      for (let i = 0; i < MUSHAF_FONT_OPTIONS.length; i++) {
-        seen.push(font);
-        font = toggleMushafFont(font);
-      }
-      return [seen, font];
-    })(),
-    [['qcf-v4', 'qpc-v4-tajweed', 'qcf-v1'], 'qcf-v4']);
-  check('неизвестное значение не ломает переключатель',
-    toggleMushafFont('old-font'), 'qcf-v4');
-
-  check('подпись кнопки берётся из списка вариантов',
-    mushafFontLabel('qcf-v1'), 'Мадани 1405');
-
-  // Издание решает, ИЗ КАКОГО каталога грузить страницу.  Цветной
-  // таджвид — шрифт поверх данных V4, поэтому издание у него общее с
-  // обычным вариантом, а не своё.
-  check('обычный мусхаф — издание V4',
-    mushafEdition('qcf-v4'), 'qcf-v4');
-  check('цветной таджвид остаётся на данных V4',
-    mushafEdition('qpc-v4-tajweed'), 'qcf-v4');
-  check('«Мадани 1405» — издание V1',
-    mushafEdition('qcf-v1'), 'qcf-v1');
-
-  check('путь страницы дополнен нулями',
-    tajweedPageJsonPath(7), '/tajweed/pages/007.json');
-});
-
-group('Полноэкранный мусхаф: соседние страницы готовы до свайпа', () => {
-  check('в середине готовятся текущая, следующая и предыдущая',
-    mushafPageWindow(7), [7, 8, 6]);
-  check('на первой странице нет нулевой',
-    mushafPageWindow(1), [1, 2]);
-  check('на последней странице нет 605-й',
-    mushafPageWindow(604), [604, 603]);
-  // Радиус 2 — пять слоёв для быстрого листания: соседи через одну готовы
-  // заранее, и смена страницы только двигает слои.
-  check('окно радиуса 2: текущая, затем по возрастанию расстояния',
-    mushafPageWindow(7, 2), [7, 8, 6, 9, 5]);
-  check('окно радиуса 2 у начала книги не выходит за первую страницу',
-    mushafPageWindow(1, 2), [1, 2, 3]);
-  check('окно радиуса 2 у конца книги не выходит за последнюю',
-    mushafPageWindow(604, 2), [604, 603, 602]);
-  check('радиус по умолчанию прежний — три слоя',
-    mushafPageWindow(7), mushafPageWindow(7, 1));
-  check('номер зажимается в допустимый диапазон',
-    [mushafPageWindow(-4), mushafPageWindow(999)],
-    [[1, 2], [604, 603]]);
-});
-
 group('Лента аятов: быстрый постраничный таджвид', () => {
   const page2 = JSON.parse(readFileSync(resolve(ROOT, 'public/tajweed/pages/002.json'), 'utf8'));
   const ayah = tajweedAyahFromPage(page2, '2:3');
@@ -222,17 +126,8 @@ group('Лента аятов: быстрый постраничный таджв
     [ayah?.words.length, ayah?.endMarker], [8, 'ﱕ']);
   check('отсутствующий аят не подменяется чужими данными',
     tajweedAyahFromPage(page2, '1:1'), null);
-});
-
-group('Полноэкранный мусхаф: состояние плеера', () => {
-  check('ключ аята строится из публичных координат очереди',
-    mushafActiveVerseKey(2, 3), '2:3');
-  check('без активной очереди ключа нет',
-    mushafActiveVerseKey(null, null), null);
-  check('выбранный звучащий аят показывает паузу',
-    audioStateForVerse('2:3', '2:3', 'playing'), 'playing');
-  check('другой выбранный аят остаётся готовым к запуску',
-    audioStateForVerse('2:4', '2:3', 'playing'), 'idle');
+  check('путь страницы дополнен нулями',
+    tajweedPageJsonPath(7), '/tajweed/pages/007.json');
 });
 
 group('Каталог чтецов и источники аудио', () => {
@@ -355,9 +250,6 @@ group('iOS: основной штрих цветного таджвида сле
   const tajweedAyahSource = readFileSync(
     resolve(ROOT, 'src/components/TajweedAyah.tsx'), 'utf8',
   );
-  const mushafPageSource = readFileSync(
-    resolve(ROOT, 'src/components/QcfMushafPage.tsx'), 'utf8',
-  );
   const appCss = readFileSync(resolve(ROOT, 'src/index.css'), 'utf8');
   check('runtime использует неизменённые официальные COLR v0/CPAL-файлы',
     fontFetcher.includes('official COLR v0/CPAL files')
@@ -372,9 +264,8 @@ group('iOS: основной штрих цветного таджвида сле
   check('монохромный fallback получает цвет активной темы',
     appCss.includes('.tajweed-theme-ink {')
       && appCss.includes('color: var(--text-primary);'), true);
-  check('оба Tajweed-рендерера используют единое правило чернил темы',
-    tajweedAyahSource.includes('className="tajweed-theme-ink"')
-      && mushafPageSource.includes('className="tajweed-theme-ink"'), true);
+  check('Tajweed-рендерер ленты использует единое правило чернил темы',
+    tajweedAyahSource.includes('className="tajweed-theme-ink"'), true);
 });
 
 group('Готовые расписания намаза для Назрани', () => {
@@ -1016,14 +907,14 @@ const { findQuranHome, stepsToQuranHome, reconcile, isRoot } = stackMod;
 const HOME = { name: 'tabs', tab: 'quran' };
 const AZKAR_TAB = { name: 'tabs', tab: 'azkar' };
 const SURAH = { name: 'surah' };
-const MUSHAF = { name: 'mushaf' };
+const PLAYER = { name: 'player' };
 const BOOKMARKS = { name: 'bookmarks' };
 
 group('Стек экранов', () => {
   check('на корне снимать нечего', stepsToQuranHome([HOME]), 0);
   check('из суры — один шаг', stepsToQuranHome([HOME, SURAH]), 1);
-  check('из мусхафа через суру — два шага',
-    stepsToQuranHome([HOME, SURAH, MUSHAF]), 2);
+  check('из плеера через суру — два шага',
+    stepsToQuranHome([HOME, SURAH, PLAYER]), 2);
   check('из суры, открытой из закладок, — два шага',
     stepsToQuranHome([HOME, BOOKMARKS, SURAH]), 2);
 
@@ -1038,7 +929,7 @@ group('Стек экранов', () => {
 
   // Приведение к глубине. Тот же массив = менять нечего; на этом держится
   // идемпотентность обработчика popstate.
-  const s3 = [HOME, SURAH, MUSHAF];
+  const s3 = [HOME, SURAH, PLAYER];
   check('глубина совпадает — тот же массив', reconcile(s3, 2, HOME) === s3, true);
   check('возврат обрезает стек',
     reconcile(s3, 0, HOME).map(x => x.name), ['tabs']);
@@ -1407,7 +1298,8 @@ await groupAsync('Два издания: кэш страниц их не сме�
 // если файла нет, аят молча остаётся пустым.  Проверка идёт по данным —
 // для каждой страницы смотрим, какие шрифты она реально просит.
 group('Мусхаф V1: данные и шрифты сходятся', () => {
-  const pagesDir = resolve(ROOT, 'public/qcf1/pages');
+  // Страницы V1 в Quran Ing не раздаются приложению — лежат вне сборки.
+  const pagesDir = resolve(ROOT, 'data/qcf1-pages');
   const fontsDir = resolve(ROOT, 'public/qcf1/fonts-woff2');
 
   if (!existsSync(pagesDir) || !existsSync(fontsDir)) {
@@ -1822,140 +1714,6 @@ await groupAsync('Азкары идут в порядке образца', async
 
   // Исходный массив не трогаем.
   check('исходный массив не изменён', данные.entries[0].id, 'azkar-001');
-});
-
-// ─── Доводка листа мусхафа ───────────────────────────────────────────
-//
-// Владелец: «переключение страниц происходит резко». Причина была в
-// фиксированных 220 мс на любой случай. Правило ниже — про то, что время
-// считается от оставшегося пути и укорачивается набранной скоростью.
-
-await groupAsync('Мусхаф: подгонка страницы под экран', async () => {
-  const mod = await import(
-    pathToFileURL(resolve(ROOT, 'src/lib/mushafFit.ts')).href
-  );
-  const { fitScale, lineJustified, JUSTIFY_FILL, MAX_FIT_PASSES } = mod;
-
-  // Заполнение строки — ширина набора, делённая на ширину полосы.
-  check('страница влезла — ужимать нечего', fitScale([0.8, 0.95, 1.0]), 1);
-  check('превышение в пределах допуска не трогаем', fitScale([1.001]), 1);
-  check('строка вылезла — ужимаем по самой длинной', fitScale([0.9, 1.25, 1.1]), 1.25);
-  check('высота тоже ограничивает', fitScale([0.8], 1.4), 1.4);
-  check('берётся большее из ширины и высоты', fitScale([1.5], 1.2), 1.5);
-  check('пустая страница не ломает расчёт', fitScale([], 1), 1);
-
-  // 🔴 Ради этого правила и заведён файл: сумма ширин слов у выключенной
-  // по ширине строки остаётся верной, а `scrollWidth` — нет. Подгонка
-  // обязана сходиться за отведённые проходы, начиная с прикидки по высоте.
-  let кегль = 46;
-  let проходов = 0;
-  // Модель строки: ширина набора пропорциональна кеглю (46 → заполнение 1.6).
-  const заполнение = () => [кегль * (1.6 / 46)];
-  while (проходов < MAX_FIT_PASSES) {
-    const s = fitScale(заполнение());
-    if (s === 1) break;
-    кегль = кегль / s;
-    проходов += 1;
-  }
-  check('подгонка сходится за отведённые проходы', fitScale(заполнение()), 1);
-  check('и не сходится в ноль', кегль > 9, true);
-
-  // Выключка: тянем только набранные строки и только из нескольких слов.
-  check('полная строка тянется по ширине', lineJustified(0.97, 6), true);
-  check('строка ровно на пороге тянется', lineJustified(JUSTIFY_FILL, 4), true);
-  check('короткая строка стоит по центру', lineJustified(0.55, 3), false);
-  // Заголовок суры и басмала — одно слово на всю строку; растянуть их
-  // «по ширине» нечем, и в мусхафе они стоят по центру.
-  check('строка из одного слова не тянется', lineJustified(1, 1), false);
-  check('пустая строка не тянется', lineJustified(0, 0), false);
-});
-
-await groupAsync('Мусхаф: лента страниц на нативной прокрутке', async () => {
-  const mod = await import(
-    pathToFileURL(resolve(ROOT, 'src/lib/mushafStrip.ts')).href
-  );
-  const {
-    stripIndex, scrollLeftForPage, pageAtScrollLeft, isStripAligned, stripWidth,
-    STRIP_FIRST_PAGE, STRIP_LAST_PAGE,
-  } = mod;
-  const ШАГ = 408;            // 390 экрана + 18 зазора
-
-  // Справа налево: следующая страница лежит ЛЕВЕЕ текущей.
-  check('следующая страница левее текущей',
-    scrollLeftForPage(101, ШАГ) < scrollLeftForPage(100, ШАГ), true);
-  check('последняя страница книги у левого края', scrollLeftForPage(STRIP_LAST_PAGE, ШАГ), 0);
-  check('первая — у правого', stripIndex(STRIP_FIRST_PAGE), STRIP_LAST_PAGE - STRIP_FIRST_PAGE);
-
-  // Прокрутка ↔ страница — взаимно обратны на каждой странице книги.
-  let расходится = 0;
-  for (let p = STRIP_FIRST_PAGE; p <= STRIP_LAST_PAGE; p++) {
-    if (pageAtScrollLeft(scrollLeftForPage(p, ШАГ), ШАГ) !== p) расходится++;
-  }
-  check('страница → прокрутка → та же страница, все 604', расходится, 0);
-
-  // Номер меняется, когда новая страница заняла больше половины шага.
-  check('чуть сдвинули — страница прежняя',
-    pageAtScrollLeft(scrollLeftForPage(100, ШАГ) - ШАГ * 0.4, ШАГ), 100);
-  check('больше половины — уже следующая',
-    pageAtScrollLeft(scrollLeftForPage(100, ШАГ) - ШАГ * 0.6, ШАГ), 101);
-  check('резинка за левым краем не выводит за 604', pageAtScrollLeft(-300, ШАГ), STRIP_LAST_PAGE);
-  check('и за правым — за 1', pageAtScrollLeft(ШАГ * 700, ШАГ), STRIP_FIRST_PAGE);
-  check('нулевой шаг не делит на ноль', pageAtScrollLeft(500, 0), STRIP_FIRST_PAGE);
-
-  check('на странице лента выровнена', isStripAligned(scrollLeftForPage(250, ШАГ), ШАГ), true);
-  check('посередине — нет', isStripAligned(scrollLeftForPage(250, ШАГ) + 150, ШАГ), false);
-  check('полпикселя дрожи — ещё выровнена', isStripAligned(scrollLeftForPage(250, ШАГ) + 0.5, ШАГ), true);
-  // Допуск остановки: застывшее значение WebKit (−10…+7 px) — остановка,
-  // палец посреди листа — нет.
-  const { stripSettleTolerance } = mod;
-  const допуск = stripSettleTolerance(ШАГ);
-  check('запаздывание WebKit в 10 px — лента стоит',
-    isStripAligned(scrollLeftForPage(250, ШАГ) - 10, ШАГ, допуск), true);
-  check('палец посреди листа — не стоит',
-    isStripAligned(scrollLeftForPage(250, ШАГ) - ШАГ * 0.3, ШАГ, допуск), false);
-  check('допуск не меньше 16 px даже на узком экране', stripSettleTolerance(100), 16);
-
-  // Последний лист справа должен доезжать до кадра целиком.
-  check('ширина ленты: все шаги плюс лист',
-    stripWidth(390, 18), (STRIP_LAST_PAGE - STRIP_FIRST_PAGE) * ШАГ + 390);
-  check('первая страница помещается в ленту',
-    scrollLeftForPage(STRIP_FIRST_PAGE, ШАГ) + 390, stripWidth(390, 18));
-
-  // 🔴 Своей анимации листания нет: листает системная прокрутка iOS (владелец
-  // 14.09.2026: «бери то, что уже сделано крупной компанией»). Страж ловит
-  // возврат самодельной физики любым из прежних путей: Web Animations в
-  // пейджере или CSS-переход слоя.
-  const экран = readFileSync(resolve(ROOT, 'src/screens/MushafScreen.tsx'), 'utf8');
-  check('пейджер мусхафа не запускает Web Animations', /\.animate\(/.test(экран), false);
-  // 🔴 Защита от наложения листов на iPhone 17 (владелец 17.09.2026): у листа
-  // свой графический слой, а дальние листы собираются вокруг стоявшей
-  // страницы, а не вокруг номера на ходу.
-  const телоЛиста = (() => {
-    const от = экран.indexOf('function PreparedMushafPage');
-    const до = экран.indexOf('\nfunction ', от + 1);
-    return экран.slice(от, до === -1 ? undefined : до);
-  })();
-  check('у листа мусхафа собственный графический слой',
-    /willChange:\s*'transform'/.test(телоЛиста), true);
-  check('листы идут в порядке номеров — узлы не переставляются на ходу',
-    /mushafPageWindow\(windowBase,\s*2\),?\s*\]\)\]\.sort\(\(a,\s*b\)\s*=>\s*a\s*-\s*b\)/.test(экран), true);
-  check('лента мусхафа — нативная прокрутка с привязкой к страницам',
-    /scrollSnapType:\s*'x mandatory'/.test(экран) && /scrollSnapStop:\s*'always'/.test(экран), true);
-  const стили = readFileSync(resolve(ROOT, 'src/index.css'), 'utf8');
-  const слойИДорожка = [...стили.matchAll(/\.mushaf-page-(?:layer|track)[^{]*\{([^}]*)\}/g)]
-    .map(m => m[1].replace(/\/\*[\s\S]*?\*\//g, ''));
-  // Любое свойство семейства: `transition`, `transition-duration`, `animation`…
-  const движение = /(?:transition|animation)(?:-[a-z-]+)?\s*:/;
-  check('у слоёв и дорожки мусхафа нет CSS-перехода и анимации',
-    слойИДорожка.some(тело => движение.test(тело)), false);
-  // И инлайном: стиль слоя пишется прямо в `PreparedMushafPage`.
-  // Только тело этой функции: ниже в файле лист аята со своей законной
-  // анимацией появления, к листанию она отношения не имеет.
-  const началоСлоя = экран.indexOf('function PreparedMushafPage');
-  const конецСлоя = экран.indexOf('\nfunction ', началоСлоя + 1);
-  const слойJsx = экран.slice(началоСлоя, конецСлоя === -1 ? undefined : конецСлоя);
-  check('у слоя мусхафа нет перехода и в инлайновом стиле',
-    /\b(?:transition|animation)(?:[A-Z][A-Za-z]*)?\s*:/.test(слойJsx), false);
 });
 
 await groupAsync('Быстрая прокрутка: палец → номер', async () => {

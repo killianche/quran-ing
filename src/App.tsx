@@ -38,7 +38,6 @@ import { reconcile, stepsToQuranHome } from './lib/screenStack';
  * подставляем вручную.
  */
 const SurahScreen = lazy(() => import('./screens/SurahScreen').then(m => ({ default: m.SurahScreen })));
-const MushafScreen = lazy(() => import('./screens/MushafScreen').then(m => ({ default: m.MushafScreen })));
 const AzkarScreen = lazy(() => import('./screens/AzkarScreen').then(m => ({ default: m.AzkarScreen })));
 const DuaScreen = lazy(() => import('./screens/DuaScreen').then(m => ({ default: m.DuaScreen })));
 const AzkarCategoryScreen = lazy(() => import('./screens/AzkarCategoryScreen').then(m => ({ default: m.AzkarCategoryScreen })));
@@ -69,9 +68,6 @@ type Screen =
   | { name: 'bookmarks' }
   | { name: 'account' }
   | { name: 'surah'; number: number; initialAyah?: number }
-  // Режим мусхафа — отдельный экран, а не вариант чтения: у него своя
-  // единица навигации (страница, не аят) и своя история.
-  | { name: 'mushaf'; page: number }
   // Кибла ушла из вкладок: открывается с экрана намаза и имеет свою
   // запись в истории, поэтому системная «назад» возвращает к намазу.
   | { name: 'qibla' }
@@ -165,9 +161,8 @@ export default function App() {
   // Системный «назад» (edge-swipe на iOS, аппаратная кнопка на Android,
   // кнопка браузера) прилетает как popstate и превращается обратно в
   // setScreen — отдельной проводки не нужно.  Кнопки «назад» внутри
-  // экранов обычно зовут goBack() (= history.back()). Исключение — оба
-  // режима чтения Корана: их стрелка всегда ведёт к выбору суры, потому
-  // что смена «лента ↔ мусхаф» имеет отдельную кнопку.
+  // экранов обычно зовут goBack() (= history.back()). Исключение — экран
+  // суры: его стрелка всегда ведёт к выбору суры.
   //
   // Переключение вкладки — тоже переход вперёд: системный «назад»
   // возвращает на предыдущую вкладку, а не выбрасывает из приложения
@@ -216,7 +211,7 @@ export default function App() {
     if (screen.name === 'tabs' && screen.tab === 'quran' && captured) {
       quranHomePreviewRef.current = captured;
     }
-    const returnsToQuran = next.name === 'surah' || next.name === 'mushaf';
+    const returnsToQuran = next.name === 'surah';
     setBackPreview(
       returnsToQuran
         ? (quranHomePreviewRef.current ?? captured)
@@ -399,7 +394,6 @@ export default function App() {
   // первого. То же касается двух разных лент азкаров.
   const overlayKey = screen.name === 'document' ? `document:${screen.doc}`
     : screen.name === 'azkar-category' ? `azkar:${screen.category}`
-    : screen.name === 'mushaf' ? 'mushaf'
     : screen.name;
   useLayoutEffect(() => {
     if (screen.name === 'tabs' || screen.name === 'surah') return;
@@ -419,30 +413,6 @@ export default function App() {
             theme={theme}
             setTheme={setTheme}
             onBack={goQuranHome}
-            onOpenMushaf={page => navigate({ name: 'mushaf', page })}
-          />
-        </ErrorBoundary>
-        </Suspense>
-      </Shell>
-    );
-  }
-
-  if (screen.name === 'mushaf') {
-    return (
-      <Shell key="mushaf" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goQuranHome} edgeBackPreview={backPreview}>
-        <Suspense fallback={<ScreenFallback />}>
-        <ErrorBoundary name="MushafScreen" onReset={goQuranHome}>
-          <MushafScreen
-            initialPage={screen.page}
-            theme={theme}
-            setTheme={setTheme}
-            /* «Назад» из книжного вида ведёт к выбору суры, а не по истории.
-               По истории он возвращал в ленту — то есть делал то же, что
-               кнопка переключения вида, только неявно. Два способа сменить
-               вид сбивают: у переключения есть своя кнопка, а «назад»
-               должен выводить из режима наружу. */
-            onBack={goQuranHome}
-            onOpenFeed={(n, ayah) => navigate({ name: 'surah', number: n, initialAyah: ayah })}
           />
         </ErrorBoundary>
         </Suspense>

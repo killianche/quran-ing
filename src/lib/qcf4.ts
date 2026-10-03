@@ -273,6 +273,12 @@ export function hydratePage(
 /**
  * Zero-pads a page number to 3 digits for the filename.
  * e.g. 1 → "001", 42 → "042", 604 → "604"
+ *
+ * 🔴 Quran Ing: страницы V1 (`qcf-v1`) приложению НЕ раздаются — они
+ * лежат в data/qcf1-pages только для сверок, а лента рисует V1 из
+ * arabic-editions.json.  Путь для V1 сохранён ради тестов загрузчика;
+ * чтобы снова грузить страницы V1 в приложении, их нужно вернуть в
+ * public/qcf1/pages.
  */
 export function pageJsonPath(
   pageNum: number,

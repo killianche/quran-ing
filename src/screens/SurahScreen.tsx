@@ -67,13 +67,12 @@ import { ThemeSettings, TypographySettings } from '../components/ReadingSettings
 import { AudioSpinner, BottomDock } from '../components/BottomDock';
 import {
   Typography, Appearance,
-  Bookmark as BookmarkIcon, Play, Pause, BookOpen, ICON_SIZE } from '../components/icons';
+  Bookmark as BookmarkIcon, Play, Pause, ICON_SIZE } from '../components/icons';
 import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
 import { type Theme } from '../hooks/useTheme';
 import { getAutoScroll, subscribeAudioPrefs } from '../lib/audioPrefs';
 import { pushRecent, updateRecentAyah, readRecents } from '../lib/recents';
 import { pageOfAyah } from '../lib/mushafPages';
-import { mushafEdition, readMushafFont } from '../lib/mushafFont';
 import { isBookmarked, toggleBookmark } from '../lib/bookmarks';
 import {
   readPref, readNumber,
@@ -97,8 +96,6 @@ type Props = {
    * Honoured once per surah change.
    */
   initialAyah?: number;
-  /** Переключиться в режим мусхафа на странице, где стоит читатель. */
-  onOpenMushaf?: (page: number) => void;
 };
 
 /**
@@ -128,7 +125,7 @@ function migrateLegacyScale() {
 }
 
 export function SurahScreen({
-  surahNumber, theme, setTheme, onBack, initialAyah, onOpenMushaf,
+  surahNumber, theme, setTheme, onBack, initialAyah,
 }: Props) {
   migrateLegacyScale();
 
@@ -926,26 +923,6 @@ export function SurahScreen({
           // первом экране получалось два одинаковых текста подряд.
           onBack={onBack}
           actions={[
-            // Переключатель режима всегда первый: в полноэкранном мусхафе
-            // обратная кнопка книги занимает ровно эту же позицию.
-            ...(onOpenMushaf ? [{
-              key: 'mushaf',
-              label: 'Читать страницами мусхафа',
-              icon: <BookOpen size={ICON_SIZE.lg} />,
-              onClick: () => {
-                // Открываем ту страницу, на которой человек сейчас стоит,
-                // а не первую страницу суры: переключение режима не
-                // должно терять место в чтении.
-                const ayah = lastTrackedAyahRef.current
-                  ?? (audio.currentSurah === surahNumber ? audio.currentAyah : null)
-                  ?? initialAyah
-                  ?? 1;
-                // Открываем полноэкранный мусхаф, а у него своё издание:
-                // страницы «Мадани 1405» и 1441 расходятся, и без издания
-                // человек попал бы на страницу без запрошенного аята.
-                onOpenMushaf(pageOfAyah(surahNumber, ayah, mushafEdition(readMushafFont())));
-              },
-            }] : []),
             {
               key: 'type',
               label: 'Текст и шрифты',
@@ -1003,8 +980,7 @@ export function SurahScreen({
       {/* Быстрая прокрутка по аятам: удержание у левого края и протяжка
           вверх-вниз, номер аята крупно по центру. Полоса начинается с
           22 px: первые 22 принадлежат системному жесту «назад» на iOS
-          (IosEdgeBackGesture), и за одно касание они спорить не должны.
-          Только обычный режим — у полноэкранного мусхафа свои жесты. */}
+          (IosEdgeBackGesture), и за одно касание они спорить не должны. */}
       {meta && (
         <FastScrubber
           enabled={FAST_SCROLL.ayahFeed}

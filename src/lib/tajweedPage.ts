@@ -1,4 +1,4 @@
-/** Постраничные данные цветного QPC V4 Tajweed для режима мусхафа. */
+/** Постраничные данные цветного QPC V4 Tajweed — лента берёт аят из страницы. */
 
 import type { TajweedAyahData } from '../content/quran-tajweed-meta';
 

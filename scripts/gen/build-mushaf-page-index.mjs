@@ -43,7 +43,10 @@ const PAGES = 604;
 function deriveTable(dir) {
   const table = [];
   for (let page = 1; page <= PAGES; page++) {
-    const file = resolve(ROOT, `public/${dir}/pages/${String(page).padStart(3, '0')}.json`);
+    // Страницы V4 раздаются приложению (public/qcf4/pages); страницы V1 в
+    // Quran Ing не раздаются — лежат в data/qcf1-pages только для сверок.
+    const base = dir === 'qcf1' ? 'data/qcf1-pages' : `public/${dir}/pages`;
+    const file = resolve(ROOT, `${base}/${String(page).padStart(3, '0')}.json`);
     const data = JSON.parse(readFileSync(file, 'utf8'));
     let first = null;
     outer: for (const line of data.lines) {

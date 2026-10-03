@@ -110,15 +110,18 @@
  *   node scripts/gen/fetch-qcf1-pages.mjs           # все 604 страницы
  *   node scripts/gen/fetch-qcf1-pages.mjs 1 10      # диапазон, для проверки
  *
- * Результат — `public/qcf1/pages/NNN.json`. Скрипт идемпотентен: повторный
- * запуск перезаписывает файлы теми же данными.
+ * Результат — `data/qcf1-pages/NNN.json`.  В Quran Ing это вне сборки:
+ * лента рисует V1 из arabic-editions.json, а страницы нужны только для
+ * сверок (индекс страниц, тест «Мусхаф V1: данные и шрифты сходятся»).
+ * Скрипт идемпотентен: повторный запуск перезаписывает файлы теми же
+ * данными.
  */
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const OUT_DIR = resolve(ROOT, 'public/qcf1/pages');
+const OUT_DIR = resolve(ROOT, 'data/qcf1-pages');
 const DECOR_PATH = resolve(ROOT, 'scripts/gen/data/qcf1-decor-lines.json');
 const API_BASE = 'https://api.qurancdn.com/api/qdc/verses/by_page/';
 const TOTAL_PAGES = 604;

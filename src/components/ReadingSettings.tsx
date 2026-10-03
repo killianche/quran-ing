@@ -27,10 +27,6 @@ import { RECITERS_WITH_SEGMENTS, usesWholeAyahHighlight } from '../lib/reciters'
 import { Microphone, Close, ICON_SIZE } from './icons';
 import { OfflineAudioCard } from './OfflineAudioCard';
 import { AudioSpinner } from './BottomDock';
-import {
-  MUSHAF_FONT_OPTIONS,
-  type MushafFontId,
-} from '../lib/mushafFont';
 import { INH_FONT_OPTIONS, INH_SOURCE_APP, INH_SOURCE_TITLE } from '../lib/inhTranslation';
 
 const sectionTitle: CSSProperties = {
@@ -551,9 +547,10 @@ export function ThemeSettings(p: ThemeProps) {
 /**
  * ReciterCard — выбор чтеца.
  *
- * Вынесен из листа «Чтение» отдельным компонентом, потому что тот же выбор
- * нужен полноэкранному мусхафу: держать две копии одной сетки — верный
- * способ однажды добавить чтеца в одном месте и забыть про другое.
+ * Отдельный компонент, потому что тот же выбор нужен и листу «Чтение»
+ * экрана суры, и полному плееру (PlayerScreen): держать две копии одной
+ * сетки — верный способ однажды добавить чтеца в одном месте и забыть про
+ * другое.
  */
 export function ReciterCard({ reciter, onPick }: {
   reciter: ReciterId;
@@ -621,89 +618,6 @@ export function ReciterCard({ reciter, onPick }: {
     </section>
   );
 }
-
-/**
- * MushafReadingSettings — поповер кнопки «Аа» в полноэкранном мусхафе.
- *
- * Здесь живёт всё, что относится к ЧТЕНИЮ страницы: каким начертанием она
- * набрана и чьим голосом читается. Оформление (тема, сияние, подсветка
- * слова) осталось за соседней кнопкой — так у каждой кнопки одна тема, и
- * не приходится гадать, в какой из двух искать нужное.
- *
- * Прежде «Аа» просто перебирала шрифты по кругу, а выбор шрифта заодно
- * лежал в поповере оформления. Выбор чтеца в полноэкранном режиме был
- * недоступен вовсе — за ним приходилось выходить в ленту.
- */
-export function MushafReadingSettings({
-  font, setFont, reciter, setReciter, onClose, anchorEl,
-}: {
-  font: MushafFontId;
-  setFont: (font: MushafFontId) => void;
-  reciter: ReciterId;
-  setReciter: (id: ReciterId) => void;
-  onClose: () => void;
-  anchorEl?: HTMLElement | null;
-}) {
-  return (
-    <SettingsSheet onClose={onClose} title="Чтение" placement="top-popover" anchorEl={anchorEl}>
-      <div style={{ display: 'grid', gap: '10px' }}>
-        <MushafFontCard font={font} onPick={setFont} />
-        <ReciterCard reciter={reciter} onPick={setReciter} />
-      </div>
-    </SettingsSheet>
-  );
-}
-
-function MushafFontCard({ font, onPick }: {
-  font: MushafFontId;
-  onPick: (font: MushafFontId) => void;
-}) {
-  return (
-    <section style={settingCard}>
-      <p style={cardTitle}>Шрифт страницы</p>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '6px',
-      }}>
-        {MUSHAF_FONT_OPTIONS.map((option, i) => {
-          const active = option.id === font;
-          // Вариантов нечётное число, и последний иначе повис бы половиной
-          // строки рядом с пустой клеткой.  Растягиваем его на обе колонки:
-          // сетка остаётся ровной при любом числе вариантов.
-          const lastAlone = i === MUSHAF_FONT_OPTIONS.length - 1
-            && MUSHAF_FONT_OPTIONS.length % 2 === 1;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onPick(option.id)}
-              style={{
-                gridColumn: lastAlone ? '1 / -1' : undefined,
-                minHeight: '38px',
-                padding: '7px 10px',
-                borderRadius: '10px',
-                border: `1px solid ${active ? 'var(--text-primary)' : 'var(--hairline-strong)'}`,
-                background: active
-                  ? 'rgb(var(--ink-rgb) / 0.1)'
-                  : 'transparent',
-                color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                fontFamily: 'inherit',
-                fontSize: 'var(--font-caption1)',
-                fontWeight: active ? 600 : 500,
-                cursor: 'pointer',
-              }}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 
 /**
  * Цвет сияния «Авроры».

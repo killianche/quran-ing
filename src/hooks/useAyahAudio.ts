@@ -403,8 +403,8 @@ function prefetchAyah(surah: number, ayah: number, reciter: ReciterId) {
  *
  * Нужен отдельно от stopAll(): cleanup размонтированного экрана не должен
  * вызывать setState, но обязан погасить общий module-level cache. Иначе при
- * переходе «лента ↔ мусхаф» старый экран исчезает, а его HTMLAudioElement
- * продолжает читать невидимо уже под новым экраном. */
+ * смене экрана старый экран исчезает, а его HTMLAudioElement продолжает
+ * читать невидимо уже под новым. */
 function stopCachedAyahAudio() {
   audioCache.forEach(audio => {
     // Хвост, остановленный извне, уже не получит ни `playing` следующей
