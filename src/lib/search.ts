@@ -324,6 +324,17 @@ function searchSurahs(raw: string, norm: string): SurahMeta[] {
   });
 }
 
+/**
+ * Только суры по названию или номеру — без поиска по переводам.
+ *
+ * Для выбора суры в плеере: там ищут суру, а не аят, и строить словарь
+ * переводов ради этого незачем. Правила совпадения те же, что у главной,
+ * чтобы один и тот же запрос находил одно и то же в обоих местах.
+ */
+export function findSurahs(raw: string): SurahMeta[] {
+  return searchSurahs(raw, normalise(raw));
+}
+
 export type SearchOptions = {
   /**
    * Искать только внутри одной суры.  Нужен для поиска из экрана

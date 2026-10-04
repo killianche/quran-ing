@@ -18,7 +18,7 @@
  *   │   ﴿ 2 ﴾  ٱلْحَمْدُ لِلَّهِ … ﴾٢﴿              │
  *   │   …                                      │
  *   └──────────────────────────────────────────┘
- *   [BottomDock — audio controls]                (fixed, when playing)
+ *   [MiniPlayer — капсула звука, ставит App]     (fixed, when playing)
  *
  * ── Как приезжает текст ───────────────────────────────────────────────
  *
@@ -64,7 +64,7 @@ import { ArabicAyahRouter } from '../components/ArabicAyahRouter';
 import { FontErrorBanner } from '../components/FontErrorBanner';
 import { loadArabicEditions } from '../lib/arabicEditions';
 import { ThemeSettings, TypographySettings } from '../components/ReadingSettings';
-import { AudioSpinner, BottomDock } from '../components/BottomDock';
+import { AudioSpinner } from '../components/BottomDock';
 import {
   Typography, Appearance,
   Bookmark as BookmarkIcon, BookOpen, Play, Pause, ICON_SIZE } from '../components/icons';
@@ -909,25 +909,6 @@ export function SurahScreen({
     ? `${audio.currentSurah}:${audio.currentAyah}`
     : null;
 
-  // ── Play/pause helper for the dock ─────────────────────────────────────────
-  const handlePlayPause = () => {
-    if (audio.audioState === 'playing') {
-      audio.pause();
-    } else if (audio.currentSurah && audio.currentAyah) {
-      // Возобновление идёт через `resume`, и это важно дважды. Оно
-      // сохраняет режим (прервали непрерывное чтение — продолжаем им же,
-      // иначе вернулись бы швы между аятами) и берёт границы у ЗВУЧАЩЕЙ
-      // суры, а не у открытой: звук общий на приложение, и в ленте суры 1
-      // может звучать сура 18. Прежний расчёт брал длину открытой суры,
-      // очередь считала, что сура кончилась, и чтение обрывалось.
-      audio.resume();
-    } else {
-      // Запуск с начала суры — это намерение слушать её целиком, значит
-      // непрерывная запись: склейка из поаятных даёт паузу на каждой границе.
-      audio.playFrom(surahNumber, 1, meta?.ayahs ?? 9999, 'surah');
-    }
-  };
-
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: 'transparent', minHeight: '100dvh', position: 'relative' }}>
@@ -1150,21 +1131,9 @@ export function SurahScreen({
         })()}
       </div>
 
-      {/* ── BottomDock ────────────────────────────────────────────────────── */}
-      {audio.currentSurah && audio.currentAyah && (
-        <BottomDock
-          audioState={audio.audioState}
-          currentAyah={audio.currentAyah}
-          progress={tick.progress}
-          playbackRate={audio.playbackRate}
-          onPlayPause={handlePlayPause}
-          onPrev={audio.prev}
-          onNext={audio.next}
-          timelineSeek={timelineSeek}
-          onCyclePlaybackRate={audio.cyclePlaybackRate}
-          onClose={audio.stopAll}
-        />
-      )}
+      {/* Плеер звучащей суры — общий MiniPlayer, его ставит App рядом с
+          экраном (владелец 2026-10-04: «такой же, что и в главном меню, с
+          возможностью открыть полноэкранно»). Прежний BottomDock снят. */}
     </div>
   );
 }

@@ -1168,6 +1168,37 @@ body {
   .seek-slider::-webkit-slider-thumb { transition: none; }
 }
 
+/* ─── Выпадающее меню (PullDownMenu) ───────────────────────────
+   Меню вырастает из своей кнопки, как `UIMenu`: масштаб от точки роста
+   (её ставит компонент) плюс проявление. Кривая — та же «пружина без
+   отскока», что у шторок. При «Уменьшении движения» — только
+   растворение. */
+.pulldown-menu {
+  opacity: 0;
+  transform: scale(0.86);
+  transition:
+    opacity 160ms ease,
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.pulldown-menu[data-open] { opacity: 1; transform: none; }
+.pulldown-item:active { background: rgb(var(--ink-rgb) / 0.08) !important; }
+.pulldown-item:focus { outline: none; }
+/* Строка в шторке выбора суры — отклик на касание без своего состояния. */
+.player-title-btn:active { background: rgb(var(--ink-rgb) / 0.07) !important; }
+.picker-row:active:not(:disabled) { background: rgb(var(--ink-rgb) / 0.08) !important; }
+.pulldown-item:focus-visible { background: rgb(var(--ink-rgb) / 0.08) !important; }
+@media (prefers-reduced-motion: reduce) {
+  .pulldown-menu { transform: none; transition: opacity 120ms ease; }
+}
+
+/* Нажатие на кнопки плеера: короткое «вдавливание», как у системных
+   кнопок управления воспроизведением. */
+.player-press { transition: transform 140ms var(--ease-standard), opacity 140ms ease; }
+.player-press:active { transform: scale(0.9); opacity: 0.7; }
+@media (prefers-reduced-motion: reduce) {
+  .player-press, .player-press:active { transform: none; transition: opacity 120ms ease; }
+}
+
 /* ─── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

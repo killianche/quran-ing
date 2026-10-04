@@ -11,6 +11,22 @@
  * поэтому системная «назад» и жест от края возвращают туда, откуда пришли,
  * без отдельной обработки.
  *
+ * ── Раскладка (владелец 2026-10-04, стиль iOS 26) ─────────────────────
+ *
+ * Как экран «Исполняется» в Музыке и Подкастах: сверху — что звучит,
+ * внизу, под большим пальцем, — управление.
+ *
+ * - Название суры с шевроном — тап открывает шторку выбора суры
+ *   (`SurahPickerSheet`: поиск, только записанные у чтеца суры, текущая
+ *   в середине). Стрелки «предыдущая/следующая сура» сняты: владелец —
+ *   «не нужны, лучше выбор суры сделать прям удобным». Та же шторка — у
+ *   кнопки-списка в нижнем ряду.
+ * - Имя чтеца под названием, акцентным цветом, с шевроном — тап открывает
+ *   выпадающее меню (`PullDownMenu`). Прежняя сетка из шести плиток
+ *   занимала треть экрана ради выбора, который делают редко.
+ * - Без карточек-панелей: экран сам по себе и есть плеер; стекло — только
+ *   у меню и шторки (слой управления, docs/IOS26_DESIGN_GUIDE.md § 2).
+ *
  * ── Что здесь НЕ показывается ─────────────────────────────────────────
  *
  * Нет полосы прокрутки по времени. Непрерывная запись суры — это один файл
@@ -29,23 +45,26 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
-import { ReciterCard } from '../components/ReadingSettings';
+import { PullDownMenu } from '../components/PullDownMenu';
+import { SurahPickerSheet } from '../components/SurahPickerSheet';
 import {
   Play, Pause, SkipBack, SkipForward, SeekBack10, SeekForward10,
-  ChevronLeft, ChevronRight, ICON_SIZE,
+  ChevronDown, ListBullet, ICON_SIZE,
 } from '../components/icons';
 import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
 import {
-  TIMELINE_SEEK_STEP_SECONDS, nextAvailableSurah, prevAvailableSurah, reciterHasSurah,
-  usesTimelineSeek,
+  RECITERS, TIMELINE_SEEK_STEP_SECONDS, availableSurahCount, reciterById,
+  reciterHasSurah, usesTimelineSeek, type ReciterId,
 } from '../lib/reciters';
+import { TOTAL_SURAHS } from '../lib/ayahNumbering';
 import { formatPlaybackTime } from '../lib/playbackTime';
-import { SURAH_BY_NUMBER, SURAHS } from '../content/surahs';
+import { SURAH_BY_NUMBER } from '../content/surahs';
 
 export function PlayerScreen({ onBack }: { onBack: () => void }) {
   const { currentSurah, currentAyah, audioState, playbackRate, reciter } = useAudioState();
   const audio = useAudioActions();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reciterAnchor, setReciterAnchor] = useState<HTMLElement | null>(null);
 
   // 🔴 Последняя звучавшая сура, а не «первая по умолчанию».
   //
@@ -66,22 +85,33 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
   const playing = audioState === 'playing';
   const loading = audioState === 'loading';
   const timeline = usesTimelineSeek(reciter);
-  // Соседние суры — те, что ЕСТЬ у чтеца: у Мержоева после 9-й идёт 12-я.
-  // Шаг ±1 упирался бы в отсутствующую суру и дальше не пускал.
-  const prevSurah = surah ? prevAvailableSurah(reciter, surah) : null;
-  const nextSurah = surah ? nextAvailableSurah(reciter, surah) : null;
+  // Сменили чтеца на того, у кого этой суры нет (Мержоев посреди суры 10):
+  // звук останавливается, и «Сура дочитана» было бы неправдой. Говорим как
+  // есть, а кнопка воспроизведения ведёт к выбору суры (ревью 2026-10-04).
+  const missing = surah != null && !reciterHasSurah(reciter, surah);
+  const status = loading ? 'Загрузка…'
+    : missing ? 'У чтеца нет этой суры'
+    : finished ? 'Сура дочитана'
+    : null;
 
   const playSurah = (n: number) => {
     const m = SURAH_BY_NUMBER[n];
     if (m) audio.playSurah(n, m.ayahs);
   };
 
+  const reciterLine = (
+    <ReciterTrigger
+      reciter={reciter}
+      open={reciterAnchor != null}
+      onOpen={el => setReciterAnchor(el)}
+    />
+  );
+
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       <ScreenHeader
         visible
         title="Слушать"
-        subtitle={meta ? `${meta.transliteration} · ${meta.ayahs} аятов` : undefined}
         onBack={onBack}
         actions={[]}
       />
@@ -90,74 +120,122 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-section)',
-        padding: `${screenHeaderOffset(24)} var(--space-margin) calc(env(safe-area-inset-bottom) + var(--space-section))`,
+        padding: `${screenHeaderOffset(16)} var(--space-margin) calc(env(safe-area-inset-bottom) + var(--space-section))`,
         maxWidth: '560px',
         width: '100%',
         margin: '0 auto',
         boxSizing: 'border-box',
       }}>
         {!surah && (
-          <p style={{
-            margin: 'auto', textAlign: 'center',
-            fontSize: 'var(--font-caption1)', color: 'var(--text-tertiary)',
+          <div style={{
+            flex: 1,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 'var(--space-cozy)',
+            textAlign: 'center',
           }}>
-            Ничего не звучит. Включите суру в списке — плеер откроется здесь.
-          </p>
+            <p style={{
+              margin: 0,
+              fontSize: 'var(--font-title3)',
+              lineHeight: 'var(--leading-title3)',
+              fontWeight: 'var(--weight-semibold)',
+              color: 'var(--text-primary)',
+            }}>
+              Ничего не звучит
+            </p>
+            {reciterLine}
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="player-press"
+              style={{
+                marginTop: 'var(--space-tight)',
+                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                minHeight: '48px', padding: '0 22px',
+                border: 'none', borderRadius: 'var(--radius-pill)',
+                background: 'var(--text-primary)', color: 'var(--surface)',
+                fontFamily: 'inherit',
+                fontSize: 'var(--font-body)',
+                fontWeight: 'var(--weight-semibold)',
+                cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              <ListBullet size={ICON_SIZE.md} />
+              Выбрать суру
+            </button>
+          </div>
         )}
 
-        {surah && (<>
-        {/*
-          ── Карточка плеера ───────────────────────────────────────────
-
-          Владелец: «верхнее меню сильно выделено, а сам плеер не выделен,
-          странно выглядит». Так и было: шапка — плотная карточка во всю
-          ширину, блок чтеца и кнопка выбора суры — тоже на карточках, а
-          главное (название, полоса, кнопки, скорость) висело в воздухе.
-          Единственная часть без опоры оказывалась самой важной.
-
-          Собираем её в одну плоскость с тем же скруглением и той же
-          волосяной рамкой, что у карточки чтеца, — экран читается стопкой
-          панелей, и вес распределён по смыслу, а не случайно.
-        */}
-        <div style={{
-          display: 'grid',
-          gap: 'var(--space-margin)',
-          padding: 'var(--space-margin) var(--space-cozy) var(--space-cozy)',
-          borderRadius: 'var(--radius-card)',
-          background: 'rgb(var(--ink-rgb) / 0.03)',
-          border: '1px solid var(--hairline)',
+        {surah && meta && (<>
+        {/* ── Что звучит ─────────────────────────────────────────────
+            Занимает всё свободное место и центрирует себя в нём: управление
+            уходит вниз, под палец, как в системных плеерах. */}
+        <section style={{
+          flex: 1,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          textAlign: 'center',
+          minHeight: '220px',
+          paddingBottom: 'var(--space-section)',
         }}>
-        {/* ── Что звучит ─────────────────────────────────────────────── */}
-        <section style={{ textAlign: 'center' }}>
           <p
             dir="rtl"
             lang="ar"
+            aria-hidden
             style={{
               margin: 0,
               fontFamily: "'KFGQPC Uthmanic Hafs v22', serif",
-              fontSize: 'clamp(30px, 9vw, 44px)',
-              lineHeight: 1.7,
+              fontSize: 'clamp(44px, 15vw, 72px)',
+              lineHeight: 1.6,
               color: 'var(--text-primary)',
             }}
           >
-            {meta?.arabic}
+            {meta.arabic}
           </p>
+
+          <button
+            onClick={() => setPickerOpen(true)}
+            aria-label={`Сура ${meta.transliteration}. Выбрать другую суру`}
+            aria-haspopup="dialog"
+            className="player-title-btn"
+            style={{
+              marginTop: 'var(--space-tight)',
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              maxWidth: '100%',
+              minHeight: '44px', padding: '0 12px',
+              border: 'none', borderRadius: 'var(--radius-pill)',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span style={{
+              minWidth: 0,
+              fontSize: 'var(--font-title2)',
+              lineHeight: 'var(--leading-title2)',
+              fontWeight: 'var(--weight-semibold)',
+              letterSpacing: 'var(--tracking-tight)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {meta.transliteration}
+            </span>
+            <span aria-hidden style={{ display: 'inline-flex', flexShrink: 0, color: 'var(--text-tertiary)' }}>
+              <ChevronDown size={ICON_SIZE.sm} />
+            </span>
+          </button>
+
           <p style={{
-            margin: 'var(--space-tight) 0 0',
-            fontSize: 'var(--font-title3)',
-            fontWeight: 'var(--weight-regular)',
-            color: 'var(--text-primary)',
-          }}>
-            {meta?.transliteration}
-          </p>
-          <p style={{
-            margin: 'var(--space-hair) 0 0',
-            fontSize: 'var(--font-caption1)',
+            margin: 0,
+            fontSize: 'var(--font-subhead)',
+            lineHeight: 'var(--leading-subhead)',
             color: 'var(--text-tertiary)',
           }}>
-            {meta?.russian}
+            {meta.russian}{' '}·{' '}{meta.number}-я сура
           </p>
+
+          <div style={{ marginTop: 'var(--space-snug)' }}>{reciterLine}</div>
         </section>
 
         {/* ── Где мы в суре ──────────────────────────────────────────
@@ -169,60 +247,84 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
             // Своя сура — свой ползунок: незавершённое перетаскивание не
             // переезжает на следующую.
             key={surah}
-            status={loading ? 'Загрузка…' : finished ? 'Сура дочитана' : null}
+            status={status}
           />
         ) : (
-        <section style={{ display: 'grid', gap: 'var(--space-tight)' }}>
-          <div style={{
-            height: '4px',
-            borderRadius: '2px',
-            background: 'rgb(var(--ink-rgb) / 0.1)',
-            overflow: 'hidden',
-          }}>
+        <section style={{ display: 'grid', gap: 'var(--space-hair)' }}>
+          <div
+            role="progressbar"
+            aria-label="Позиция в суре"
+            aria-valuemin={1}
+            aria-valuemax={total}
+            aria-valuenow={ayah}
+            aria-valuetext={`Аят ${ayah} из ${total}`}
+            style={{
+              height: '28px',
+              display: 'flex', alignItems: 'center',
+            }}
+          >
             <div style={{
-              width: `${Math.min(100, (ayah / Math.max(1, total)) * 100)}%`,
-              height: '100%',
-              background: 'var(--text-secondary)',
-              transition: 'width 240ms var(--ease-standard)',
-            }} />
+              flex: 1,
+              height: '4px',
+              borderRadius: '2px',
+              background: 'var(--hairline)',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${Math.min(100, (ayah / Math.max(1, total)) * 100)}%`,
+                height: '100%',
+                borderRadius: '2px',
+                background: 'var(--ink)',
+                transition: 'width 240ms var(--ease-standard)',
+              }} />
+            </div>
           </div>
-          <p style={{
-            margin: 0, textAlign: 'center',
-            fontSize: 'var(--font-caption1)',
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+            gap: 'var(--space-tight)',
+            fontSize: 'var(--font-caption2)',
+            lineHeight: 'var(--leading-caption2)',
             color: 'var(--text-tertiary)',
             fontVariantNumeric: 'tabular-nums',
           }}>
-            {loading ? 'Загрузка…' : finished ? 'Сура дочитана' : `Аят ${ayah} из ${total}`}
-          </p>
+            <span>Аят {ayah}</span>
+            {status && <span>{status}</span>}
+            <span>из {total}</span>
+          </div>
         </section>
         )}
 
         {/* ── Управление ─────────────────────────────────────────────── */}
         <section style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 'var(--space-cozy)',
+          gap: 'clamp(20px, 9vw, 44px)',
+          marginTop: 'var(--space-cozy)',
         }}>
           <button
             onClick={() => audio.prev()}
             aria-label={timeline ? 'Назад на 10 секунд' : 'Предыдущий аят'}
-            className="icon-btn"
-            style={{ width: '52px', height: '52px', color: 'var(--text-secondary)' }}
+            className="icon-btn player-press"
+            style={{ width: '56px', height: '56px', color: 'var(--text-primary)' }}
           >
-            {timeline ? <SeekBack10 size={ICON_SIZE.lg} /> : <SkipBack size={ICON_SIZE.lg} />}
+            {timeline ? <SeekBack10 size={30} /> : <SkipBack size={30} />}
           </button>
 
           <button
             onClick={() => {
               if (playing) audio.pause();
+              // Записи нет — играть нечего, предлагаем выбрать другую.
+              else if (missing) setPickerOpen(true);
               // Сура дочитана — начинаем её заново, а не продолжаем с
               // последнего аята: продолжать там уже нечего.
               else if (finished) audio.playSurah(surah, total);
               // Продолжаем с места паузы, а не с начала аята.
               else audio.resume();
             }}
-            aria-label={playing ? 'Пауза' : 'Слушать'}
+            aria-label={playing ? 'Пауза' : missing ? 'Выбрать суру' : 'Слушать'}
+            className="player-press"
             style={{
-              width: '72px', height: '72px',
+              width: '76px', height: '76px',
+              flexShrink: 0,
               borderRadius: '50%',
               border: 'none',
               background: 'var(--text-primary)',
@@ -232,156 +334,155 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
               WebkitTapHighlightColor: 'transparent',
             }}
           >
-            {playing ? <Pause size={28} /> : <Play size={28} />}
+            {playing ? <Pause size={30} /> : <Play size={30} style={{ marginLeft: '3px' }} />}
           </button>
 
           <button
             onClick={() => audio.next()}
             aria-label={timeline ? 'Вперёд на 10 секунд' : 'Следующий аят'}
-            className="icon-btn"
-            style={{ width: '52px', height: '52px', color: 'var(--text-secondary)' }}
+            className="icon-btn player-press"
+            style={{ width: '56px', height: '56px', color: 'var(--text-primary)' }}
           >
-            {timeline ? <SeekForward10 size={ICON_SIZE.lg} /> : <SkipForward size={ICON_SIZE.lg} />}
+            {timeline ? <SeekForward10 size={30} /> : <SkipForward size={30} />}
           </button>
         </section>
 
-        {/* ── Соседние суры и скорость ───────────────────────────────── */}
+        {/* ── Нижний ряд: скорость и список сур ──────────────────────
+            Как нижний ряд системного плеера: второстепенное — по краям,
+            мелко, но с полной зоной нажатия. */}
         <section style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 'var(--space-tight)',
+          marginTop: 'var(--space-section)',
         }}>
           <button
-            onClick={() => { if (prevSurah) playSurah(prevSurah); }}
-            disabled={!prevSurah}
-            aria-label="Предыдущая сура"
-            className="icon-btn"
-            style={{ width: 'var(--hit-min)', height: 'var(--hit-min)', opacity: prevSurah ? 1 : 0.35 }}
-          >
-            <ChevronLeft size={ICON_SIZE.md} />
-          </button>
-
-          <button
             onClick={() => audio.cyclePlaybackRate()}
-            aria-label={`Скорость ${playbackRate}×`}
+            aria-label={`Скорость ${playbackRate}×. Изменить`}
+            className="player-press"
             style={{
-              minWidth: '76px', height: '38px',
+              minWidth: '56px', minHeight: '44px', padding: '0 14px',
               borderRadius: 'var(--radius-pill)',
-              border: '1px solid var(--hairline)',
-              background: 'rgb(var(--ink-rgb) / 0.04)',
-              color: 'var(--text-primary)',
+              border: 'none',
+              background: 'rgb(var(--ink-rgb) / 0.07)',
+              color: playbackRate === 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
               fontFamily: 'inherit',
-              fontSize: 'var(--font-caption1)',
+              fontSize: 'var(--font-subhead)',
+              fontWeight: 'var(--weight-semibold)',
               fontVariantNumeric: 'tabular-nums',
               cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
             {playbackRate}×
           </button>
 
           <button
-            onClick={() => { if (nextSurah) playSurah(nextSurah); }}
-            disabled={!nextSurah}
-            aria-label="Следующая сура"
-            className="icon-btn"
+            onClick={() => setPickerOpen(true)}
+            aria-label="Список сур"
+            aria-haspopup="dialog"
+            className="player-press"
             style={{
-              width: 'var(--hit-min)', height: 'var(--hit-min)',
-              opacity: nextSurah ? 1 : 0.35,
-            }}
-          >
-            <ChevronRight size={ICON_SIZE.md} />
-          </button>
-        </section>
-
-        </div>
-
-        {/* ── Чтец ───────────────────────────────────────────────────── */}
-        <ReciterCard reciter={reciter} onPick={audio.setReciter} />
-
-        {/* ── Выбрать другую суру ────────────────────────────────────── */}
-        <section>
-          <button
-            onClick={() => setPickerOpen(v => !v)}
-            aria-expanded={pickerOpen}
-            style={{
-              width: '100%', minHeight: '44px',
-              borderRadius: 'var(--radius-control)',
-              border: '1px solid var(--hairline)',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              minHeight: '44px', padding: '0 16px',
+              borderRadius: 'var(--radius-pill)',
+              border: 'none',
+              background: 'rgb(var(--ink-rgb) / 0.07)',
+              color: 'var(--text-primary)',
               fontFamily: 'inherit',
-              fontSize: 'var(--font-caption1)',
+              fontSize: 'var(--font-subhead)',
+              fontWeight: 'var(--weight-semibold)',
               cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
-            {pickerOpen ? 'Скрыть список сур' : 'Выбрать другую суру'}
+            <ListBullet size={ICON_SIZE.md} />
+            Суры
           </button>
-
-          {pickerOpen && (
-            <div style={{
-              marginTop: 'var(--space-tight)',
-              maxHeight: '46vh',
-              overflowY: 'auto',
-              borderRadius: 'var(--radius-card)',
-              border: '1px solid var(--hairline)',
-            }}>
-              {SURAHS.map(s => {
-                // Суры, которых у чтеца нет, видны (список тот же для всех
-                // чтецов), но приглушены и не нажимаются — с пометкой почему.
-                const has = reciterHasSurah(reciter, s.number);
-                return (
-                <button
-                  key={s.number}
-                  onClick={() => { if (!has) return; playSurah(s.number); setPickerOpen(false); }}
-                  disabled={!has}
-                  aria-label={has ? undefined : `${s.transliteration} — у этого чтеца нет записи`}
-                  style={{
-                    opacity: has ? 1 : 0.4,
-                    display: 'flex', alignItems: 'center', gap: 'var(--space-tight)',
-                    width: '100%', minHeight: '44px',
-                    padding: '0 var(--space-snug)',
-                    border: 'none',
-                    borderBottom: '1px solid var(--hairline-soft, var(--hairline))',
-                    background: s.number === surah
-                      ? 'rgb(var(--ink-rgb) / 0.06)'
-                      : 'transparent',
-                    color: 'var(--text-primary)',
-                    fontFamily: 'inherit',
-                    fontSize: 'var(--font-caption1)',
-                    textAlign: 'left',
-                    cursor: has ? 'pointer' : 'default',
-                  }}
-                >
-                  <span style={{
-                    minWidth: '26px',
-                    color: 'var(--text-tertiary)',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    {s.number}
-                  </span>
-                  <span style={{
-                    flex: 1, minWidth: 0,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {s.transliteration}
-                  </span>
-                  {!has && (
-                    <span aria-hidden style={{
-                      flexShrink: 0,
-                      color: 'var(--text-tertiary)',
-                      fontSize: 'var(--font-caption2)',
-                    }}>
-                      нет записи
-                    </span>
-                  )}
-                </button>
-                );
-              })}
-            </div>
-          )}
         </section>
         </>)}
       </div>
+
+      {pickerOpen && (
+        <SurahPickerSheet
+          current={surah}
+          reciter={reciter}
+          playing={playing}
+          onPick={n => { playSurah(n); setPickerOpen(false); }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {reciterAnchor && (
+        <PullDownMenu<ReciterId>
+          anchor={reciterAnchor}
+          label="Чтец"
+          header="Чтец"
+          items={RECITERS.map(r => {
+            const count = availableSurahCount(r.id);
+            return {
+              id: r.id,
+              label: r.label,
+              detail: count < TOTAL_SURAHS ? `${count} ${surahWord(count)} из ${TOTAL_SURAHS}` : undefined,
+              checked: r.id === reciter,
+            };
+          })}
+          onSelect={id => { if (id !== reciter) audio.setReciter(id); }}
+          onClose={() => setReciterAnchor(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function surahWord(n: number): string {
+  const two = n % 100, one = n % 10;
+  if (two >= 11 && two <= 14) return 'сур';
+  if (one === 1) return 'сура';
+  if (one >= 2 && one <= 4) return 'суры';
+  return 'сур';
+}
+
+/**
+ * Имя чтеца под названием суры — кнопка выпадающего меню.
+ *
+ * Акцентным цветом, как имя исполнителя в Музыке: это единственная
+ * «ссылка» в блоке, и цвет сам говорит, что она нажимается.
+ */
+function ReciterTrigger({ reciter, open, onOpen }: {
+  reciter: ReciterId;
+  open: boolean;
+  onOpen: (el: HTMLElement) => void;
+}) {
+  return (
+    <button
+      onClick={e => onOpen(e.currentTarget)}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-label={`Чтец: ${reciterById(reciter).label}. Выбрать другого`}
+      className="player-title-btn"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '5px',
+        maxWidth: '100%',
+        minHeight: '44px', padding: '0 14px',
+        border: 'none', borderRadius: 'var(--radius-pill)',
+        background: 'transparent',
+        color: 'var(--brand)',
+        fontFamily: 'inherit',
+        fontSize: 'var(--font-body)',
+        cursor: 'pointer',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {reciterById(reciter).label}
+      </span>
+      <span aria-hidden style={{
+        display: 'inline-flex', flexShrink: 0,
+        transform: open ? 'rotate(180deg)' : 'none',
+        transition: 'transform var(--dur-fast) var(--ease-standard)',
+      }}>
+        <ChevronDown size={ICON_SIZE.sm} />
+      </span>
+    </button>
   );
 }
 
@@ -390,7 +491,7 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
  *
  * Живёт отдельным компонентом ради подписки на тик: прогресс меняется
  * ~12 раз в секунду, и перерисовываться с этой частотой должен только
- * ползунок, а не весь экран с карточкой чтеца и списком сур.
+ * ползунок, а не весь экран с названием, чтецом и кнопками.
  *
  * 🔴 Перемотка — по ОТПУСКАНИЮ, а не на каждое движение пальца. Пока палец
  * ведёт бегунок, показывается только время под ним (`drag`); звук прыгает

@@ -1,75 +1,66 @@
 /**
- * MiniPlayer — полоска звучащей суры над нижней панелью.
+ * MiniPlayer — капсула звучащей суры внизу экрана.
  *
  * ── Зачем ─────────────────────────────────────────────────────────────
  *
- * Плеер в разделах чтения (лента, мусхаф) уже есть — это `BottomDock`. Но
- * на вкладках его нет, и включённая с главного экрана сура звучала «из
- * ниоткуда»: остановить её было негде, вернуться к ней тоже.
+ * Включённая сура должна быть видна и управляема с любого экрана, где её
+ * слушают: на вкладках, на «Намазе» и в открытой суре. Полоска появляется,
+ * когда звук пошёл, и исчезает, когда его нет: она сама себе объяснение.
  *
- * ── Почему появляется сам, а не живёт кнопкой ─────────────────────────
+ * ── Вид (владелец 2026-10-04: «в стиле iOS и очень удобным») ──────────
  *
- * Владелец предлагал добавить на главную кнопку плеера. Кнопка, которая
- * ничего не делает, пока ничего не играет, — это лишний элемент в списке
- * из 114 строк. Полоска появляется, когда звук пошёл, и исчезает, когда
- * его нет: она сама себе объяснение.
+ * Как нижний аксессуар iOS 26 (мини-плеер Музыки): стеклянная капсула,
+ * слева круглая «обложка» с эквалайзером, название и вторая строка, справа
+ * — только то, что нужно на ходу, крупными мишенями:
  *
- * ── Управление прямо в полоске ────────────────────────────────────────
+ *   назад · пауза · вперёд · стоп
  *
- * Владелец попросил не гонять его в полный плеер ради паузы и соседнего
- * аята. Поэтому здесь есть переход по аятам, пауза, скорость и остановка —
- * всё, что нужно на ходу, в один тап.
+ * Скорость отсюда снята: её трогают редко, и она есть в полном плеере.
+ * Прежняя полоска несла шесть органов управления кеглем 11–12 — попадать
+ * в них на ходу было трудно.
  *
- * Смена чтеца сюда НЕ вынесена намеренно: полоска и так несёт пять органов
- * управления. Чтец меняется тапом по названию — это открывает полный плеер,
- * где он и живёт, — и в листе «Чтение» экрана суры.
+ * Полный плеер открывается тапом по названию или свайпом капсулы вверх —
+ * так же, как мини-плеер iOS.
  *
- * ── Порядок веса на полоске (06.09.2026) ──────────────────────────────
- *
- * Владелец: «дизайн плеера улучши». На прежней полоске самым тяжёлым
- * элементом была рамка вокруг «1×» — то есть скорость, вещь, которую
- * трогают раз в месяц, кричала громче кнопки «пауза». Разложено по
- * важности:
- *
- *   эквалайзер и название → пауза → соседние аяты → скорость → остановка
- *
- * Скорость стала простым текстом без рамки; остановка отделена волоском,
- * чтобы её не задевали, целясь в «следующий аят».
+ * С 2026-10-04 эта же капсула стоит и в открытой суре вместо отдельного
+ * `BottomDock` (владелец: «сделай нижний плеер в открытой суре такой же,
+ * что и в главном меню, с возможностью открыть полноэкранно»).
  *
  * ── Что здесь НЕ делается ─────────────────────────────────────────────
  *
- * Полоска не подписывается на прогресс и позицию слова. Ей нужны только
- * номер суры, аят и состояние — иначе каждый кадр воспроизведения
- * перерисовывал бы её поверх списка сур. Поэтому «живость» показывает
- * анимированный эквалайзер (чистый CSS, ноль ре-рендеров), а не шкала.
+ * Сама капсула не подписывается на тик воспроизведения: каждый кадр
+ * перерисовывал бы её поверх ленты. На тик подписан только тонкий
+ * `TimelineProgress` внутри — и то лишь у чтеца без границ аятов; у
+ * остальных прогресс — номер аята из общего состояния.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Pause, Play, SkipBack, SkipForward, SeekBack10, SeekForward10, Close, ICON_SIZE,
 } from './icons';
-import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
+import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { reciterById, usesTimelineSeek } from '../lib/reciters';
 import { GLASS_BLUR } from '../lib/glass';
 import { accessoryBottom, type AccessoryPlacement } from './TabBar';
 
-/** Высота полоски и её зазор до панели вкладок. */
-const HEIGHT = 58;
-const GAP = 6;
+/** Высота капсулы и её зазор до панели вкладок. */
+const HEIGHT = 64;
+const GAP = 8;
+/** Насколько провести капсулу вверх, чтобы открылся полный плеер. */
+const SWIPE_OPEN = 28;
 
 export function MiniPlayer({ onOpen, placement = 'tabs' }: {
   onOpen: () => void;
-  /** 'tabs' — над панелью вкладок; 'screen' — экран без панели (намаз). */
+  /** 'tabs' — над панелью вкладок; 'screen' — экран без панели (сура, намаз). */
   placement?: AccessoryPlacement;
 }) {
-  const { currentSurah, currentAyah, audioState, reciter, playbackRate } = useAudioState();
+  const { currentSurah, currentAyah, audioState, reciter } = useAudioState();
   const audio = useAudioActions();
 
-  // Полоска перекрывает низ экрана, а её высота известна только ей. Чтобы
+  // Капсула перекрывает низ экрана, а её высота известна только ей. Чтобы
   // последняя строка списка не пряталась под ней, она объявляет занятое
-  // место переменной, а экраны вкладок добавляют его к своему отступу.
-  // Иначе во время чтения сура 114 наполовину уходила под панель.
+  // место переменной, а экраны добавляют его к своему отступу.
   const visible = Boolean(currentSurah) && audioState !== 'idle';
   useEffect(() => {
     const root = document.documentElement;
@@ -78,6 +69,23 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
     return () => { root.style.removeProperty('--mini-player-space'); };
   }, [visible]);
 
+  // Свайп вверх — открыть полный плеер. Только явно вертикальный жест:
+  // горизонтальное движение (например, листание вкладок) не считается.
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    start.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s = start.current;
+    start.current = null;
+    if (!s) return;
+    const t = e.changedTouches[0];
+    const dy = t.clientY - s.y;
+    const dx = t.clientX - s.x;
+    if (dy < -SWIPE_OPEN && Math.abs(dy) > Math.abs(dx) * 1.5) onOpen();
+  };
+
   if (!visible || !currentSurah) return null;
   const meta = SURAH_BY_NUMBER[currentSurah];
   const playing = audioState === 'playing';
@@ -85,12 +93,16 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
   // Чтец без границ аятов: номер аята неизвестен, а соседние кнопки —
   // перемотка на 10 секунд (её делают те же `prev`/`next`).
   const timeline = usesTimelineSeek(reciter);
+  const total = meta?.ayahs ?? 0;
 
   return (
     <div
       role="region"
       aria-label="Звучит сейчас"
-      className="liquid-glass"
+      className="liquid-glass mini-player"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={() => { start.current = null; }}
       style={{
         ...GLASS_BLUR,
         position: 'fixed',
@@ -98,19 +110,19 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
         right: '12px',
         // Ровно над панелью вкладок, с тем же зазором: две плавающие
         // панели должны читаться одной стопкой, а не случайной парой.
-        // Считаем от верхней кромки самой панели (веб-капсулы или системной),
-        // иначе панель сдвинулась бы, а полоска осталась на прежнем месте.
         bottom: accessoryBottom(placement, GAP),
         zIndex: 39,
         maxWidth: '560px',
         margin: '0 auto',
         height: `${HEIGHT}px`,
-        borderRadius: '20px',
+        // Капсула, как у системного аксессуара; обложка внутри — круг,
+        // концентричный её скруглению.
+        borderRadius: `${HEIGHT / 2}px`,
         display: 'flex',
         alignItems: 'center',
-        gap: '2px',
-        padding: '0 8px 0 10px',
+        padding: '0 6px 0 10px',
         boxSizing: 'border-box',
+        overflow: 'hidden',
       }}
     >
       <button
@@ -118,23 +130,22 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
         aria-label={`Открыть плеер: ${meta?.transliteration ?? currentSurah}`}
         style={{
           flex: 1, minWidth: 0,
+          alignSelf: 'stretch',
           display: 'flex', alignItems: 'center', gap: '10px',
           background: 'transparent', border: 'none', padding: 0,
           cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
           WebkitTapHighlightColor: 'transparent',
         }}
       >
-        {/* Якорь «звучит сейчас». Он же — понятная мишень для тапа по
-            названию: попасть в квадрат легче, чем в строку текста. */}
         <span
           aria-hidden
           style={{
             flexShrink: 0,
-            width: '34px', height: '34px',
-            borderRadius: '11px',
-            background: 'rgb(var(--ink-rgb) / 0.05)',
+            width: '44px', height: '44px',
+            borderRadius: '50%',
+            background: 'rgb(var(--brand-rgb) / 0.16)',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-secondary)',
+            color: 'var(--brand)',
           }}
         >
           <span
@@ -151,9 +162,10 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
         }}>
           <span style={{
             maxWidth: '100%',
-            fontSize: 'var(--font-caption1)',
-            lineHeight: 'var(--leading-caption1)',
+            fontSize: 'var(--font-subhead)',
+            lineHeight: 'var(--leading-subhead)',
             fontWeight: 'var(--weight-semibold)',
+            letterSpacing: 'var(--tracking-tight)',
             color: 'var(--text-primary)',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
@@ -163,13 +175,15 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
               раз в месяц. При нехватке ширины обрезается именно имя. */}
           <span style={{
             maxWidth: '100%',
-            fontSize: 'var(--font-caption2)',
-            lineHeight: 'var(--leading-caption2)',
+            fontSize: 'var(--font-footnote)',
+            lineHeight: 'var(--leading-footnote)',
             color: 'var(--text-tertiary)',
             fontVariantNumeric: 'tabular-nums',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
-            {currentAyah && !timeline ? `Аят ${currentAyah} · ` : ''}{reciterById(reciter).label}
+            {loading
+              ? 'Загрузка…'
+              : `${currentAyah && !timeline ? `Аят ${currentAyah} · ` : ''}${reciterById(reciter).label}`}
           </span>
         </span>
       </button>
@@ -177,11 +191,10 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
       <button
         onClick={() => audio.prev()}
         aria-label={timeline ? 'Назад на 10 секунд' : 'Предыдущий аят'}
-        className="icon-btn"
-        style={{ flexShrink: 0, width: '38px', height: '44px', color: 'var(--text-secondary)' }}
+        className="icon-btn player-press"
+        style={{ flexShrink: 0, width: '42px', height: '48px', color: 'var(--text-primary)' }}
       >
-        {/* Круговой стрелке нужен размер побольше: внутри неё цифры. */}
-        {timeline ? <SeekBack10 size={ICON_SIZE.md} /> : <SkipBack size={ICON_SIZE.sm} />}
+        {timeline ? <SeekBack10 size={ICON_SIZE.md + 2} /> : <SkipBack size={ICON_SIZE.md} />}
       </button>
 
       <button
@@ -196,76 +209,74 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
           else audio.resume();
         }}
         aria-label={loading ? 'Загрузка' : playing ? 'Пауза' : 'Продолжить'}
-        className="icon-btn"
+        className="icon-btn player-press"
         style={{
           flexShrink: 0,
-          width: '44px', height: '44px',
-          borderRadius: '50%',
-          // Единственная заполненная кнопка на полоске: пауза важнее всего
-          // остального, и глаз должен находить её без поиска.
-          background: 'rgb(var(--ink-rgb) / 0.07)',
+          width: '48px', height: '48px',
           color: 'var(--text-primary)',
           opacity: loading ? 0.45 : 1,
         }}
       >
-        {playing ? <Pause size={ICON_SIZE.md} /> : <Play size={ICON_SIZE.md} />}
+        {playing ? <Pause size={26} /> : <Play size={26} />}
       </button>
 
       <button
         onClick={() => audio.next()}
         aria-label={timeline ? 'Вперёд на 10 секунд' : 'Следующий аят'}
-        className="icon-btn"
-        style={{ flexShrink: 0, width: '38px', height: '44px', color: 'var(--text-secondary)' }}
+        className="icon-btn player-press"
+        style={{ flexShrink: 0, width: '42px', height: '48px', color: 'var(--text-primary)' }}
       >
-        {timeline ? <SeekForward10 size={ICON_SIZE.md} /> : <SkipForward size={ICON_SIZE.sm} />}
+        {timeline ? <SeekForward10 size={ICON_SIZE.md + 2} /> : <SkipForward size={ICON_SIZE.md} />}
       </button>
-
-      <button
-        onClick={() => audio.cyclePlaybackRate()}
-        aria-label={`Скорость ${playbackRate}×, изменить`}
-        style={{
-          flexShrink: 0,
-          minWidth: '38px', height: '44px',
-          borderRadius: 'var(--radius-pill)',
-          // Без рамки: скорость — самая редкая из кнопок, и обведённая
-          // капсула делала её самым тяжёлым пятном на полоске.
-          border: 'none',
-          background: 'transparent',
-          color: 'var(--text-tertiary)',
-          fontFamily: 'inherit',
-          fontSize: 'var(--font-caption2)',
-          fontVariantNumeric: 'tabular-nums',
-          cursor: 'pointer',
-          WebkitTapHighlightColor: 'transparent',
-        }}
-      >
-        {playbackRate}×
-      </button>
-
-      {/* Волосок-разделитель: остановка — не часть перемотки, и промах по
-          ней стоит дороже прочих (звук выключается совсем). */}
-      <span
-        aria-hidden
-        style={{
-          flexShrink: 0,
-          width: '1px', height: '20px',
-          margin: '0 4px',
-          background: 'var(--hairline)',
-        }}
-      />
 
       <button
         onClick={() => audio.stopAll()}
         aria-label="Остановить чтение"
         title="Остановить чтение"
-        className="icon-btn"
-        // Мишень 40×44 и цвет secondary: промах по этой кнопке стоит дороже
-        // прочих (звук выключается совсем), а третичный цвет не дотягивал до
-        // контраста 3:1, который Apple просит для нетекстовых элементов.
-        style={{ flexShrink: 0, width: '40px', height: '44px', color: 'var(--text-secondary)' }}
+        className="icon-btn player-press"
+        // Отодвинута от «вперёд»: промах по этой кнопке стоит дороже прочих
+        // (звук выключается совсем). Цвет secondary, а не tertiary — тот не
+        // дотягивал до контраста 3:1 для нетекстовых элементов.
+        style={{
+          flexShrink: 0, width: '40px', height: '48px',
+          marginLeft: '2px',
+          color: 'var(--text-secondary)',
+        }}
       >
         <Close size={ICON_SIZE.sm} />
       </button>
+
+      {timeline
+        ? <TimelineProgress />
+        : <ProgressLine fraction={total > 0 && currentAyah ? currentAyah / total : 0} />}
     </div>
   );
+}
+
+/** Тонкая полоса прогресса по нижней кромке, отступив от скруглений. */
+function ProgressLine({ fraction }: { fraction: number }) {
+  const pct = Math.min(1, Math.max(0, fraction)) * 100;
+  return (
+    <span aria-hidden style={{
+      position: 'absolute',
+      left: `${HEIGHT / 2}px`, right: `${HEIGHT / 2}px`, bottom: '5px',
+      height: '2px', borderRadius: '1px',
+      background: 'rgb(var(--ink-rgb) / 0.08)',
+      overflow: 'hidden',
+      pointerEvents: 'none',
+    }}>
+      <span style={{
+        display: 'block', height: '100%', width: `${pct}%`,
+        background: 'rgb(var(--ink-rgb) / 0.45)',
+        transition: 'width 240ms var(--ease-standard)',
+      }} />
+    </span>
+  );
+}
+
+/** Прогресс по времени — для чтеца без границ аятов. Подписан на тик
+ *  только этот маленький элемент, а не вся капсула. */
+function TimelineProgress() {
+  const { progress } = useAudioTick();
+  return <ProgressLine fraction={progress} />;
 }

@@ -487,6 +487,11 @@ export default function App() {
           />
         </ErrorBoundary>
         </Suspense>
+        {/* Та же капсула звука, что на вкладках (владелец 2026-10-04): тап
+            или свайп вверх открывает полный плеер. Панели вкладок здесь
+            нет — капсула над домашней полосой. */}
+        <MiniPlayer placement="screen" onOpen={() => navigate({ name: 'player' })} />
+        <AudioErrorPlate placement="screen" />
       </Shell>
     );
   }

@@ -301,6 +301,16 @@ export const Microphone = ({ size = ICON_SIZE.md, className, style }: Props) => 
   </svg>
 );
 
+/** Список — «все суры» в плеере (как `list.bullet` в SF Symbols). */
+export const ListBullet = ({ size = ICON_SIZE.md, className, style }: Props) => (
+  <svg {...stroke(size, className, style)}>
+    <path d="M9.25 6.5h10M9.25 12h10M9.25 17.5h10" />
+    <circle cx="4.75" cy="6.5" r="0.9" fill="currentColor" />
+    <circle cx="4.75" cy="12" r="0.9" fill="currentColor" />
+    <circle cx="4.75" cy="17.5" r="0.9" fill="currentColor" />
+  </svg>
+);
+
 /** Стрелка в лоток — «скачать в память устройства». */
 export const Download = ({ size = ICON_SIZE.md, className, style }: Props) => (
   <svg {...stroke(size, className, style)}>
