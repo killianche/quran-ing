@@ -53,7 +53,7 @@
  */
 
 import type { ReciterId } from './reciters';
-import { reciterById, supportsAyahOffline, surahAudioUrl } from './reciters';
+import { reciterById, reciterHasSurah, supportsAyahOffline, surahAudioUrl } from './reciters';
 import {
   globalAyahNumber, ayahsInSurah, firstGlobalOfSurah, juzRange,
   TOTAL_AYAHS, TOTAL_SURAHS,
@@ -557,7 +557,12 @@ export async function startDownload(reciter: ReciterId, scope: DownloadScope): P
   // Порядок тот же, что и был у поаятной очереди: сперва Аль-Фатиха, потом
   // джуз Амма — то, что читают каждый день, приезжает первым.
   if (scope.kind === 'all' && surahAudioUrl(reciter, 1)) {
-    const остались = fullDownloadSurahOrder(s => hasSurahFile(reciter, s));
+    // Суры, которых у чтеца нет вовсе (`availableSurahs`), качать нечего:
+    // без этого задание вечно стояло бы на «80 из 114» и на каждом
+    // «Докачать» ходило бы за 34 несуществующими файлами.
+    const остались = fullDownloadSurahOrder(
+      s => hasSurahFile(reciter, s) || !reciterHasSurah(reciter, s),
+    );
 
     if (остались.length === 0) {
       patch(reciter, { ...IDLE, scope });

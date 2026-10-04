@@ -43,7 +43,8 @@ import {
 } from 'react';
 import { useAyahAudio, type AudioFailure, type PlaybackMode, type PlaybackRate } from './useAyahAudio';
 import {
-  DEFAULT_RECITER, RECITERS, TIMELINE_SEEK_STEP_SECONDS, usesTimelineSeek, type ReciterId,
+  DEFAULT_RECITER, RECITERS, TIMELINE_SEEK_STEP_SECONDS, reciterHasSurah, usesTimelineSeek,
+  type ReciterId,
 } from '../lib/reciters';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { bindMediaSessionHandlers } from '../lib/mediaSession';
@@ -131,6 +132,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const previous = prevReciter.current;
     prevReciter.current = reciter;
     const a = live.current;
+    // Плашка «у этого чтеца нет записи» относится к прежнему чтецу. Если у
+    // нового сура есть, она стала неправдой — снимаем.
+    if (a.failure?.unavailable && reciterHasSurah(reciter, a.failure.surah)) {
+      a.dismissFailure();
+    }
     // 🔴 Смена режима перемотки на паузе — сессия закрывается.
     //
     // Очередь и звучащий элемент принадлежат прежнему чтецу, а кнопки и

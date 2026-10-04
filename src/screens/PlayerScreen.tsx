@@ -35,10 +35,12 @@ import {
   ChevronLeft, ChevronRight, ICON_SIZE,
 } from '../components/icons';
 import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
-import { TIMELINE_SEEK_STEP_SECONDS, usesTimelineSeek } from '../lib/reciters';
+import {
+  TIMELINE_SEEK_STEP_SECONDS, nextAvailableSurah, prevAvailableSurah, reciterHasSurah,
+  usesTimelineSeek,
+} from '../lib/reciters';
 import { formatPlaybackTime } from '../lib/playbackTime';
 import { SURAH_BY_NUMBER, SURAHS } from '../content/surahs';
-import { TOTAL_SURAHS } from '../lib/ayahNumbering';
 
 export function PlayerScreen({ onBack }: { onBack: () => void }) {
   const { currentSurah, currentAyah, audioState, playbackRate, reciter } = useAudioState();
@@ -64,6 +66,10 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
   const playing = audioState === 'playing';
   const loading = audioState === 'loading';
   const timeline = usesTimelineSeek(reciter);
+  // Соседние суры — те, что ЕСТЬ у чтеца: у Мержоева после 9-й идёт 12-я.
+  // Шаг ±1 упирался бы в отсутствующую суру и дальше не пускал.
+  const prevSurah = surah ? prevAvailableSurah(reciter, surah) : null;
+  const nextSurah = surah ? nextAvailableSurah(reciter, surah) : null;
 
   const playSurah = (n: number) => {
     const m = SURAH_BY_NUMBER[n];
@@ -245,11 +251,11 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
           gap: 'var(--space-tight)',
         }}>
           <button
-            onClick={() => playSurah(Math.max(1, surah - 1))}
-            disabled={surah <= 1}
+            onClick={() => { if (prevSurah) playSurah(prevSurah); }}
+            disabled={!prevSurah}
             aria-label="Предыдущая сура"
             className="icon-btn"
-            style={{ width: 'var(--hit-min)', height: 'var(--hit-min)', opacity: surah <= 1 ? 0.35 : 1 }}
+            style={{ width: 'var(--hit-min)', height: 'var(--hit-min)', opacity: prevSurah ? 1 : 0.35 }}
           >
             <ChevronLeft size={ICON_SIZE.md} />
           </button>
@@ -273,13 +279,13 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
           </button>
 
           <button
-            onClick={() => playSurah(Math.min(TOTAL_SURAHS, surah + 1))}
-            disabled={surah >= TOTAL_SURAHS}
+            onClick={() => { if (nextSurah) playSurah(nextSurah); }}
+            disabled={!nextSurah}
             aria-label="Следующая сура"
             className="icon-btn"
             style={{
               width: 'var(--hit-min)', height: 'var(--hit-min)',
-              opacity: surah >= TOTAL_SURAHS ? 0.35 : 1,
+              opacity: nextSurah ? 1 : 0.35,
             }}
           >
             <ChevronRight size={ICON_SIZE.md} />
@@ -318,11 +324,18 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
               borderRadius: 'var(--radius-card)',
               border: '1px solid var(--hairline)',
             }}>
-              {SURAHS.map(s => (
+              {SURAHS.map(s => {
+                // Суры, которых у чтеца нет, видны (список тот же для всех
+                // чтецов), но приглушены и не нажимаются — с пометкой почему.
+                const has = reciterHasSurah(reciter, s.number);
+                return (
                 <button
                   key={s.number}
-                  onClick={() => { playSurah(s.number); setPickerOpen(false); }}
+                  onClick={() => { if (!has) return; playSurah(s.number); setPickerOpen(false); }}
+                  disabled={!has}
+                  aria-label={has ? undefined : `${s.transliteration} — у этого чтеца нет записи`}
                   style={{
+                    opacity: has ? 1 : 0.4,
                     display: 'flex', alignItems: 'center', gap: 'var(--space-tight)',
                     width: '100%', minHeight: '44px',
                     padding: '0 var(--space-snug)',
@@ -335,7 +348,7 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
                     fontFamily: 'inherit',
                     fontSize: 'var(--font-caption1)',
                     textAlign: 'left',
-                    cursor: 'pointer',
+                    cursor: has ? 'pointer' : 'default',
                   }}
                 >
                   <span style={{
@@ -351,8 +364,18 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
                   }}>
                     {s.transliteration}
                   </span>
+                  {!has && (
+                    <span aria-hidden style={{
+                      flexShrink: 0,
+                      color: 'var(--text-tertiary)',
+                      fontSize: 'var(--font-caption2)',
+                    }}>
+                      нет записи
+                    </span>
+                  )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

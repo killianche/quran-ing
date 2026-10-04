@@ -57,6 +57,7 @@ import { useQuranSources } from '../content/quran-sources-lazy';
 import { Appearance, Search, Close, Bookmark as BookmarkIcon, Person, TabPrayer, ICON_SIZE, Play, Pause } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
 import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
+import { reciterHasSurah } from '../lib/reciters';
 import { TAB_BAR_SPACE } from '../components/TabBar';
 import { tabBarTopPx } from '../lib/nativeTabBar';
 import { prefetchSurahFeed } from '../hooks/useQcfAyahFeed';
@@ -539,7 +540,7 @@ function SurahList({ surahs, onSelect, grouped = true }: {
   // аята перерисовывались все 114 карточек с арабской типографикой. Теперь
   // список знает, что звучит, и передаёт карточке готовый ответ; React
   // перерисует только ту, у которой он изменился.
-  const { currentSurah, audioState } = useAudioState();
+  const { currentSurah, audioState, reciter } = useAudioState();
   const звучит = audioState === 'playing' ? currentSurah : null;
   // Стабильный обработчик для мемоизированных строк: контекст звука
   // меняется на каждой границе аята, и без memo перерисовывались бы все
@@ -577,6 +578,7 @@ function SurahList({ surahs, onSelect, grouped = true }: {
                 onSelect={select}
                 last={i === items.length - 1}
                 sounding={звучит === m.number}
+                hasRecording={reciterHasSurah(reciter, m.number)}
               />
             ))}
           </div>
@@ -691,7 +693,9 @@ const TWO_LINES = {
 const NUMBER_COLUMN = 26;
 const ROW_HEIGHT = 64;
 
-const SurahRow = memo(function SurahRow({ meta, onSelect, last = false, sounding = false }: {
+const SurahRow = memo(function SurahRow({
+  meta, onSelect, last = false, sounding = false, hasRecording = true,
+}: {
   meta: SurahMeta;
   onSelect: (n: number) => void;
   /** Последняя в разделе — под ней волоска нет. */
@@ -699,6 +703,9 @@ const SurahRow = memo(function SurahRow({ meta, onSelect, last = false, sounding
   /** Звучит ли именно эта сура. Приходит сверху: подписка на звук одна на
    *  весь список, иначе перерисовывались бы все 114 строк. */
   sounding?: boolean;
+  /** Есть ли у выбранного чтеца запись этой суры. Нет — кнопка «слушать»
+   *  приглушена; нажатие объяснит это плашкой, а не попыткой загрузки. */
+  hasRecording?: boolean;
 }) {
   const [pressed, setPressed] = useState(false);
   const audio = useAudioActions();
@@ -825,13 +832,16 @@ const SurahRow = memo(function SurahRow({ meta, onSelect, last = false, sounding
         }}
         aria-label={sounding
           ? `Пауза: ${meta.transliteration}`
-          : `Слушать суру ${meta.transliteration} целиком`}
+          : hasRecording
+            ? `Слушать суру ${meta.transliteration} целиком`
+            : `${meta.transliteration}: у выбранного чтеца нет записи`}
         className="icon-btn"
         style={{
           flexShrink: 0,
           width: '40px', height: '40px',
           marginInlineStart: 'var(--space-tight)',
           color: sounding ? 'var(--text-primary)' : 'var(--text-tertiary)',
+          opacity: hasRecording ? 1 : 0.35,
         }}
       >
         {sounding ? <Pause size={ICON_SIZE.sm} /> : <Play size={ICON_SIZE.sm} />}

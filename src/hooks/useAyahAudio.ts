@@ -1348,10 +1348,12 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
               // следующего элемента: наложение — десятки миллисекунд, а
               // тишины между сурами нет. Пока следующая ещё грузится, хвост
               // звучит один и держит звук живым для iOS.
-              const следующая = nextAvailableSurah(reciterId as ReciterId, Number(surahPart))
-                ?? Number(surahPart) + 1;
-              прогретьСуру(следующая, reciterId as ReciterId);
-              audioCache.get(mediaCacheKey(reciterId as ReciterId, следующая, 1))
+              // Ветку охраняет `уходитВСледующуюСуру`: следующая доступная
+              // сура у чтеца точно есть. Запасного «+1» нет намеренно — он
+              // вёл бы за несуществующей записью.
+              const следующая = nextAvailableSurah(reciterId as ReciterId, Number(surahPart));
+              if (следующая) прогретьСуру(следующая, reciterId as ReciterId);
+              if (следующая) audioCache.get(mediaCacheKey(reciterId as ReciterId, следующая, 1))
                 ?.addEventListener('playing', () => {
                   audio.removeEventListener('ended', хвостКончился);
                   if (!finishingTail.has(audio)) return;

@@ -37,6 +37,8 @@
  * таймингов в content/quran-segments.ts.
  */
 
+import { TOTAL_SURAHS } from './ayahNumbering';
+
 export type ReciterId =
   | 'alafasy'
   | 'shaatree'
@@ -213,10 +215,23 @@ export function reciterHasSurah(id: ReciterId, surah: number): boolean {
 
 /** Следующая после `surah` сура, которая есть у чтеца; null — дальше нет. */
 export function nextAvailableSurah(id: ReciterId, surah: number): number | null {
-  for (let n = surah + 1; n <= 114; n++) {
+  for (let n = surah + 1; n <= TOTAL_SURAHS; n++) {
     if (reciterHasSurah(id, n)) return n;
   }
   return null;
+}
+
+/** Предыдущая перед `surah` сура, которая есть у чтеца; null — раньше нет. */
+export function prevAvailableSurah(id: ReciterId, surah: number): number | null {
+  for (let n = surah - 1; n >= 1; n--) {
+    if (reciterHasSurah(id, n)) return n;
+  }
+  return null;
+}
+
+/** Сколько сур есть у чтеца — цель «скачать всё» и шкала офлайна. */
+export function availableSurahCount(id: ReciterId): number {
+  return reciterById(id).availableSurahs?.length ?? TOTAL_SURAHS;
 }
 
 /** Шаг перемотки кнопками и с экрана блокировки — как у музыкальных плееров. */

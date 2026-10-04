@@ -68,7 +68,7 @@ const { tajweedPageJsonPath, tajweedAyahFromPage } = tajweedPageMod;
 const {
   RECITERS, RECITERS_WITH_SEGMENTS, reciterById, supportsAyahOffline,
   requiresSurahAudioStream, surahAudioUrl, usesWholeAyahHighlight, usesTimelineSeek,
-  reciterHasSurah, nextAvailableSurah,
+  reciterHasSurah, nextAvailableSurah, prevAvailableSurah, availableSurahCount,
 } = recitersMod;
 const { formatPlaybackTime } = playbackTimeMod;
 const { ayahAudioUrl } = quranUtilsMod;
@@ -175,6 +175,11 @@ group('Хьусейн Мержоев: записи целых сур, 80 из 11
   check('после 9-й следующая доступная — 12-я, после 114-й — нет',
     [nextAvailableSurah('merzhoev', 9), nextAvailableSurah('merzhoev', 73), nextAvailableSurah('merzhoev', 114)],
     [12, 75, null]);
+  check('кнопка «‹» плеера: перед 12-й — 9-я, перед 1-й — нет',
+    [prevAvailableSurah('merzhoev', 12), prevAvailableSurah('merzhoev', 75), prevAvailableSurah('merzhoev', 1)],
+    [9, 73, null]);
+  check('сур у чтеца: Мержоев 80, Ясир 114',
+    [availableSurahCount('merzhoev'), availableSurahCount('yasser')], [80, 114]);
   check('у чтецов без списка есть все суры',
     [reciterHasSurah('yasser', 10), nextAvailableSurah('yasser', 9)], [true, 10]);
 });
