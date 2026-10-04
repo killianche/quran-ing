@@ -147,12 +147,15 @@ export function SurahScreen({
 
   // ── Typography prefs ───────────────────────────────────────────────────────
   const [arabicScale, setArabicScaleS] = useState<number>(() => readNumber('arabicScale', 1.0));
-  const [ruScale,     setRuScaleS]     = useState<number>(() => readNumber('ruScale',     1.0));
+  // По умолчанию русский — ступень 4 из 10 (0.75), ингушский шрифт — Alice
+  // (владелец 2026-10-04). Сохранённый выбор человека важнее: эти значения
+  // действуют, только пока он сам ничего не менял.
+  const [ruScale,     setRuScaleS]     = useState<number>(() => readNumber('ruScale',     0.75));
   const [ruFont,      setRuFontS]      = useState<LatinFontId>(()  => readPref('ruFont',     'inter-regular', LATIN_IDS));
   // Ингушский — свой набор настроек, независимый от русского: человек может
   // читать один перевод крупно, а второй держать мельче или скрыть вовсе.
   const [inhScale,    setInhScaleS]    = useState<number>(() => readNumber('inhScale',    1.0));
-  const [inhFont,     setInhFontS]     = useState<LatinFontId>(()  => readPref('inhFont',    'inter-regular', LATIN_IDS));
+  const [inhFont,     setInhFontS]     = useState<LatinFontId>(()  => readPref('inhFont',    'alice', LATIN_IDS));
   // Дефолт — «Мусхаф» (QCF V4), а не юникодный «Усмани»: это глифы
   // мединского мусхафа от King Fahd Complex, то самое начертание, к
   // которому человек привык в печатном Коране.  Юникодный текст рядом
