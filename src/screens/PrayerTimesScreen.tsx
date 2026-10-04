@@ -31,7 +31,6 @@ import {
   Appearance, Bell, ChevronLeft, ChevronRight, Clock, Close, Compass, ICON_SIZE, Plus, Trash,
 } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
-import { TAB_BAR_HEIGHT } from '../components/TabBar';
 import type { Theme } from '../hooks/useTheme';
 import {
   CITIES, locate, LOCATE_ERROR_TEXT, type LocateError,
@@ -177,7 +176,8 @@ export function PrayerTimesScreen({ theme, setTheme, onBack, onOpenQibla }: Prop
       minHeight: '100dvh',
       maxWidth: 'min(100%, 720px)',
       margin: '0 auto',
-      padding: `0 var(--space-margin) calc(${TAB_BAR_HEIGHT}px + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
+      // Экран «поверх» (кнопка «Намаз» на главной): нижнего меню здесь нет.
+      padding: `0 var(--space-margin) calc(var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       position: 'relative',
       zIndex: 1,
     }}>

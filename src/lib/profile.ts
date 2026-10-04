@@ -74,6 +74,13 @@ export const LOCAL_DATA_KEYS: readonly string[] = [
   'azkar.arabicFont', 'azkar.russianFont', 'azkar.translitFont',
   'azkar.arabicScale', 'azkar.russianScale', 'azkar.translitScale',
   'azkar.langTab',
+  // `dua.*` — наследие: раздела «Дуа» в Quran Ing нет с 2026-10-04, но у
+  // тестировщиков сборки 1 ключи остались в памяти телефона. Приложение их
+  // не читает, а «удалить мои данные» обязано вычистить и их.
+  'dua.list', 'dua.hidden', 'dua.hidden.v1',
+  'dua.showArabic', 'dua.showRussian', 'dua.showTranslit',
+  'dua.arabicFont', 'dua.russianFont', 'dua.translitFont',
+  'dua.arabicScale', 'dua.russianScale', 'dua.translitScale',
   // Намаз и кибла
   'prayer.cities', 'prayer.activeCity', 'prayer.settings', 'place',
   'prayer.primary-source.v1', 'prayer.alarms.v1',
