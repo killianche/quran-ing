@@ -423,8 +423,12 @@ export function CollapsingNavBar({
             flex: 1, minWidth: 0,
             textAlign: 'center',
             opacity: 0,
-            fontSize: 'var(--font-headline)',
-            lineHeight: 'var(--leading-headline)',
+            // Title 2, а не Headline: у системной панели компактный заголовок
+            // — 17 pt SF Pro, но наша антиква на тех же 17 читалась на
+            // полкегля мельче (владелец 2026-10-04: «заголовок Коран
+            // слишком мелкий при прокрутке»).
+            fontSize: 'var(--font-title2)',
+            lineHeight: 'var(--leading-title2)',
             fontWeight: 'var(--weight-semibold)',
             color: 'var(--text-primary)',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
