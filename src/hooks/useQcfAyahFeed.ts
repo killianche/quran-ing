@@ -180,12 +180,22 @@ function assembleFeed(surahNumber: number, pages: QcfPageData[]): QcfAyahFeed {
  * В кэш идёт только полная лента: неполной нельзя, иначе следующий вход
  * в суру получил бы обрезанный текст Корана.
  */
+/** Сборки ленты в полёте: предзагрузка по касанию и сам экран суры не
+ *  должны собирать одну и ту же ленту дважды (для Аль-Бакары это заметная
+ *  работа главного потока прямо во время выезда экрана). */
+const feedInflight = new Map<number, Promise<QcfAyahFeed>>();
+
 async function buildFeed(
   surahNumber: number,
   onPartial?: (feed: QcfAyahFeed) => void,
 ): Promise<QcfAyahFeed> {
   const cached = feedCache.get(surahNumber);
-  if (cached) return cached;
+  if (cached) {
+    // Свежий доступ — в конец LRU, иначе читаемую суру вытеснила бы
+    // предзагрузка других.
+    touchFeedCache(surahNumber, cached);
+    return cached;
+  }
 
   const verses = await loadVersesJson();
   const prefix = `${surahNumber}:`;
@@ -199,21 +209,45 @@ async function buildFeed(
 
   // Все страницы просим сразу — они и так качаются параллельно.  Разница
   // в том, что первую ещё и ждём отдельно, чтобы отдать начало суры.
+  // ensurePage не качает страницу второй раз, если она уже в полёте.
   const all = pageNums.map(p => fetchPageData(p));
 
-  if (onPartial && all.length > 1) {
+  if (onPartial && all.length > 1 && !feedCache.has(surahNumber)) {
     try {
       const first = await all[0];
-      onPartial(assembleFeed(surahNumber, [first]));
+      // Полная лента могла успеть собраться, пока ждали первую страницу.
+      if (!feedCache.has(surahNumber)) onPartial(assembleFeed(surahNumber, [first]));
     } catch {
       // Ошибку первой страницы разберёт общий await ниже.
     }
   }
 
-  const pages = await Promise.all(all);
-  const feed = assembleFeed(surahNumber, pages);
-  touchFeedCache(surahNumber, feed);
-  return feed;
+  const ready = feedCache.get(surahNumber);
+  if (ready) return ready;
+  let pending = feedInflight.get(surahNumber);
+  if (!pending) {
+    pending = Promise.all(all)
+      .then(pages => {
+        const feed = assembleFeed(surahNumber, pages);
+        touchFeedCache(surahNumber, feed);
+        return feed;
+      })
+      .finally(() => { feedInflight.delete(surahNumber); });
+    feedInflight.set(surahNumber, pending);
+  }
+  return pending;
+}
+
+/**
+ * Начать загрузку суры заранее — по касанию её строки, ещё до клика
+ * (2026-10-04, плавность открытия). Касание и отпускание разделяет около
+ * 100 мс; за это время уходят запросы страниц, и экран суры получает
+ * ленту из кэша или из той же загрузки. Ошибки молчат: их покажет сам
+ * экран, если загрузка не удастся и при открытии.
+ */
+export function prefetchSurahFeed(surahNumber: number): void {
+  if (feedCache.has(surahNumber) || feedInflight.has(surahNumber)) return;
+  void buildFeed(surahNumber).catch(() => undefined);
 }
 
 /**

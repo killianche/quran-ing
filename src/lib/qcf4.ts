@@ -310,6 +310,12 @@ export function loadVersesJson(): Promise<VersesJson> {
     .then(data => {
       versesCache = data;
       return data;
+    })
+    .catch(err => {
+      // Сбой не запоминаем: иначе одна неудача (фоновый прогрев при плохой
+      // сети) ломала бы открытие любой суры до перезапуска приложения.
+      versesPromise = null;
+      throw err;
     });
   return versesPromise;
 }

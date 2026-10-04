@@ -126,6 +126,31 @@ function calibrationKey(fontSize: number, width: number): string {
   return `${Math.round(fontSize)}|${Math.round(width / 20)}`;
 }
 
+/**
+ * Ширина колонки аятов — одна на всю ленту (все аяты в одной колонке).
+ *
+ * Прежде `estimatedLines()` читал `clientWidth` каждого аята прямо в
+ * рендере. Замер 2026-10-04 (Chromium, процессор ×4): 125 мс на открытии
+ * Аль-Бакары уходило на вынужденный пересчёт раскладки — каждый батч ленты
+ * в рендере читал геометрию после изменений DOM прошлого батча. Теперь в
+ * рендере геометрия не читается: ширину меряет layout-эффект (в одном
+ * коммите это один пересчёт на все аяты), аят помнит свою, а скелеты ещё
+ * не нарисованных аятов берут первую измеренную ширину ленты. Шторка
+ * тафсира рисует аят уже, но общую ширину не перебивает: её задаёт первый
+ * замер, сбрасывает только resize (поворот, iPad).
+ */
+let columnWidth = 0;
+if (typeof window !== 'undefined') {
+  // Только при смене ширины окна: resize приходит и от клавиатуры, и от
+  // уезжающей адресной строки Safari — ширина колонки при этом прежняя.
+  let lastWindowWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    if (window.innerWidth === lastWindowWidth) return;
+    lastWindowWidth = window.innerWidth;
+    columnWidth = 0;
+  });
+}
+
 export function QcfAyahLine({
   words,
   fonts,
@@ -153,12 +178,15 @@ export function QcfAyahLine({
   // Калибровка: измеряем ровно один раз на пару (кегль, ширина) и только
   // по аяту, у которого текст уже нарисован. Дальше замер не повторяется —
   // на горячем пути прокрутки лишних чтений геометрии быть не должно.
+  const widthRef = useRef(0);
   useLayoutEffect(() => {
     if (!fontsReady) return;
     const el = containerRef.current;
     if (!el || words.length === 0) return;
     const width = el.clientWidth;
     if (width <= 0) return;
+    widthRef.current = width;
+    if (columnWidth === 0) columnWidth = width;
     const key = calibrationKey(fontSize, width);
     if (wordsPerLine.has(key)) return;
     // Высота без вертикальных полей: они не участвуют в числе строк.
@@ -168,8 +196,8 @@ export function QcfAyahLine({
   }, [fontsReady, fontSize, words.length]);
 
   const estimatedLines = () => {
-    const el = containerRef.current;
-    const width = el?.clientWidth ?? 0;
+    // Без чтения геометрии в рендере (см. columnWidth).
+    const width = widthRef.current || columnWidth;
     const perLine = (width > 0 ? wordsPerLine.get(calibrationKey(fontSize, width)) : undefined)
       ?? FALLBACK_WORDS_PER_LINE;
     return Math.max(1, Math.ceil(words.length / perLine));

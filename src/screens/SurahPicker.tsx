@@ -67,6 +67,7 @@ import { ThemeSettings } from '../components/ReadingSettings';
 import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
 import { TAB_BAR_SPACE } from '../components/TabBar';
 import { tabBarTopPx } from '../lib/nativeTabBar';
+import { prefetchSurahFeed } from '../hooks/useQcfAyahFeed';
 import type { Theme } from '../hooks/useTheme';
 import { HitArea } from '../components/HitArea';
 import { CollapsingNavBar, type HeaderAction } from '../components/ScreenHeader';
@@ -105,6 +106,40 @@ function ayahWord(n: number): string {
   if (one === 1) return 'аят';
   if (one >= 2 && one <= 4) return 'аята';
   return 'аятов';
+}
+
+/**
+ * Предзагрузка суры по касанию её строки или карточки.
+ *
+ * Не сразу на pointerdown: так начинается и прокрутка списка пальцем, и
+ * свайп по «Аль-Бакаре» качал бы и собирал 48 страниц прямо во время
+ * прокрутки (ревью 2026-10-04). Ждём 90 мс: если за это время началась
+ * прокрутка, WKWebView пришлёт pointercancel, и загрузка не стартует.
+ * Короткий тап (палец поднят раньше) запускает её на отпускании — до
+ * клика, который придёт следом.
+ */
+function usePressPrefetch(surah: number) {
+  const timer = useRef(0);
+  const clear = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = 0;
+  };
+  return {
+    start: () => {
+      clear();
+      timer.current = window.setTimeout(() => {
+        timer.current = 0;
+        prefetchSurahFeed(surah);
+      }, 90);
+    },
+    /** Палец поднят — это тап: грузим, не дожидаясь таймера. */
+    commit: () => {
+      if (!timer.current) return;
+      clear();
+      prefetchSurahFeed(surah);
+    },
+    cancel: clear,
+  };
 }
 
 export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, theme, setTheme }: Props) {
@@ -499,14 +534,15 @@ function RecentCard({ meta, ayah, lead = false, onClick }: {
   onClick: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
+  const prefetch = usePressPrefetch(meta.number);
   const pct = ayah ? Math.min(100, Math.round((ayah / meta.ayahs) * 100)) : 0;
   return (
     <button
       onClick={onClick}
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={() => setPressed(false)}
-      onPointerLeave={() => setPressed(false)}
-      onPointerCancel={() => setPressed(false)}
+      onPointerDown={() => { setPressed(true); prefetch.start(); }}
+      onPointerUp={() => { setPressed(false); prefetch.commit(); }}
+      onPointerLeave={() => { setPressed(false); prefetch.cancel(); }}
+      onPointerCancel={() => { setPressed(false); prefetch.cancel(); }}
       aria-label={ayah
         ? `Продолжить: ${meta.transliteration}, аят ${ayah} из ${meta.ayahs}`
         : `Начать чтение: ${meta.transliteration}`}
@@ -809,6 +845,7 @@ function SurahRow({ meta, onClick, last = false, sounding = false }: {
 }) {
   const [pressed, setPressed] = useState(false);
   const audio = useAudioActions();
+  const prefetch = usePressPrefetch(meta.number);
 
   return (
     <div
@@ -832,10 +869,12 @@ function SurahRow({ meta, onClick, last = false, sounding = false }: {
     >
       <button
         onClick={onClick}
-        onPointerDown={() => setPressed(true)}
-        onPointerUp={() => setPressed(false)}
-        onPointerLeave={() => setPressed(false)}
-        onPointerCancel={() => setPressed(false)}
+        // Касание — сигнал, что суру сейчас откроют: страницы начинают
+        // качаться до клика (usePressPrefetch).
+        onPointerDown={() => { setPressed(true); prefetch.start(); }}
+        onPointerUp={() => { setPressed(false); prefetch.commit(); }}
+        onPointerLeave={() => { setPressed(false); prefetch.cancel(); }}
+        onPointerCancel={() => { setPressed(false); prefetch.cancel(); }}
         style={{
           flex: 1, minWidth: 0,
           display: 'flex', alignItems: 'center', gap: 'var(--space-cozy)',

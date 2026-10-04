@@ -2,6 +2,7 @@ import {
   useState, useEffect, useLayoutEffect, useRef, lazy, Suspense,
   type ReactNode,
 } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useTheme, themeMode } from './hooks/useTheme';
 import { SurahPicker } from './screens/SurahPicker';
 import type { DocumentId } from './screens/DocumentScreen';
@@ -38,7 +39,10 @@ import { reconcile, stepsToQuranHome } from './lib/screenStack';
  * приезжает по факту перехода. Экспорты именованные, поэтому default
  * подставляем вручную.
  */
-const SurahScreen = lazy(() => import('./screens/SurahScreen').then(m => ({ default: m.SurahScreen })));
+/** Загрузчик модуля суры отдельно от lazy: его же зовёт прогрев после
+ *  запуска (warmReading), и первое открытие суры не ждёт сеть/разбор. */
+const loadSurahScreen = () => import('./screens/SurahScreen');
+const SurahScreen = lazy(() => loadSurahScreen().then(m => ({ default: m.SurahScreen })));
 const AzkarScreen = lazy(() => import('./screens/AzkarScreen').then(m => ({ default: m.AzkarScreen })));
 const AzkarCategoryScreen = lazy(() => import('./screens/AzkarCategoryScreen').then(m => ({ default: m.AzkarCategoryScreen })));
 const PlayerScreen = lazy(() => import('./screens/PlayerScreen').then(m => ({ default: m.PlayerScreen })));
@@ -179,6 +183,11 @@ export default function App() {
     // Позицию уходящей вкладки снимаем ЗДЕСЬ, а не в эффекте: к моменту
     // эффекта новый экран уже мог сбросить скролл (SurahScreen делает
     // это, когда восстанавливать нечего), и мы записали бы ноль.
+    // Тот же экран уже наверху — второй тап по той же строке (двойной тап,
+    // дребезг) не открывает суру второй раз поверх первой.
+    const top = stackRef.current[stackRef.current.length - 1];
+    if (JSON.stringify(top) === JSON.stringify(next)) return;
+
     rememberTabScroll();
 
     // Для интерактивного iOS edge-pop сохраняем настоящий DOM уходящего
@@ -361,6 +370,24 @@ export default function App() {
   // Системная панель вкладок iOS 26 (lib/nativeTabBar.ts): выяснить режим и
   // подготовить вкладки, пока экран закрыт заставкой.
   useEffect(() => { void initNativeTabBar(); }, []);
+
+  // Прогрев чтения (2026-10-04, плавность открытия суры). Замер: первое
+  // открытие Аль-Бакары — 835 мс до первого аята, повторное — 203: разница
+  // — модуль экрана суры и карта аятов verses.json (1,4 МБ разбора). Берём
+  // их заранее, когда заставка уже ушла и главная отрисована, — а не в
+  // момент тапа. Таймер, а не rAF/idle: в WKWebView нет
+  // requestIdleCallback, а rAF не тикает в фоне.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      // Модуль — только в нативной сборке: там он лежит в пакете. На сайте
+      // неудачная загрузка чанка (плохая сеть) могла бы запомниться
+      // браузером и сломать и настоящее открытие суры.
+      if (Capacitor.isNativePlatform()) void loadSurahScreen().catch(() => undefined);
+      // Динамически: qcf4 живёт в чанке чтения и не должен утяжелять главный.
+      void import('./lib/qcf4').then(m => m.loadVersesJson()).catch(() => undefined);
+    }, 1800);
+    return () => window.clearTimeout(id);
+  }, []);
 
   // Переводы Корана лежат отдельным чанком, чтобы не задерживать первый
   // кадр. Прогреваем их в простое сразу после него: к моменту, когда
