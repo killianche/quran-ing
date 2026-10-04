@@ -60,23 +60,24 @@
     <script>
       (function () {
         try {
-          var VALID = ['light', 'mushaf', 'dark', 'aurora', 'aurora2', 'cosmos'];
+          var VALID = ['light', 'dark', 'aurora', 'aurora2', 'cosmos'];
           var FIRST_RUN = 'aurora';
           var v = localStorage.getItem('theme');
           var t = FIRST_RUN;
           if (v) {
             if (VALID.indexOf(v) !== -1) {
               t = v;
+            } else if (v === 'mushaf') {
+              // Тема «Бумага» снята (владелец 2026-10-04) — светлая ближе всего.
+              t = 'light';
             } else if (v.indexOf('cosmic') === 0) {
               t = 'aurora2';
-            } else if (v === 'light-cream' || v === 'light-ivory') {
-              t = 'mushaf';
             } else if (v.indexOf('light') === 0) {
               t = 'light';
             } else if (v.indexOf('dark') === 0) {
               t = 'dark';
             } else if (v === 'parchment' || v === 'sepia') {
-              t = 'mushaf';
+              t = 'light';
             }
           }
           document.documentElement.setAttribute('data-theme', t);

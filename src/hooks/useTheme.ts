@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
  * Пять тем.
  *
  *   light   — белая бумага, чёрные чернила
- *   mushaf  — та же белая, но с фактурой настоящей бумаги («Бумага»)
  *   dark    — мягкий графит #1a1a1c
  *   aurora  — светло-бежевое поле с редкой сеткой точек
  *   aurora2 — чёрная канва + зелёное свечение, растекающееся из центра
@@ -19,7 +18,7 @@ import { useState, useEffect } from 'react';
 
 export type ThemeMode = 'light' | 'dark' | 'cosmic';
 
-export type Theme = 'light' | 'mushaf' | 'dark' | 'aurora' | 'aurora2' | 'cosmos';
+export type Theme = 'light' | 'dark' | 'aurora' | 'aurora2' | 'cosmos';
 
 /*
  * Порядок в списке оформления.  «Бежевая» первой — она и так дефолт
@@ -31,17 +30,10 @@ export type Theme = 'light' | 'mushaf' | 'dark' | 'aurora' | 'aurora2' | 'cosmos
  * допустимых значений при чтении localStorage — перестановка ничей
  * сохранённый выбор не ломает.
  */
-export const ALL_THEMES: Theme[] = ['aurora', 'aurora2', 'cosmos', 'dark', 'light', 'mushaf'];
+export const ALL_THEMES: Theme[] = ['aurora', 'aurora2', 'cosmos', 'dark', 'light'];
 
 export const THEME_LABELS: Record<Theme, string> = {
   light:  'Светлая',
-  // Название поменяли на «Бумага» по решению владельца: слово точнее
-  // описывает, что тема даёт (фактура листа), и снимает путаницу с
-  // одноимённым вариантом арабского шрифта в настройках текста.
-  // Идентификатор остался `mushaf` намеренно — он записан в
-  // localStorage у всех, кто уже выбирал эту тему, и переименование
-  // сбросило бы их выбор на дефолт.
-  mushaf: 'Бумага',
   dark:   'Тёмная',
   // Внутренний id оставлен прежним: сохранённый выбор пользователей
   // автоматически получает новый фон, без сброса настроек при обновлении.
@@ -73,19 +65,20 @@ const STORAGE_KEY = 'theme';
 // Меняешь правила миграции здесь — поменяй и там, иначе холодный старт
 // даст один кадр не с той темой, и человек увидит вспышку.
 function migrateLegacy(v: string): Theme | null {
+  // Тема «Бумага» (id `mushaf`) снята владельцем 2026-10-04 — светлая
+  // ближе всего; туда же уходят кремовые и пергаментные темы прошлого.
+  if (v === 'mushaf') return 'light';
   if (v.startsWith('cosmic')) return 'aurora2';
-  // Кремовые светлые темы прежнего QuranIng ближе всего к «Мусхафу».
-  if (v === 'light-cream' || v === 'light-ivory') return 'mushaf';
   if (v.startsWith('light'))  return 'light';
   if (v.startsWith('dark'))   return 'dark';
   // Совсем древние значения без префикса.
-  if (v === 'parchment' || v === 'sepia') return 'mushaf';
+  if (v === 'parchment' || v === 'sepia') return 'light';
   return null;
 }
 
 export function themeMode(t: Theme): ThemeMode {
   if (t === 'aurora2' || t === 'cosmos') return 'cosmic';
-  if (t === 'mushaf' || t === 'aurora') return 'light';
+  if (t === 'aurora') return 'light';
   return t;
 }
 

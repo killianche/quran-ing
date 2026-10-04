@@ -399,41 +399,6 @@
   --danger-soft: rgba(215, 0, 21, 0.10);
 }
 
-/* «Мусхаф» — разворот печатного Корана.
-   Кремовая бумага и тёмно-коричневые чернила вместо чёрных: в
-   типографском мусхафе краска именно тёплая, чистый #000 на кремовой
-   бумаге выглядит как лазерная распечатка поверх пергамента.
-
-   Signature темы — виньетка по краям (body-правило ниже): у раскрытой
-   книги страница к сгибу и к обрезу уходит в тень.  Это единственное
-   украшение; орнаментальную рамку мусхафа не рисуем — на экране
-   телефона она съела бы половину ширины, а ради неё пришлось бы
-   ломать вёрстку ленты аятов. */
-[data-theme="mushaf"] {
-  /* Белая бумага, а не кремовая: тон снят по решению владельца — от
-     темы нужна фактура, а не оттенок.  Палитра повторяет светлую тему,
-     отличие только в фоне-фотографии (см. components/PaperLayer.tsx).
-     Тон canvas должен совпадать с самой светлой частью фактуры, иначе
-     на широком экране, где картинка не покрывает всё поле, виден шов. */
-  --canvas:        #ffffff;
-  --canvas-soft:   #fbfbfa;
-  --surface:       #ffffff;
-  --surface-rgb:       255 255 255;
-  --surface-strong:#f2f2f0;
-
-  --ink:           #000000;
-  --ink-rgb:           0 0 0;
-  --ink-soft:      #1f1f1f;
-  --ink-soft-rgb:      31 31 31;
-  --body:          #3a3a3a;
-  --muted:         #6b6b6b;
-  --muted-soft:    #9c9c9c;
-
-  --hairline:        #e3e3e0;
-  --hairline-soft:   #efefec;
-  --hairline-strong: #cdcdc9;
-}
-
 /* Алиасы — семантические имена поверх палитры активной темы. */
 :root,
 [data-theme] {
@@ -581,8 +546,7 @@
 /* На светлой бумаге приглушённое золото сливается с фоном — берём тон
    темнее, как в печатных изданиях с золотой краской по белому. */
 [data-theme="light"],
-[data-theme="aurora"],
-[data-theme="mushaf"] {
+[data-theme="aurora"] {
   --gold-rgb:      164 132 28;
 }
 
@@ -690,26 +654,6 @@ body {
   letter-spacing: -0.018em;
 }
 
-/* Фактура бумаги «Мусхафа».
-   Лежит фоном на <body>, а не отдельным фиксированным слоем, — чтобы
-   ехать ВМЕСТЕ с текстом. Пока слой был неподвижным, текст скользил
-   поверх фактуры, и лист читался как подложка за стеклом, а не как
-   сам лист.
-
-   `background-size: 100% auto` растягивает плитку по ширине окна;
-   `repeat-y` повторяет её вниз по всей высоте документа. Файл собран
-   зеркальным, поэтому повтор бесшовный (см. components/PaperLayer.tsx).
-
-   Виньетка осталась отдельным `fixed`-слоем в PaperLayer: она про свет
-   у кромок экрана, и если пустить её в прокрутку, получатся тёмные
-   полосы через каждую высоту экрана. */
-[data-theme="mushaf"] body {
-  background-image: url('/textures/paper-mushaf.webp');
-  background-repeat: repeat-y;
-  background-size: 100% auto;
-  background-position: top center;
-  background-attachment: scroll;
-}
 
 /* ─── Skeleton loader (used while alquran.cloud fetch is in flight) ─────────
    Shimmer is a moving gradient on top of a soft tinted base. Both colours are
@@ -1204,8 +1148,7 @@ body {
    тёмная и «Аврора 2» — более яркий '-color-dark', чтобы контраст
    держался на обоих типах канвы. */
 [data-highlight-style="color"][data-theme="light"] [data-active-word],
-[data-highlight-style="color"][data-theme="aurora"] [data-active-word],
-[data-highlight-style="color"][data-theme="mushaf"] [data-active-word] {
+[data-highlight-style="color"][data-theme="aurora"] [data-active-word] {
   color: var(--ayah-word-color-light, #2563eb) !important;
 }
 [data-highlight-style="color"][data-theme="dark"] [data-active-word],

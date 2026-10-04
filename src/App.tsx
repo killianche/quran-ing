@@ -7,7 +7,6 @@ import { SurahPicker } from './screens/SurahPicker';
 import type { DocumentId } from './screens/DocumentScreen';
 
 import { CosmicLayer } from './components/CosmicLayer';
-import { PaperLayer } from './components/PaperLayer';
 import { StatusBarScrim } from './components/StatusBarScrim';
 import { AudioErrorPlate } from './components/AudioErrorPlate';
 import { MiniPlayer } from './components/MiniPlayer';
@@ -155,7 +154,6 @@ export default function App() {
   const cosmicVariant = theme === 'cosmos'
     ? 'cosmos' as const
     : theme === 'aurora2' ? 'aurora2' as const : 'aurora' as const;
-  const isPaper = theme === 'mushaf';
   const isDotted = theme === 'aurora';
 
   // ── History-API routing ──────────────────────────────────────────────────
@@ -406,7 +404,7 @@ export default function App() {
   // ── Экраны «поверх» ──────────────────────────────────────────────────────
   if (screen.name === 'surah') {
     return (
-      <Shell key="surah" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goQuranHome} edgeBackPreview={backPreview}>
+      <Shell key="surah" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goQuranHome} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="SurahScreen" onReset={goQuranHome}>
           <SurahScreen
@@ -424,7 +422,7 @@ export default function App() {
 
   if (screen.name === 'qibla') {
     return (
-      <Shell key="qibla" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="qibla" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="QiblaScreen" onReset={goBack}>
           <QiblaScreen theme={theme} setTheme={setTheme} onBack={goBack} />
@@ -436,7 +434,7 @@ export default function App() {
 
   if (screen.name === 'player') {
     return (
-      <Shell key="player" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="player" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PlayerScreen" onReset={goBack}>
           <PlayerScreen onBack={goBack} />
@@ -448,7 +446,7 @@ export default function App() {
 
   if (screen.name === 'document') {
     return (
-      <Shell key="document" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="document" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="DocumentScreen" onReset={goBack}>
           <DocumentScreen doc={screen.doc} onBack={goBack} />
@@ -462,7 +460,7 @@ export default function App() {
   // в нижней панели ему не по чину. Открывается кнопкой в шапке главной.
   if (screen.name === 'account') {
     return (
-      <Shell key="account" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="account" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AccountScreen" onReset={goBack}>
           <AccountScreen
@@ -479,7 +477,7 @@ export default function App() {
 
   if (screen.name === 'prayer') {
     return (
-      <Shell key="prayer" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="prayer" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PrayerTimesScreen" onReset={goBack}>
           <PrayerTimesScreen
@@ -496,7 +494,7 @@ export default function App() {
 
   if (screen.name === 'bookmarks') {
     return (
-      <Shell key="bookmarks" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="bookmarks" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="BookmarksScreen" onReset={goBack}>
           <BookmarksScreen
@@ -513,7 +511,7 @@ export default function App() {
 
   if (screen.name === 'azkar-category') {
     return (
-      <Shell key="azkar-category" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="azkar-category" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AzkarCategoryScreen" onReset={goBack}>
           <AzkarCategoryScreen
@@ -531,7 +529,7 @@ export default function App() {
   // ── Корневые вкладки ─────────────────────────────────────────────────────
   const tab = screen.tab;
   return (
-    <Shell key={`tabs-${tab}`} isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter}>
+    <Shell key={`tabs-${tab}`} isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter}>
       {/* Вкладки под одним Suspense, а TabBar снаружи: иначе панель
           вкладок пропадала бы на время подгрузки чанка экрана. */}
       <Suspense fallback={<ScreenFallback />}>
@@ -585,7 +583,6 @@ export default function App() {
  *  условий. */
 function Shell({
   isCosmic,
-  isPaper,
   isDotted,
   cosmicVariant,
   onEdgeBack,
@@ -594,7 +591,6 @@ function Shell({
   children,
 }: {
   isCosmic: boolean;
-  isPaper: boolean;
   isDotted: boolean;
   cosmicVariant: 'aurora' | 'aurora2' | 'cosmos';
   onEdgeBack?: () => void;
@@ -618,11 +614,10 @@ function Shell({
           isolation: 'isolate',
           background: isDotted
             ? 'radial-gradient(circle, rgba(116, 106, 92, 0.16) 1.45px, transparent 1.7px) 18px 9px / 60px 60px, var(--surface)'
-            : (isCosmic || isPaper ? 'transparent' : 'var(--surface)'),
+            : (isCosmic ? 'transparent' : 'var(--surface)'),
         }}
       >
         {isCosmic && <CosmicLayer variant={cosmicVariant} />}
-        {isPaper && <PaperLayer />}
         <div style={{ position: 'relative', zIndex: 1 }}>
           {children}
         </div>
