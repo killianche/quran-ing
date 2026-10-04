@@ -45,7 +45,7 @@ import { juzOfSurah } from '../lib/ayahNumbering';
 import { readRecents } from '../lib/recents';
 import { AYAH_LANG_LABEL, search, snippet, visibleSearchLangs, warmSearchIndex, type AyahHit } from '../lib/search';
 import { useQuranSources } from '../content/quran-sources-lazy';
-import { Appearance, Search, Close, Bookmark as BookmarkIcon, Person, ICON_SIZE, Play, Pause } from '../components/icons';
+import { Appearance, Search, Close, Bookmark as BookmarkIcon, Person, TabPrayer, ICON_SIZE, Play, Pause } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
 import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
 import { TAB_BAR_HEIGHT } from '../components/TabBar';
@@ -71,6 +71,8 @@ const CAP_LABEL: React.CSSProperties = {
 type Props = {
   onSelectSurah: (number: number, ayah?: number) => void;
   onBookmarks?: () => void;
+  /** Время намаза — кнопкой в шапке (в нижнем меню его больше нет). */
+  onPrayer?: () => void;
   theme: Theme;
   setTheme: (t: Theme) => void;
   /** Аккаунт переехал из нижнего меню сюда, в шапку. */
@@ -86,7 +88,7 @@ function ayahWord(n: number): string {
   return 'аятов';
 }
 
-export function SurahPicker({ onSelectSurah, onBookmarks, onAccount, theme, setTheme }: Props) {
+export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, theme, setTheme }: Props) {
   const [query, setQuery] = useState('');
   const [themeOpen, setThemeOpen] = useState(false);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
@@ -157,6 +159,11 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onAccount, theme, setT
           Коран
         </h1>
 
+        {onPrayer && (
+          <IconAction label="Намаз" onClick={onPrayer}>
+            <TabPrayer size={ICON_SIZE.md} />
+          </IconAction>
+        )}
         {onBookmarks && (
           <IconAction label="Закладки" onClick={onBookmarks}>
             <BookmarkIcon size={ICON_SIZE.md} />

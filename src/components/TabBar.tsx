@@ -18,7 +18,7 @@
 import { useRef, type ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { TabQuran, TabAzkar, TabPrayer } from './icons';
+import { TabQuran, TabAzkar } from './icons';
 import { GLASS_BLUR } from '../lib/glass';
 
 /**
@@ -42,7 +42,7 @@ import { GLASS_BLUR } from '../lib/glass';
  * Прежний довод («вкладка занимает четверть самой дорогой полосы») оказался
  * слабее того, что время намаза смотрят из любого места и ищут его внизу.
  */
-export type TabId = 'quran' | 'azkar' | 'prayer';
+export type TabId = 'quran' | 'azkar';
 
 /** Размер глифа вкладки — ступень `--icon-tab` из общей шкалы.  В JSX
  *  он приходит числом (иконки принимают `size`), поэтому значение здесь
@@ -56,7 +56,6 @@ const TAB_ICON = 25;
 const TABS: { id: TabId; label: string; icon: (selected: boolean) => ReactNode }[] = [
   { id: 'quran', label: 'Коран', icon: selected => <TabQuran size={TAB_ICON} isFilled={selected} /> },
   { id: 'azkar', label: 'Азкары', icon: selected => <TabAzkar size={TAB_ICON} isFilled={selected} /> },
-  { id: 'prayer', label: 'Намаз', icon: selected => <TabPrayer size={TAB_ICON} isFilled={selected} /> },
 ];
 
 /**

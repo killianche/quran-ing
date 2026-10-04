@@ -69,6 +69,9 @@ type Screen =
   | { name: 'surah'; number: number; initialAyah?: number }
   // Кибла ушла из вкладок: открывается с экрана намаза и имеет свою
   // запись в истории, поэтому системная «назад» возвращает к намазу.
+  // Намаз — отдельный экран по кнопке на главной (владелец 2026-10-04: в
+  // нижнем меню только «Коран» и «Азкары»), со своей записью в истории.
+  | { name: 'prayer' }
   | { name: 'qibla' }
   // Плеер — отдельный экран, а не лист поверх: слушают Коран иначе, чем
   // читают, и у слушания своя запись в истории. Что именно звучит, экран
@@ -474,6 +477,23 @@ export default function App() {
     );
   }
 
+  if (screen.name === 'prayer') {
+    return (
+      <Shell key="prayer" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+        <Suspense fallback={<ScreenFallback />}>
+        <ErrorBoundary name="PrayerTimesScreen" onReset={goBack}>
+          <PrayerTimesScreen
+            theme={theme}
+            setTheme={setTheme}
+            onBack={goBack}
+            onOpenQibla={() => navigate({ name: 'qibla' })}
+          />
+        </ErrorBoundary>
+        </Suspense>
+      </Shell>
+    );
+  }
+
   if (screen.name === 'bookmarks') {
     return (
       <Shell key="bookmarks" isCosmic={isCosmic} isPaper={isPaper} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
@@ -520,6 +540,7 @@ export default function App() {
           <SurahPicker
             onSelectSurah={(n, ayah) => navigate({ name: 'surah', number: n, initialAyah: ayah })}
             onBookmarks={() => navigate({ name: 'bookmarks' })}
+            onPrayer={() => navigate({ name: 'prayer' })}
             onAccount={() => navigate({ name: 'account' })}
             theme={theme}
             setTheme={setTheme}
@@ -532,15 +553,6 @@ export default function App() {
             theme={theme}
             setTheme={setTheme}
             onOpenCategory={c => navigate({ name: 'azkar-category', category: c })}
-          />
-        </ErrorBoundary>
-      )}
-      {tab === 'prayer' && (
-        <ErrorBoundary name="PrayerTimesScreen">
-          <PrayerTimesScreen
-            theme={theme}
-            setTheme={setTheme}
-            onOpenQibla={() => navigate({ name: 'qibla' })}
           />
         </ErrorBoundary>
       )}
