@@ -54,7 +54,7 @@
  * (--space-hair), чтобы номер суры стоял ровно под словом «Суры».
  */
 
-import { useState, useMemo, useRef, useDeferredValue, useLayoutEffect, forwardRef } from 'react';
+import { useState, useMemo, useRef, useDeferredValue, useLayoutEffect, useEffect, useCallback, memo, forwardRef } from 'react';
 import { FastScrubber } from '../components/FastScrubber';
 import { FAST_SCROLL } from '../lib/fastScroll';
 import { SURAHS, SURAH_BY_NUMBER, type SurahMeta } from '../content/surahs';
@@ -97,6 +97,9 @@ type Props = {
   setTheme: (t: Theme) => void;
   /** Аккаунт переехал из нижнего меню сюда, в шапку. */
   onAccount?: () => void;
+  /** false — главная припаркована под экраном «поверх» (App.tsx): она в
+   *  DOM, но не видна; жесты и попапы выключены. */
+  active?: boolean;
 };
 
 /** Склонение слова «аят». */
@@ -142,7 +145,7 @@ function usePressPrefetch(surah: number) {
   };
 }
 
-export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, theme, setTheme }: Props) {
+export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, theme, setTheme, active = true }: Props) {
   const [query, setQuery] = useState('');
   const [themeOpen, setThemeOpen] = useState(false);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
@@ -164,10 +167,17 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
     [deferredQuery, sourcesReady],
   );
 
+  // Перечитываются при возврате на главную: она больше не монтируется
+  // заново после суры (паркуется), а прочитанное только что должно стать
+  // первой карточкой.
   const recents = useMemo(
     () => readRecents().map(r => ({ ...r, meta: SURAH_BY_NUMBER[r.surah] })).filter(r => r.meta),
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [active],
   );
+  // Попап оформления — портал в body: у припаркованной главной он остался
+  // бы висеть над сурой.
+  useEffect(() => { if (!active) setThemeOpen(false); }, [active]);
   const coverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -238,6 +248,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
         actionGroups={[actions, accountGroup]}
         collapseStart={collapseStart}
         headerRef={barRef}
+        active={active}
       />
 
       <Cover ref={coverRef} />
@@ -327,7 +338,8 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
                   вверх-вниз. Только при полном списке — в результатах поиска номера
                   идут вразбивку, и прокрутка по ним была бы бессмыслицей. */}
               <FastScrubber
-                enabled={FAST_SCROLL.surahList}
+                // Припаркованная главная слушала бы касания экрана суры.
+                enabled={FAST_SCROLL.surahList && active}
                 count={SURAHS.length}
                 // Колонка номеров начинается с поля экрана (16 px) и занимает 26.
                 left={10}
@@ -691,6 +703,13 @@ function SurahList({ surahs, onSelect, grouped = true }: {
   // перерисует только ту, у которой он изменился.
   const { currentSurah, audioState } = useAudioState();
   const звучит = audioState === 'playing' ? currentSurah : null;
+  // Стабильный обработчик для мемоизированных строк: контекст звука
+  // меняется на каждой границе аята, и без memo перерисовывались бы все
+  // 114 строк — на главной во время чтения и под сурой, где главная теперь
+  // припаркована, а не размонтирована.
+  const selectRef = useRef(onSelect);
+  selectRef.current = onSelect;
+  const select = useCallback((n: number) => selectRef.current(n), []);
 
   return (
     <div style={{ display: 'grid', gap: 'var(--space-section)' }}>
@@ -717,7 +736,7 @@ function SurahList({ surahs, onSelect, grouped = true }: {
               <SurahRow
                 key={m.number}
                 meta={m}
-                onClick={() => onSelect(m.number)}
+                onSelect={select}
                 last={i === items.length - 1}
                 sounding={звучит === m.number}
               />
@@ -834,9 +853,9 @@ const TWO_LINES = {
 const NUMBER_COLUMN = 26;
 const ROW_HEIGHT = 64;
 
-function SurahRow({ meta, onClick, last = false, sounding = false }: {
+const SurahRow = memo(function SurahRow({ meta, onSelect, last = false, sounding = false }: {
   meta: SurahMeta;
-  onClick: () => void;
+  onSelect: (n: number) => void;
   /** Последняя в разделе — под ней волоска нет. */
   last?: boolean;
   /** Звучит ли именно эта сура. Приходит сверху: подписка на звук одна на
@@ -846,6 +865,7 @@ function SurahRow({ meta, onClick, last = false, sounding = false }: {
   const [pressed, setPressed] = useState(false);
   const audio = useAudioActions();
   const prefetch = usePressPrefetch(meta.number);
+  const onClick = () => onSelect(meta.number);
 
   return (
     <div
@@ -991,7 +1011,7 @@ function SurahRow({ meta, onClick, last = false, sounding = false }: {
       )}
     </div>
   );
-}
+});
 
 // ─── Результаты поиска ───────────────────────────────────────────────────
 

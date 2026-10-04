@@ -1451,6 +1451,24 @@ body {
   .app-screen-enter { animation: none; }
 }
 
+/* Вкладка, припаркованная под экраном «поверх» (App.tsx): в DOM, но не
+   рисуется и не занимает места. content-visibility: hidden сохраняет её
+   раскладку — возврат из суры не раскладывает 114 строк заново. Где
+   свойства нет (iOS до 18), — display: none: та же видимость, только без
+   сохранённой раскладки. */
+.app-screen-parked {
+  /* visibility — страховка: закреплённые потомки (шапка с z-index 30)
+     наследуют её при любом движке, даже если content-visibility подведёт. */
+  visibility: hidden;
+  content-visibility: hidden;
+  contain-intrinsic-size: 0 0;
+  height: 0;
+  overflow: hidden;
+}
+@supports not (content-visibility: hidden) {
+  .app-screen-parked { display: none; }
+}
+
 /* ─── Переходы между экранами — как в навигации iOS ──────────────────────
    src/lib/navTransition.ts: снимки View Transitions, а не transform на
    экране (иначе fixed-шапки теряли бы опору). push — новый экран выезжает

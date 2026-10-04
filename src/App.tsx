@@ -203,6 +203,12 @@ export default function App() {
     // всегда — и выход из суры к списку тратил длинную синхронную задачу
     // ровно в кадре перехода, копируя сотни статей с span'ом на каждое
     // слово. Это и ощущалось как рывок при нажатии «назад».
+    // Поле поиска главной остаётся в DOM (вкладка паркуется, а не
+    // размонтируется): без явного снятия фокуса клавиатура iOS могла бы
+    // остаться открытой поверх суры.
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && focused !== document.body) focused.blur();
+
     const needsPreview = next.name !== 'tabs';
     const node = needsPreview
       ? document.querySelector<HTMLElement>('[data-app-screen="current"]')
@@ -463,8 +469,12 @@ export default function App() {
   }, [overlayKey]);
 
   // ── Экраны «поверх» ──────────────────────────────────────────────────────
+  //
+  // Экран «поверх» рисуется НАД припаркованной вкладкой (см. ниже), а не
+  // вместо неё.
+  let overlay: ReactNode = null;
   if (screen.name === 'surah') {
-    return (
+    overlay = (
       <Shell key="surah" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeQuranHome} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="SurahScreen" onReset={goQuranHome}>
@@ -482,7 +492,7 @@ export default function App() {
   }
 
   if (screen.name === 'qibla') {
-    return (
+    overlay = (
       <Shell key="qibla" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="QiblaScreen" onReset={goBack}>
@@ -494,7 +504,7 @@ export default function App() {
   }
 
   if (screen.name === 'player') {
-    return (
+    overlay = (
       <Shell key="player" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PlayerScreen" onReset={goBack}>
@@ -506,7 +516,7 @@ export default function App() {
   }
 
   if (screen.name === 'document') {
-    return (
+    overlay = (
       <Shell key="document" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="DocumentScreen" onReset={goBack}>
@@ -520,7 +530,7 @@ export default function App() {
   // Аккаунт — обычный экран-пуш, а не вкладка: с ним работают редко, и место
   // в нижней панели ему не по чину. Открывается кнопкой в шапке главной.
   if (screen.name === 'account') {
-    return (
+    overlay = (
       <Shell key="account" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AccountScreen" onReset={goBack}>
@@ -537,7 +547,7 @@ export default function App() {
   }
 
   if (screen.name === 'prayer') {
-    return (
+    overlay = (
       <Shell key="prayer" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PrayerTimesScreen" onReset={goBack}>
@@ -560,7 +570,7 @@ export default function App() {
   }
 
   if (screen.name === 'bookmarks') {
-    return (
+    overlay = (
       <Shell key="bookmarks" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="BookmarksScreen" onReset={goBack}>
@@ -577,7 +587,7 @@ export default function App() {
   }
 
   if (screen.name === 'azkar-category') {
-    return (
+    overlay = (
       <Shell key="azkar-category" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AzkarCategoryScreen" onReset={goBack}>
@@ -594,15 +604,36 @@ export default function App() {
   }
 
   // ── Корневые вкладки ─────────────────────────────────────────────────────
-  const tab = screen.tab;
+  //
+  // 🔴 Вкладка под экраном «поверх» не размонтируется, а паркуется
+  // (Quran Ing, 2026-10-04, плавность закрытия суры).
+  //
+  // Замер: закрытие суры упиралось в перерисовку главной — смонтировать 114
+  // строк, разложить их с арабским шрифтом заново (~100 мс без замедления
+  // процессора, ×4 — 330). Теперь вкладка остаётся в DOM под классом
+  // `.app-screen-parked` (content-visibility: hidden): браузер её не
+  // рисует, но хранит раскладку, и возврат — это снять класс и вернуть
+  // прокрутку. Заодно сохраняются запрос в поиске и лента недавних (они
+  // обновляются при возврате).
+  //
+  // Что припаркованная вкладка НЕ держит: нижнюю панель (системная
+  // панель iOS спряталась бы только с её размонтированием), мини-плеер и
+  // плашку звука (у экранов «поверх» свои), слой космической темы (его
+  // анимация крутилась бы впустую). Атрибут `data-app-screen` у неё
+  // `parked`: клон для жеста «назад» снимается только с видимого экрана.
+  const baseTabEntry = [...stack].reverse().find(s => s.name === 'tabs');
+  const tab: TabId = baseTabEntry && baseTabEntry.name === 'tabs' ? baseTabEntry.tab : 'quran';
+  const parked = overlay != null;
   return (
-    <Shell key={`tabs-${tab}`} isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter}>
+    <>
+    <Shell key={`tabs-${tab}`} parked={parked} isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={!parked && animateEnter}>
       {/* Вкладки под одним Suspense, а TabBar снаружи: иначе панель
           вкладок пропадала бы на время подгрузки чанка экрана. */}
       <Suspense fallback={<ScreenFallback />}>
       {tab === 'quran' && (
         <ErrorBoundary name="SurahPicker">
           <SurahPicker
+            active={!parked}
             onSelectSurah={(n, ayah) => navigate({ name: 'surah', number: n, initialAyah: ayah })}
             onBookmarks={() => navigate({ name: 'bookmarks' })}
             onPrayer={() => navigate({ name: 'prayer' })}
@@ -615,6 +646,7 @@ export default function App() {
       {tab === 'azkar' && (
         <ErrorBoundary name="AzkarScreen">
           <AzkarScreen
+            active={!parked}
             theme={theme}
             setTheme={setTheme}
             onOpenCategory={c => navigate({ name: 'azkar-category', category: c })}
@@ -622,26 +654,32 @@ export default function App() {
         </ErrorBoundary>
       )}
       </Suspense>
-      {/* Полоска звучащей суры. Только на вкладках: в ленте и мусхафе свой
-          плеер, и две панели разом были бы лишними. */}
-      <MiniPlayer onOpen={() => navigate({ name: 'player' })} />
-      {/* Отказ звука говорит словами: чтение идёт из сети, и молчаливая
-          остановка читается как поломка приложения. */}
-      <AudioErrorPlate />
-      <TabBar
-        active={tab}
-        theme={theme}
-        onSelect={next => {
-          if (next === tab) {
-            // TabBar вызывает этот путь только после двух быстрых тапов
-            // по активной вкладке «Коран» — прокручиваем к началу.
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            return;
-          }
-          navigate({ name: 'tabs', tab: next });
-        }}
-      />
+      {!parked && (
+        <>
+          {/* Полоска звучащей суры. Только на вкладках: в ленте и мусхафе свой
+              плеер, и две панели разом были бы лишними. */}
+          <MiniPlayer onOpen={() => navigate({ name: 'player' })} />
+          {/* Отказ звука говорит словами: чтение идёт из сети, и молчаливая
+              остановка читается как поломка приложения. */}
+          <AudioErrorPlate />
+          <TabBar
+            active={tab}
+            theme={theme}
+            onSelect={next => {
+              if (next === tab) {
+                // TabBar вызывает этот путь только после двух быстрых тапов
+                // по активной вкладке «Коран» — прокручиваем к началу.
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+              }
+              navigate({ name: 'tabs', tab: next });
+            }}
+          />
+        </>
+      )}
     </Shell>
+    {overlay}
+    </>
   );
 }
 
@@ -656,8 +694,11 @@ function Shell({
   onEdgeBack,
   edgeBackPreview,
   animateEnter,
+  parked = false,
   children,
 }: {
+  /** Вкладка под экраном «поверх»: в DOM, но не рисуется (см. App). */
+  parked?: boolean;
   isCosmic: boolean;
   isDotted: boolean;
   cosmicVariant: 'aurora' | 'aurora2' | 'cosmos';
@@ -673,25 +714,31 @@ function Shell({
     <>
       <div
         ref={currentScreenRef}
-        data-app-screen="current"
-        className={animateEnter ? 'app-screen-enter' : undefined}
+        data-app-screen={parked ? 'parked' : 'current'}
+        className={parked ? 'app-screen-parked' : (animateEnter ? 'app-screen-enter' : undefined)}
+        aria-hidden={parked || undefined}
+        // inert: припаркованная вкладка не ловит фокус и касания.
+        // React 18 атрибута не знает — передаём пустой строкой. 🔴 При
+        // переходе на React 19 заменить на `inert={parked}`: там пустая
+        // строка значит false, и парковка молча перестанет блокировать.
+        {...(parked ? { inert: '' } : {})}
         style={{
           position: 'relative',
           zIndex: 1,
-          minHeight: '100dvh',
+          minHeight: parked ? 0 : '100dvh',
           isolation: 'isolate',
           background: isDotted
             ? 'radial-gradient(circle, rgba(116, 106, 92, 0.16) 1.45px, transparent 1.7px) 18px 9px / 60px 60px, var(--surface)'
             : (isCosmic ? 'transparent' : 'var(--surface)'),
         }}
       >
-        {isCosmic && <CosmicLayer variant={cosmicVariant} />}
+        {isCosmic && !parked && <CosmicLayer variant={cosmicVariant} />}
         <div style={{ position: 'relative', zIndex: 1 }}>
           {children}
         </div>
         {/* Крышка под системной строкой входит в уходящий экран и движется
             вместе с ним во время интерактивного edge-pop. */}
-        <StatusBarScrim />
+        {!parked && <StatusBarScrim />}
       </div>
       {onEdgeBack && (
         <IosEdgeBackGesture

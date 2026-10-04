@@ -345,8 +345,11 @@ const COMPACT_LENGTH = 36;
  * стоят на одном месте на всех экранах приложения.
  */
 export function CollapsingNavBar({
-  title, onBack, actionGroups = [], collapseStart, headerRef,
+  title, onBack, actionGroups = [], collapseStart, headerRef, active = true,
 }: {
+  /** false — экран припаркован (не виден): замер границы откладывается до
+   *  возвращения, иначе он считался бы по нулевой геометрии. */
+  active?: boolean;
   title: string;
   onBack?: () => void;
   /** Группы действий справа: каждая — своя стеклянная капсула. */
@@ -368,6 +371,7 @@ export function CollapsingNavBar({
   live.current = { collapseStart };
 
   useEffect(() => {
+    if (!active) return;
     const measure = () => {
       const bar = ownRef.current?.getBoundingClientRect().bottom ?? 0;
       return live.current.collapseStart?.(bar) ?? COMPACT_FROM;
@@ -393,7 +397,7 @@ export function CollapsingNavBar({
       window.removeEventListener('scroll', apply);
       window.removeEventListener('resize', remeasure);
     };
-  }, []);
+  }, [active]);
 
   const groups = actionGroups.filter(g => g.length > 0);
 
@@ -468,8 +472,10 @@ export function CollapsingNavBar({
  * прокрутке он уходит вверх, а в строке на 24–60 pt проявляется компактный.
  */
 export function LargeTitleHeader({
-  title, onBack, actions = [], bottomGap = 'var(--space-margin)',
+  title, onBack, actions = [], bottomGap = 'var(--space-margin)', active = true,
 }: {
+  /** false — экран припаркован: панель не слушает прокрутку. */
+  active?: boolean;
   title: string;
   onBack?: () => void;
   actions?: HeaderAction[];
@@ -478,7 +484,7 @@ export function LargeTitleHeader({
 }) {
   return (
     <>
-      <CollapsingNavBar title={title} onBack={onBack} actionGroups={[actions]} />
+      <CollapsingNavBar title={title} onBack={onBack} actionGroups={[actions]} active={active} />
       <h1
         className="display-serif"
         style={{

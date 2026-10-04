@@ -38,6 +38,8 @@ import { TAB_BAR_SPACE } from '../components/TabBar';
 import { loadAzkarData, type AzkarCategoryId, type AzkarData } from '../lib/azkar';
 
 type Props = {
+  /** false — вкладка припаркована под экраном «поверх» (App.tsx). */
+  active?: boolean;
   theme: Theme;
   setTheme: (t: Theme) => void;
   // onBack убран: возврат к Корану — это переключение вкладки в
@@ -54,10 +56,12 @@ function azkarWord(n: number): string {
   return 'азкаров';
 }
 
-export function AzkarScreen({ theme, setTheme, onOpenCategory }: Props) {
+export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: Props) {
   const [data, setData] = useState<AzkarData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [themeOpen, setThemeOpen] = useState(false);
+  // Попап — портал в body: у припаркованной вкладки он висел бы над лентой.
+  useEffect(() => { if (!active) setThemeOpen(false); }, [active]);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -96,6 +100,7 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory }: Props) {
 
       {/* Шапка — один в один с главной Корана. */}
       <LargeTitleHeader
+        active={active}
         title="Азкары"
         actions={[{
           key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
