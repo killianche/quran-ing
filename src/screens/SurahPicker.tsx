@@ -324,9 +324,12 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
                 // Припаркованная главная слушала бы касания экрана суры.
                 enabled={FAST_SCROLL.surahList && active}
                 count={SURAHS.length}
-                // Колонка номеров начинается с поля экрана (16 px) и занимает 26.
-                left={10}
-                width={44}
+                // Полоса захвата — от самого края экрана до начала названия
+                // суры (владелец 2026-10-04: «от края до главной буквы, чтобы
+                // большую площадь занимал»). Прежде 10…54 px — у самого края
+                // палец промахивался мимо полосы.
+                left={0}
+                width={surahTitleLeft}
                 // От нижней кромки закреплённой панели: строка под стеклом
                 // не должна запускать прокрутку.
                 topInset={() => barBottom() + 8}
@@ -338,7 +341,10 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
                 // Только со строки суры. Полоса по координатам ловила и мини-плеер
                 // над панелью вкладок, и шапку, и заголовки джузов (ревью 10.09.2026);
                 // владелец просил именно «удержание на номере».
-                canStart={t => !!t?.closest('[data-surah]')}
+                // Касание — на строке суры. У края под пальцем поле
+                // колонки, а не строка, поэтому строку ищем и по высоте
+                // касания: иначе у самого края жест не начинался.
+                canStart={(t, _x, y) => !!t?.closest('[data-surah]') || сураНаВысоте(y) !== null}
                 label={n => ({ big: String(n), small: SURAH_BY_NUMBER[n]?.transliteration })}
               />
             </>
@@ -504,6 +510,17 @@ function сураПодПальцем(y: number): number {
     if (d < дистанция) { дистанция = d; лучшая = Number(row.dataset.surah) || 1; }
   }
   return лучшая;
+}
+
+/** Строка суры на высоте `y` (по середине ширины экрана) или null. */
+function сураНаВысоте(y: number): HTMLElement | null {
+  return document.elementFromPoint(window.innerWidth / 2, y)?.closest<HTMLElement>('[data-surah]') ?? null;
+}
+
+/** Где начинается название суры — правая граница полосы быстрой прокрутки. */
+function surahTitleLeft(): number {
+  const title = document.querySelector<HTMLElement>('[data-surah-title]');
+  return title ? Math.round(title.getBoundingClientRect().left) : 64;
 }
 
 /** Прыжок к строке суры: по центру экрана, без плавности — палец ведёт сам. */
@@ -775,7 +792,7 @@ const SurahRow = memo(function SurahRow({
               именно по нему человек ищет суру. Прежние 15 полужирных рядом
               с 11-пиксельной подписью читались как заголовок карточки, а не
               как строка оглавления. */}
-          <span style={{
+          <span data-surah-title="" style={{
             fontSize: 'var(--font-body)',
             lineHeight: 'var(--leading-body)',
             fontWeight: 'var(--weight-semibold)',

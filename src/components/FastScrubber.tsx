@@ -49,7 +49,9 @@ type Props = {
   count: number;
   /** Полоса захвата по горизонтали, px от левого края экрана. */
   left: number;
-  width: number;
+  /** Число или функция: ширину полосы можно мерить по раскладке в начале
+   *  касания (список сур — до начала названия). */
+  width: number | (() => number);
   /** Границы дорожки: отступы от верха и от низа экрана, px. */
   /** Число или функция (низ закреплённой панели меряется в начале касания). */
   topInset: number | (() => number);
@@ -77,10 +79,11 @@ type Props = {
    * перехода. Удержание на них включало прокрутку, дёргало ленту под ними и
    * глотало клик (ревью 10.09.2026). Экран знает, где его содержимое.
    */
-  canStart?: (target: Element | null) => boolean;
+  /** Можно ли начинать с этого касания: цель и точка касания. */
+  canStart?: (target: Element | null, x: number, y: number) => boolean;
 };
 
-type View = { n: number; y: number; top: number; bottom: number };
+type View = { n: number; y: number; top: number; bottom: number; width: number };
 
 export function FastScrubber({
   enabled, count, left, width, topInset, bottomInset, startAt, onScrub, label, canStart,
@@ -113,15 +116,16 @@ export function FastScrubber({
     /** Границы дорожки на текущий жест — снимаются в начале касания. */
     let insetNow = 0;
     let topNow = 0;
+    let widthNow = 0;
     const resolve = (v: number | (() => number)) => (typeof v === 'function' ? v() : v);
     const track = () => ({
       top: topNow,
       bottom: window.innerHeight - insetNow,
     });
     const inStrip = (x: number, y: number) => {
-      const { left: l, width: w } = live.current;
+      const l = live.current.left;
       const { top, bottom } = track();
-      return x >= l && x <= l + w && y >= top && y <= bottom;
+      return x >= l && x <= l + widthNow && y >= top && y <= bottom;
     };
 
     const cancelHold = () => {
@@ -147,7 +151,7 @@ export function FastScrubber({
       // а его никто не вызывал, и вибрация на iOS молчала с самого начала
       // (Haptics.swift, ревью 10.09.2026).
       if (Capacitor.getPlatform() === 'ios') void Haptics.impact({ style: ImpactStyle.Light });
-      setView({ n: n0, y: start.y, top: topNow, bottom: insetNow });
+      setView({ n: n0, y: start.y, top: topNow, bottom: insetNow, width: widthNow });
     };
 
     const finish = () => {
@@ -199,9 +203,10 @@ export function FastScrubber({
       const t = e.touches[0];
       insetNow = resolve(live.current.bottomInset);
       topNow = resolve(live.current.topInset);
+      widthNow = resolve(live.current.width);
       if (!inStrip(t.clientX, t.clientY)) return;
       const ok = live.current.canStart;
-      if (ok && !ok(e.target instanceof Element ? e.target : null)) return;
+      if (ok && !ok(e.target instanceof Element ? e.target : null, t.clientX, t.clientY)) return;
       start = { x: t.clientX, y: t.clientY };
       cancelHold();
       hold = window.setTimeout(activate, HOLD_MS);
@@ -224,7 +229,7 @@ export function FastScrubber({
       const n = scrubIndex({
         y: t.clientY, y0: active.y0, top, bottom, n0: active.n0, count: live.current.count,
       });
-      setView({ n, y: t.clientY, top: topNow, bottom: insetNow });
+      setView({ n, y: t.clientY, top: topNow, bottom: insetNow, width: widthNow });
       if (n === active.n) return;
       active.n = n;
       // Прыжок — не чаще кадра: touchmove приходит чаще частоты экрана, а
@@ -268,7 +273,7 @@ export function FastScrubber({
       {/* Дорожка у края — показывает, что жест пойман и где палец. */}
       <div style={{
         position: 'fixed',
-        left: `${Math.max(6, left + width / 2 - 3)}px`,
+        left: `${Math.max(6, left + view.width / 2 - 3)}px`,
         top: `${view.top}px`,
         bottom: `${view.bottom}px`,
         width: '6px',
@@ -277,7 +282,7 @@ export function FastScrubber({
       }} />
       <div style={{
         position: 'fixed',
-        left: `${Math.max(6, left + width / 2 - 3)}px`,
+        left: `${Math.max(6, left + view.width / 2 - 3)}px`,
         top: `${view.y - 18}px`,
         width: '6px',
         height: '36px',

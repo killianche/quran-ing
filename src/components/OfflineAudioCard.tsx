@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { RECITERS, hasSurahAudio, reciterById, supportsAyahOffline, type ReciterId } from '../lib/reciters';
+import { RECITERS, hasSurahAudio, reciterById, reciterHasSurah, supportsAyahOffline, type ReciterId } from '../lib/reciters';
 import {
   getDownloadState, startDownload, pauseDownload, resetDownloadState,
   subscribeDownloads, estimateBytes, formatBytes,
@@ -45,7 +45,14 @@ export function OfflineAudioCard({ reciter, surahNumber }: {
 }) {
   useDownloadsTick();
   const supported = isOfflineSupported();
-  const activeSupportsOffline = supportsAyahOffline(reciter);
+  // Скачать можно и поаятные записи, и целую суру одним файлом — у чтецов
+  // вроде Хьусейна Мержоева есть только второе. Прежде проверка смотрела лишь
+  // на поаятные, и у него на каждой суре стояло «загрузка недоступна»
+  // (владелец 2026-10-04: «эту информацию надо убрать»).
+  const canDownload = supportsAyahOffline(reciter) || hasSurahAudio(reciter);
+  // Без открытой суры или у чтеца без загрузки сказать нечего — карточки нет.
+  if (surahNumber == null || !canDownload) return null;
+  const recorded = reciterHasSurah(reciter, surahNumber);
 
   return (
     <section style={{ ...settingCard, marginTop: '10px' }}>
@@ -61,11 +68,12 @@ export function OfflineAudioCard({ reciter, surahNumber }: {
         }}>
           Скачивание доступно в приложении для iPhone.
         </p>
-      ) : surahNumber != null && activeSupportsOffline ? (
+      ) : recorded ? (
         <SurahRow reciter={reciter} surah={surahNumber} />
       ) : (
+        // Сура, которой у чтеца нет (`availableSurahs`): скачивать нечего.
         <p style={{ margin: 0, fontSize: 'var(--font-caption1)', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-          Для открытой суры загрузка недоступна.
+          У чтеца {reciterById(reciter).label} пока нет записи этой суры.
         </p>
       )}
     </section>
@@ -86,7 +94,7 @@ export function FullQuranAudioManager() {
 
   return (
     <div>
-      {RECITERS.filter(r => supportsAyahOffline(r.id)).map((r, index, list) => (
+      {RECITERS.filter(r => supportsAyahOffline(r.id) || hasSurahAudio(r.id)).map((r, index, list) => (
         <div
           key={r.id}
           style={{
@@ -187,6 +195,9 @@ function SurahRow({ reciter, surah }: { reciter: ReciterId; surah: number }) {
           ? 'Эта сура есть офлайн'
           : running && !busyOnThis
           ? 'Для этого чтеца уже идёт другая загрузка. Управление — в разделе «Аккаунт».'
+          : !supportsAyahOffline(reciter)
+          // Только целыми сурами — счёт по аятам здесь ничего не значит.
+          ? `Скачается одной записью · ≈ ${formatBytes(estimateBytes(reciter, total))}`
           : `${have} из ${total} аятов · ≈ ${formatBytes(estimateBytes(reciter, total - have))} осталось`}
       </span>
     </div>
@@ -209,7 +220,10 @@ function ReciterRow({ id, label }: {
   //
   // Складывать напрямую нельзя: сура, скачанная и поаятно, и сплошной
   // записью, посчиталась бы дважды — получилось бы «115 из 114».
-  const целиком = Math.min(TOTAL_SURAHS, suras + сплошных);
+  // Сколько сур у чтеца вообще записано: у Хьусейна Мержоева 80 из 114, и
+  // «собрано» для него — 80, а не недостижимые 114.
+  const всего = reciterById(id).availableSurahs?.length ?? TOTAL_SURAHS;
+  const целиком = Math.min(всего, suras + сплошных);
   const непрерывно = hasSurahAudio(id);
   // 🔴 «Собрано» — это собрано СПЛОШНЫМИ записями, а не «есть хоть как-то».
   //
@@ -220,7 +234,7 @@ function ReciterRow({ id, label }: {
   // правка, не мог получить чтение без швов, не стерев сперва 1.4 ГБ.
   //
   // Теперь у него есть обе кнопки: «Скачать сплошными» и «Удалить старое».
-  const собрано = непрерывно ? сплошных >= TOTAL_SURAHS : целиком >= TOTAL_SURAHS;
+  const собрано = непрерывно ? сплошных >= всего : целиком >= всего;
   const естьЧтоУдалить = целиком > 0 || have > 0;
   const st = getDownloadState(id);
   const running = st.status === 'running';
@@ -262,7 +276,7 @@ function ReciterRow({ id, label }: {
           <>
             {!собрано && (
               <ActionButton
-                label={шкала > 0 ? 'Докачать' : 'Скачать весь Коран'}
+                label={шкала > 0 ? 'Докачать' : всего < TOTAL_SURAHS ? 'Скачать все записи' : 'Скачать весь Коран'}
                 icon={<Download size={ICON_SIZE.sm} />}
                 onClick={() => { void startDownload(id, ALL); }}
               />
@@ -317,7 +331,7 @@ function ReciterRow({ id, label }: {
         </div>
       )}
 
-      <Meter value={шкала} max={TOTAL_SURAHS} />
+      <Meter value={шкала} max={всего} />
 
       <span style={{
         ...meta_,
@@ -326,14 +340,16 @@ function ReciterRow({ id, label }: {
         {st.status === 'error'
           ? st.error
           : собрано
-          ? `Весь Коран офлайн · ${TOTAL_SURAHS} сур одной записью`
+          ? (всего < TOTAL_SURAHS
+            ? `Все записи чтеца офлайн · ${всего} сур`
+            : `Весь Коран офлайн · ${всего} сур одной записью`)
           : running
           // Единицы задания зависят от того, что качается: сплошные записи
           // считаются сурами, аварийный поаятный путь — аятами. Одна подпись
           // на оба случая давала «0 из 1 сур» и «12 из 286 сур».
           ? `Качаю ${st.done} из ${st.total} ${st.scope?.kind === 'all' && непрерывно ? 'сур' : 'файлов'} · ${formatBytes(st.bytes)}`
           : шкала > 0
-          ? `${шкала} из ${TOTAL_SURAHS} сур одной записью${have > 0 ? ` · и ${have} аятов по старому` : ''}`
+          ? `${шкала} из ${всего} сур одной записью${have > 0 ? ` · и ${have} аятов по старому` : ''}`
           : have > 0
           // Старая фонотека: играет офлайн, но со стыками на границах аятов.
           ? `${suras} сур по аятам — офлайн есть, но со стыками. «Скачать» даст чтение без них`

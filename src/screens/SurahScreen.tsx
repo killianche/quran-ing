@@ -381,14 +381,6 @@ export function SurahScreen({
   const { feed, loading: feedLoading, error: feedError } =
     useQcfAyahFeed(surahNumber, eagerAnchor === 1);
 
-  // Данные ленты по номеру аята — окну тафсира, чтобы арабский там был тем
-  // же начертанием, что и в ленте.
-  const feedByAyah = useMemo(() => {
-    const map = new Map<number, QcfAyahEntry>();
-    for (const entry of feed?.ayahs ?? []) if (entry.surah === surahNumber) map.set(entry.ayah, entry);
-    return map;
-  }, [feed, surahNumber]);
-  const entryOfAyah = useCallback((ayah: number) => feedByAyah.get(ayah), [feedByAyah]);
 
   // Шрифт первого экрана заказываем, не дожидаясь всей суры.
   //
@@ -987,19 +979,11 @@ export function SurahScreen({
           anchorEl={themeBtnRef.current}
         />
       )}
-      {tafsirAyah !== null && quranSources && (
+      {tafsirAyah !== null && (
         <TafsirSheet
           surah={surahNumber}
           ayah={tafsirAyah}
           surahTitle={meta?.transliteration ?? `Сура ${surahNumber}`}
-          entryOf={entryOfAyah}
-          sources={quranSources}
-          arabicFont={arabicFont}
-          arabicScale={arabicScale}
-          showInh={showInh}
-          showRu={showRu}
-          inhFont={inhFont}
-          inhScale={inhScale}
           ruFont={ruFont}
           ruScale={ruScale}
           onClose={closeTafsir}
