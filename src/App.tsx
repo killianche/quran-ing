@@ -16,7 +16,8 @@ import {
   type IosBackPreview,
 } from './components/IosEdgeBackGesture';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { TabBar, type TabId } from './components/TabBar';
+import { TabBar, TAB_ORDER, type TabId } from './components/TabBar';
+import { TabPager } from './components/TabPager';
 import { applyHighlightVars } from './lib/audioPrefs';
 import { applyPaletteToDocument } from './lib/tajweedPalette';
 import { syncStatusBarToTheme } from './lib/nativeStatusBar';
@@ -61,10 +62,13 @@ const DocumentScreen = lazy(() => import('./screens/DocumentScreen').then(m => (
  *
  * В прежнем QuranIng разделов было два и они жили горизонтальной слайд-парой:
  * контейнер шириной 200% с translateX, оба экрана всегда смонтированы.
- * С четырьмя разделами приём не масштабируется (контейнер на 400% и
- * четыре живых дерева), поэтому активный раздел теперь ровно один.
- * Побочный эффект — браузер не вернёт позицию прокрутки при возврате
- * на вкладку, поэтому она сохраняется вручную (tabScrollRef ниже).
+ * С четырьмя разделами приём не масштабировался, и активный раздел стал
+ * ровно один. Теперь разделов снова два (решение владельца 2026-10-04), и
+ * ради свайпа между ними обе вкладки снова живут в DOM — но не слайд-парой:
+ * скрытая лежит отдельным слоем (components/TabPager.tsx), потому что
+ * transform на контейнере ломал fixed-шапки. Окно по-прежнему прокручивает
+ * только видимую вкладку, поэтому позиция каждой хранится вручную
+ * (tabScrollRef ниже).
  */
 type Screen =
   | { name: 'tabs'; tab: TabId }
@@ -222,6 +226,11 @@ export default function App() {
       // пальцем гас до 72% и проявлялся. Тот самый дефект, от которого
       // избавились на самом экране, переезжал в его копию.
       clone.classList.remove('app-screen-enter');
+      // Скрытую вкладку (TabPager держит обе в DOM) из копии убираем: жест
+      // поднимает закреплённые элементы копии на свой слой, и шапка скрытой
+      // вкладки, оторванная от скрывающего её родителя, всплыла бы в
+      // предпросмотре поверх видимой.
+      clone.querySelectorAll('[data-tab-parked]').forEach(parkedTab => parkedTab.remove());
       captured = { node: clone, scrollY: window.scrollY };
     }
     if (screen.name === 'tabs' && screen.tab === 'quran' && captured) {
@@ -422,8 +431,8 @@ export default function App() {
   }, []);
 
   // ── Позиция прокрутки вкладок ────────────────────────────────────────────
-  // Активная вкладка одна, остальные размонтированы, поэтому браузер
-  // сам позицию не вернёт.  Запоминаем scrollY уходящей вкладки и
+  // Окно прокручивает только видимую вкладку (скрытая — отдельный слой,
+  // TabPager), поэтому браузер сам позицию не вернёт.  Запоминаем scrollY уходящей вкладки и
   // восстанавливаем при возврате — иначе список сур каждый раз
   // открывается сверху, хотя человек читал середину.
   //
@@ -626,39 +635,62 @@ export default function App() {
   // плашку звука (у экранов «поверх» свои), слой космической темы (его
   // анимация крутилась бы впустую). Атрибут `data-app-screen` у неё
   // `parked`: клон для жеста «назад» снимается только с видимого экрана.
+  //
+  // Сами вкладки — в TabPager: обе живут в DOM, скрытая отдельным слоем,
+  // и между ними листают свайпом. Поэтому у Shell постоянный key: смена
+  // вкладки больше не пересоздаёт экран вместе с панелями, а проявление
+  // при тапе по вкладке пейджер проигрывает только на странице.
   const baseTabEntry = [...stack].reverse().find(s => s.name === 'tabs');
   const tab: TabId = baseTabEntry && baseTabEntry.name === 'tabs' ? baseTabEntry.tab : 'quran';
   const parked = overlay != null;
+  /** Выбор вкладки — один путь для тапа по панели и свайпа по странице. */
+  const selectTab = (next: TabId) => {
+    if (next === tab) {
+      // TabBar вызывает этот путь только после двух быстрых тапов
+      // по активной вкладке «Коран» — прокручиваем к началу.
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    navigate({ name: 'tabs', tab: next });
+  };
   return (
     <>
-    <Shell key={`tabs-${tab}`} parked={parked} isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={!parked && animateEnter}>
-      {/* Вкладки под одним Suspense, а TabBar снаружи: иначе панель
-          вкладок пропадала бы на время подгрузки чанка экрана. */}
-      <Suspense fallback={<ScreenFallback />}>
-      {tab === 'quran' && (
-        <ErrorBoundary name="SurahPicker">
-          <SurahPicker
-            active={!parked}
-            onSelectSurah={(n, ayah) => navigate({ name: 'surah', number: n, initialAyah: ayah })}
-            onBookmarks={() => navigate({ name: 'bookmarks' })}
-            onPrayer={() => navigate({ name: 'prayer' })}
-            onAccount={() => navigate({ name: 'account' })}
-            theme={theme}
-            setTheme={setTheme}
-          />
-        </ErrorBoundary>
-      )}
-      {tab === 'azkar' && (
-        <ErrorBoundary name="AzkarScreen">
-          <AzkarScreen
-            active={!parked}
-            theme={theme}
-            setTheme={setTheme}
-            onOpenCategory={c => navigate({ name: 'azkar-category', category: c })}
-          />
-        </ErrorBoundary>
-      )}
-      </Suspense>
+    <Shell key="tabs" parked={parked} isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={false}>
+      {/* TabBar снаружи пейджера: иначе панель вкладок пропадала бы на
+          время подгрузки чанка экрана. */}
+      <TabPager
+        order={TAB_ORDER}
+        active={tab}
+        enabled={!parked}
+        fadeIn={animateEnter}
+        scrollOf={id => tabScrollRef.current[id] ?? 0}
+        onSwipe={selectTab}
+        fallback={<ScreenFallback />}
+        renderTab={(id, isActive) => (id === 'quran'
+          ? (
+            <ErrorBoundary name="SurahPicker">
+              <SurahPicker
+                active={isActive && !parked}
+                onSelectSurah={(n, ayah) => navigate({ name: 'surah', number: n, initialAyah: ayah })}
+                onBookmarks={() => navigate({ name: 'bookmarks' })}
+                onPrayer={() => navigate({ name: 'prayer' })}
+                onAccount={() => navigate({ name: 'account' })}
+                theme={theme}
+                setTheme={setTheme}
+              />
+            </ErrorBoundary>
+          )
+          : (
+            <ErrorBoundary name="AzkarScreen">
+              <AzkarScreen
+                active={isActive && !parked}
+                theme={theme}
+                setTheme={setTheme}
+                onOpenCategory={c => navigate({ name: 'azkar-category', category: c })}
+              />
+            </ErrorBoundary>
+          ))}
+      />
       {!parked && (
         <>
           {/* Полоска звучащей суры. Только на вкладках: в ленте и мусхафе свой
@@ -670,15 +702,7 @@ export default function App() {
           <TabBar
             active={tab}
             theme={theme}
-            onSelect={next => {
-              if (next === tab) {
-                // TabBar вызывает этот путь только после двух быстрых тапов
-                // по активной вкладке «Коран» — прокручиваем к началу.
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return;
-              }
-              navigate({ name: 'tabs', tab: next });
-            }}
+            onSelect={selectTab}
           />
         </>
       )}

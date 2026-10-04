@@ -1228,6 +1228,16 @@ body {
 .azkar-art-twinkle { animation: azkarTwinkle 3.2s ease-in-out infinite alternate; }
 .azkar-art-twinkle:nth-of-type(2) { animation-delay: 1.1s; animation-duration: 2.6s; }
 .azkar-art-twinkle:nth-of-type(3) { animation-delay: 0.5s; animation-duration: 3.8s; }
+/* Скрытая вкладка (TabPager, `data-tab-parked`) и вкладки под экраном
+   «поверх» (`.app-screen-parked`) не видны — бесконечные анимации плиток на
+   паузе, чтобы не крутить кадры впустую. На время свайпа соседняя вкладка
+   ещё помечена скрытой: свет стоит, пока она не станет активной. */
+[data-tab-parked] .azkar-tile-glow,
+[data-tab-parked] .azkar-art-pulse,
+[data-tab-parked] .azkar-art-twinkle,
+.app-screen-parked .azkar-tile-glow,
+.app-screen-parked .azkar-art-pulse,
+.app-screen-parked .azkar-art-twinkle { animation-play-state: paused; }
 @keyframes azkarGlow { from { opacity: 0.8; } to { opacity: 1; } }
 @keyframes azkarPulse { from { opacity: 0.75; transform: scale(0.94); } to { opacity: 1; transform: scale(1.04); } }
 @keyframes azkarTwinkle { from { opacity: 0.55; } to { opacity: 1; } }

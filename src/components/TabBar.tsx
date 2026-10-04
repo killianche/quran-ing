@@ -69,6 +69,9 @@ const TABS: { id: TabId; label: string; icon: (selected: boolean) => ReactNode }
   { id: 'azkar', label: 'Азкары', icon: selected => <TabAzkar size={TAB_ICON} isFilled={selected} /> },
 ];
 
+/** Порядок вкладок слева направо — по нему же листает свайп (TabPager). */
+export const TAB_ORDER: readonly TabId[] = TABS.map(tab => tab.id);
+
 /**
  * Высота содержимого веб-панели — без безопасной зоны внизу.
  *
