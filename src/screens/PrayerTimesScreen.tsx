@@ -28,9 +28,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Appearance, Bell, ChevronLeft, ChevronRight, Clock, Close, Compass, ICON_SIZE, Plus, Trash,
+  Appearance, Bell, ChevronRight, Clock, Close, Compass, ICON_SIZE, Plus, Trash,
 } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
+import { LargeTitleHeader } from '../components/ScreenHeader';
 import type { Theme } from '../hooks/useTheme';
 import {
   CITIES, locate, LOCATE_ERROR_TEXT, type LocateError,
@@ -189,70 +190,23 @@ export function PrayerTimesScreen({ theme, setTheme, onBack, onOpenQibla }: Prop
         />
       )}
 
-      <header style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-snug)',
-        paddingTop: 'calc(env(safe-area-inset-top) + var(--space-margin))',
-        paddingBottom: 'var(--space-snug)',
-      }}>
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Назад"
-            className="icon-btn"
-            style={{
-              flexShrink: 0,
-              width: 'var(--hit-min)', height: 'var(--hit-min)',
-              marginLeft: 'calc(var(--space-snug) * -1)',
-              color: 'var(--text-primary)',
-            }}
-          >
-            <ChevronLeft size={ICON_SIZE.md} />
-          </button>
-        )}
-        <h1 className="display-serif" style={{
-          margin: 0, flex: 1, minWidth: 0,
-          // Кегль заголовка экрана плавающий: на телефоне решает 8vw, а
-          // ступени шкалы держат его границы — Title 1 снизу, Large Title
-          // сверху.  Межстрочный тут остаётся долей от кегля: фиксированная
-          // ступень не может следовать за clamp.
-          fontSize: 'clamp(var(--font-title1), 8vw, var(--font-largetitle))',
-          fontWeight: 'var(--weight-regular)',
-          letterSpacing: '-0.03em', color: 'var(--text-primary)', lineHeight: 1.05,
-        }}>
-          Намаз
-        </h1>
-        <button
-          onClick={onOpenQibla}
-          aria-label="Кибла" title="Кибла — направление на Каабу"
-          className="icon-btn"
-          style={{
-            width: 'var(--hit-min)', height: 'var(--hit-min)', flexShrink: 0,
-            borderRadius: 'var(--radius-control)',
-            border: '1px solid var(--hairline)',
-            background: 'rgb(var(--ink-rgb) / 0.04)',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          <Compass size={ICON_SIZE.md} />
-        </button>
-
-        <button
-          ref={themeBtnRef}
-          onClick={() => setThemeOpen(v => !v)}
-          aria-label="Оформление" title="Оформление"
-          className="icon-btn" data-active={themeOpen}
-          style={{
-            width: 'var(--hit-min)', height: 'var(--hit-min)', flexShrink: 0,
-            borderRadius: 'var(--radius-control)',
-            border: '1px solid var(--hairline)',
-            background: 'rgb(var(--ink-rgb) / 0.04)',
-            color: themeOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
-          }}
-        >
-          <Appearance size={ICON_SIZE.md} />
-        </button>
-      </header>
+      <LargeTitleHeader
+        title="Намаз"
+        onBack={onBack}
+        bottomGap="var(--space-snug)"
+        actions={[
+          {
+            key: 'qibla', label: 'Кибла', title: 'Кибла — направление на Каабу',
+            icon: <Compass size={ICON_SIZE.md} />,
+            onClick: onOpenQibla,
+          },
+          {
+            key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
+            icon: <Appearance size={ICON_SIZE.md} />,
+            onClick: () => setThemeOpen(v => !v),
+          },
+        ]}
+      />
 
       <div style={{ paddingTop: 'var(--space-cozy)' }}>
         <SourcePicker

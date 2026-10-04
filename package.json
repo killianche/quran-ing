@@ -18,7 +18,7 @@
     "asc:submit": "node scripts/appstore/asc-submit.mjs",
     "ios:release-check": "npm run check && npm run sync && npm run check:ios-release",
     "sync": "npm run build && npx cap sync",
-    "test": "TZ=Europe/Moscow node --experimental-strip-types --no-warnings --import ./scripts/ts-resolve.mjs scripts/test-audio-model.mjs",
+    "test": "TZ=Europe/Moscow node --experimental-strip-types --no-warnings --import ./scripts/ts-resolve.mjs scripts/test-audio-model.mjs && node --experimental-strip-types --no-warnings scripts/test-native-tabbar.mjs",
     "check": "npm run test && npm run check:sacred && npm run check:mushaf-pages && npm run build"
   },
   "dependencies": {
@@ -36,6 +36,7 @@
     "@capacitor/screen-orientation": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
+    "@capawesome/capacitor-tab-bar": "0.1.0",
     "@sentry/react": "^10.54.0",
     "adhan": "^4.4.4",
     "react": "^18.3.1",

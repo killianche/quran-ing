@@ -1,25 +1,41 @@
 /**
  * TabBar — общая нижняя навигация Web / iOS / Android.
  *
+ * 🔴 На iOS 26+ этот компонент ничего не рисует: внизу лежит настоящий
+ * системный `UITabBar` с Liquid Glass (решение владельца 2026-10-04,
+ * src/lib/nativeTabBar.ts). Компонент тогда только показывает и прячет
+ * его вместе с экраном вкладок, отмечает выбранную вкладку и красит её
+ * в цвет темы. Всё ниже про капсулу — веб-панель для Android, сайта и
+ * iOS до 26.
+ *
  * Панель — плавающая стеклянная капсула, отделённая от краёв экрана.
  * Содержимое подтекает под неё, а не упирается в глухую полосу: это и
  * читается как стекло. Рецепт самого стекла общий с шапкой — класс
  * `.liquid-glass` в `index.css`, чтобы две панели не разъехались по
  * прозрачности и тени.
  *
- * 🔴 `TAB_BAR_HEIGHT` — не высота капсулы, а всё занятое ею место снизу,
- * вместе с зазором до края. Шесть экранов считают по нему нижний отступ
- * содержимого (`SurahPicker`, `AccountScreen`, `PrayerTimesScreen`,
- * `ComingSoonScreen` и другие). Если экспортировать
- * высоту самой капсулы, последняя строка списка окажется под стеклом —
- * молча, потому что стекло полупрозрачное и текст под ним «вроде виден».
+ * 🔴 Нижний отступ экранов вкладок — `TAB_BAR_SPACE`, а не высота капсулы:
+ * это всё занятое панелью место снизу, вместе с зазором до края, и у
+ * системной панели iOS 26 оно другое (0 сверх безопасной зоны). Если
+ * считать от высоты капсулы, последняя строка списка окажется под
+ * стеклом — молча, потому что стекло полупрозрачное и текст «вроде виден».
  */
 
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { TabQuran, TabAzkar } from './icons';
 import { GLASS_BLUR } from '../lib/glass';
+import type { Theme } from '../hooks/useTheme';
+import {
+  WEB_BAR,
+  getTabBarMode,
+  selectNativeTab,
+  setNativeTabBarVisible,
+  setNativeTabSelectHandler,
+  subscribeTabBarMode,
+  tintNativeTabBar,
+} from '../lib/nativeTabBar';
 
 /**
  * Разделы нижнего меню.
@@ -54,15 +70,15 @@ const TABS: { id: TabId; label: string; icon: (selected: boolean) => ReactNode }
 ];
 
 /**
- * Высота содержимого панели — без безопасной зоны внизу.
+ * Высота содержимого веб-панели — без безопасной зоны внизу.
  *
- * 62 в развёрнутом виде и 44 в сжатом. Плавающая панель iOS 26 выше
- * системной: у неё есть собственные поля, и на 49 подпись прижималась к
- * кромке стекла. Безопасную зону прибавляют потребители этой константы сами
- * (`calc(TAB_BAR_HEIGHT + … + env(safe-area-inset-bottom))`), поэтому
- * включать её сюда нельзя — отступ удвоится.
+ * 62: плавающая панель iOS 26 выше системной, у неё собственные поля, и на
+ * 49 подпись прижималась к кромке стекла. Безопасную зону прибавляют
+ * потребители сами, поэтому включать её сюда нельзя — отступ удвоится.
+ * Сами числа живут в `WEB_BAR` (lib/nativeTabBar.ts): по ним же считаются
+ * CSS-переменные `--tabbar-space` и `--tabbar-top`.
  */
-const BAR_HEIGHT = 62;
+const BAR_HEIGHT = WEB_BAR.height;
 /*
  * 🔴 Сжатия при прокрутке здесь БОЛЬШЕ НЕТ, и возвращать его не нужно.
  *
@@ -75,36 +91,69 @@ const BAR_HEIGHT = 62;
  * списке из 114 строк, а подписи то появлялись, то исчезали. Похожесть на
  * систему не стоит скачущего элемента под большим пальцем.
  */
-/** Зазор до нижнего края безопасной области и до боковых краёв.
+/** Зазор до нижнего края безопасной области.
  *
- * Владелец 07.09.2026: «нижнее меню слишком высоко, надо спустить». Было 10 px
- * ПОВЕРХ всей безопасной области — на iPhone с домашней полосой это 34 + 10,
- * то есть капсула висела в 44 px от края экрана и читалась как оторванная.
- *
- * Теперь от безопасной области отнимается 14 px: панель опускается на 24 px и
- * встаёт примерно в 20 px от края — ближе к домашней полосе, но не на ней.
- * На устройствах без полосы (`inset` = 0) остаётся минимум в 6 px. */
-const BAR_INSET = 10;
-/** Насколько поджимаем безопасную область снизу — см. комментарий выше. */
-const BAR_SAFE_TRIM = 14;
-/** Готовая нижняя координата капсулы. */
-export const TAB_BAR_BOTTOM =
-  `max(6px, calc(env(safe-area-inset-bottom) - ${BAR_SAFE_TRIM}px))`;
-/* 21 pt — боковой отступ плавающей панели в iOS 26 (сверено по
-   разбору спецификации, learnui.design). Было 14 «на глаз». */
+ * Владелец 07.09.2026: «нижнее меню слишком высоко, надо спустить». От
+ * безопасной области отнимается 14 px (`WEB_BAR.bottom`): капсула стоит
+ * примерно в 20 px от края — ближе к домашней полосе, но не на ней. На
+ * устройствах без полосы (`inset` = 0) остаётся минимум в 6 px. */
+const TAB_BAR_BOTTOM = WEB_BAR.bottom;
+/* Боковой отступ капсулы. Apple числом его не задаёт (docs/IOS26_DESIGN_
+   GUIDE.md, § 3): 21 — замер сторонних авторов, подобран на глаз. */
 const BAR_SIDE = 21;
 
-/** Сколько места панель занимает снизу — см. предупреждение в шапке. */
-export const TAB_BAR_HEIGHT = BAR_HEIGHT + BAR_INSET;
+/**
+ * Место панели снизу СВЕРХ env(safe-area-inset-bottom) — для нижнего
+ * отступа экранов вкладок. CSS-выражение, а не число: у системной панели
+ * iOS 26 оно 0 (её высота уже в безопасной зоне), у веб-капсулы — 72.
+ */
+export const TAB_BAR_SPACE = `var(--tabbar-space, ${WEB_BAR.height + WEB_BAR.inset}px)`;
+/** Расстояние от низа экрана до верхней кромки панели (CSS). */
+export const TAB_BAR_TOP = 'var(--tabbar-top, 80px)';
+
+/**
+ * Где плавающая полоска над низом экрана (мини-плеер, плашка отказа
+ * звука): на экранах вкладок — над панелью с зазором `gap`, как нижний
+ * аксессуар панели в iOS 26; на экранах без панели — над домашней полосой.
+ */
+export type AccessoryPlacement = 'tabs' | 'screen';
+export function accessoryBottom(placement: AccessoryPlacement, gap: number): string {
+  return placement === 'tabs'
+    ? `calc(${TAB_BAR_TOP} + ${gap}px)`
+    : `calc(max(12px, env(safe-area-inset-bottom)) + ${gap}px)`;
+}
 
 /** Максимальная пауза между двумя тапами по активной вкладке. */
 const DOUBLE_TAP_MS = 420;
 
-export function TabBar({ active, onSelect }: {
+export function TabBar({ active, onSelect, theme }: {
   active: TabId;
   onSelect: (id: TabId) => void;
+  theme: Theme;
 }) {
-  const lastActiveTapRef = useRef<{ id: TabId; at: number } | null>(null);
+  const mode = useSyncExternalStore(subscribeTabBarMode, getTabBarMode, getTabBarMode);
+  const handleTap = useTabTap(active, onSelect, mode !== 'native');
+
+  // Системная панель живёт столько же, сколько экран вкладок: ушли на
+  // суру — спряталась, вернулись — показалась (lib/nativeTabBar.ts склеит
+  // «спрятать-показать» при смене вкладки, чтобы панель не мигала).
+  const tapRef = useRef(handleTap);
+  tapRef.current = handleTap;
+  useEffect(() => {
+    if (mode !== 'native') return;
+    setNativeTabSelectHandler(id => tapRef.current(id));
+    setNativeTabBarVisible(true);
+    return () => {
+      setNativeTabSelectHandler(null);
+      setNativeTabBarVisible(false);
+    };
+  }, [mode]);
+  useEffect(() => { if (mode === 'native') selectNativeTab(active); }, [mode, active]);
+  useEffect(() => { if (mode === 'native') tintNativeTabBar(theme); }, [mode, theme]);
+
+  // pending — режим ещё выясняется (первые миллисекунды на iOS, под
+  // заставкой): лучше без панели, чем веб-капсула, сменённая системной.
+  if (mode !== 'web') return null;
 
   return (
     <nav
@@ -157,36 +206,7 @@ export function TabBar({ active, onSelect }: {
             <button
               key={tab.id}
               type="button"
-              onClick={() => {
-                if (tab.id === active) {
-                  // Двойной тап по активной вкладке «Коран» возвращает
-                  // оглавление из 114 сур наверх. Экран прокручивает само
-                  // окно, поэтому обработчик — в App.
-                  if (tab.id !== 'quran') return;
-                  const now = performance.now();
-                  const previous = lastActiveTapRef.current;
-                  const isDoubleTap = previous?.id === tab.id
-                    && now - previous.at <= DOUBLE_TAP_MS;
-
-                  if (!isDoubleTap) {
-                    lastActiveTapRef.current = { id: tab.id, at: now };
-                    return;
-                  }
-
-                  lastActiveTapRef.current = null;
-                  // 🔴 impact, а не selectionChanged. В плагине selectionChanged
-                  // срабатывает, только если генератор создан через selectionStart —
-                  // а его никто не вызывал, и вибрация на iOS молчала с самого начала
-                  // (Haptics.swift, ревью 10.09.2026).
-                  if (Capacitor.getPlatform() === 'ios') void Haptics.impact({ style: ImpactStyle.Light });
-                  onSelect(tab.id);
-                  return;
-                }
-
-                lastActiveTapRef.current = null;
-                if (Capacitor.getPlatform() === 'ios') void Haptics.impact({ style: ImpactStyle.Light });
-                onSelect(tab.id);
-              }}
+              onClick={() => handleTap(tab.id)}
               aria-current={selected ? 'page' : undefined}
               aria-label={tab.label}
               className="ios-tab-item"
@@ -265,4 +285,43 @@ export function TabBar({ active, onSelect }: {
       </div>
     </nav>
   );
+}
+
+/**
+ * Тап по вкладке — общий для веб-капсулы и системной панели.
+ *
+ * Другая вкладка — переход. Активная «Коран» — двойной тап возвращает
+ * оглавление из 114 сур наверх (экран прокручивает само окно, поэтому
+ * обработчик — в App); одиночный тап по активной ничего не делает.
+ * Системная панель шлёт событие и на тап по уже выбранной вкладке, так что
+ * логика одна на обе панели.
+ */
+function useTabTap(active: TabId, onSelect: (id: TabId) => void, haptic: boolean) {
+  const lastActiveTapRef = useRef<{ id: TabId; at: number } | null>(null);
+  // 🔴 impact, а не selectionChanged. В плагине selectionChanged срабатывает,
+  // только если генератор создан через selectionStart — а его никто не
+  // вызывал, и вибрация на iOS молчала с самого начала (Haptics.swift, ревью
+  // 10.09.2026). Системная панель iOS при выборе вкладки не вибрирует —
+  // и мы ей вибрацию не добавляем, чтобы не отличаться от других приложений.
+  const tick = () => {
+    if (haptic && Capacitor.getPlatform() === 'ios') void Haptics.impact({ style: ImpactStyle.Light });
+  };
+  return (id: TabId) => {
+    if (id !== active) {
+      lastActiveTapRef.current = null;
+      tick();
+      onSelect(id);
+      return;
+    }
+    if (id !== 'quran') return;
+    const now = performance.now();
+    const previous = lastActiveTapRef.current;
+    if (!(previous?.id === id && now - previous.at <= DOUBLE_TAP_MS)) {
+      lastActiveTapRef.current = { id, at: now };
+      return;
+    }
+    lastActiveTapRef.current = null;
+    tick();
+    onSelect(id);
+  };
 }

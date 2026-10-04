@@ -48,7 +48,8 @@ import { useQuranSources } from '../content/quran-sources-lazy';
 import { Appearance, Search, Close, Bookmark as BookmarkIcon, Person, TabPrayer, ICON_SIZE, Play, Pause } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
 import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
-import { TAB_BAR_HEIGHT } from '../components/TabBar';
+import { TAB_BAR_SPACE } from '../components/TabBar';
+import { tabBarTopPx } from '../lib/nativeTabBar';
 import type { Theme } from '../hooks/useTheme';
 import { HitArea } from '../components/HitArea';
 
@@ -121,7 +122,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
       minHeight: '100dvh',
       maxWidth: 'min(100%, 720px)',
       margin: '0 auto',
-      padding: `0 var(--space-margin) calc(${TAB_BAR_HEIGHT}px + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
+      padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       position: 'relative',
       zIndex: 1,
     }}>
@@ -262,7 +263,9 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
               left={10}
               width={44}
               topInset={72}
-              bottomInset={TAB_BAR_HEIGHT + 24}
+              // Функция: высота системной панели iOS 26 известна только
+              // по факту, её меряют в момент жеста.
+              bottomInset={() => tabBarTopPx() + 24}
               startAt={сураПодПальцем}
               onScrub={кСуре}
               // Только со строки суры. Полоса по координатам ловила и мини-плеер

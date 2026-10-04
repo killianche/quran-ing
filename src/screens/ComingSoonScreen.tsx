@@ -28,7 +28,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { TAB_BAR_HEIGHT } from '../components/TabBar';
+import { TAB_BAR_SPACE } from '../components/TabBar';
 
 export function ComingSoonScreen({
   title, icon, lead, points,
@@ -45,7 +45,7 @@ export function ComingSoonScreen({
       minHeight: '100dvh',
       maxWidth: 'min(100%, 760px)',
       margin: '0 auto',
-      padding: `0 var(--space-margin) calc(${TAB_BAR_HEIGHT}px + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
+      padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       position: 'relative',
       zIndex: 1,
     }}>

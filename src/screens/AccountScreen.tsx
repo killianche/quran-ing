@@ -39,14 +39,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Appearance, ChevronLeft, ChevronRight, Document, ICON_SIZE, Person, Trash,
+  Appearance, ChevronRight, Document, ICON_SIZE, Person, Trash,
 } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
+import { LargeTitleHeader } from '../components/ScreenHeader';
 import { FullQuranAudioManager } from '../components/OfflineAudioCard';
 import {
   AZKAR_ORDERS, readAzkarOrder, writeAzkarOrder, type AzkarOrder,
 } from '../lib/azkarPrefs';
-import { TAB_BAR_HEIGHT } from '../components/TabBar';
+import { TAB_BAR_SPACE } from '../components/TabBar';
 import type { Theme } from '../hooks/useTheme';
 import { THEME_LABELS } from '../hooks/useTheme';
 import {
@@ -102,7 +103,7 @@ export function AccountScreen({ theme, setTheme, onBack, onOpenDocument }: Props
       minHeight: '100dvh',
       maxWidth: 'min(100%, 720px)',
       margin: '0 auto',
-      padding: `0 var(--space-margin) calc(${TAB_BAR_HEIGHT}px + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
+      padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       position: 'relative',
       zIndex: 1,
     }}>
@@ -114,53 +115,17 @@ export function AccountScreen({ theme, setTheme, onBack, onOpenDocument }: Props
         />
       )}
 
-      <header style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-snug)',
-        paddingTop: 'calc(env(safe-area-inset-top) + var(--space-margin))',
-        paddingBottom: 'var(--space-margin)',
-      }}>
-        {/* Аккаунт перестал быть вкладкой и открывается пушем, поэтому здесь
-            нужен возврат. Крупный заголовок при этом сохранён: экран остаётся
-            «своим», а не превращается в подраздел с узкой шапкой. */}
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Назад"
-            className="icon-btn"
-            style={{
-              flexShrink: 0,
-              width: 'var(--hit-min)', height: 'var(--hit-min)',
-              marginLeft: 'calc(var(--space-snug) * -1)',
-              color: 'var(--text-primary)',
-            }}
-          >
-            <ChevronLeft size={ICON_SIZE.md} />
-          </button>
-        )}
-        <h1 className="display-serif" style={{
-          margin: 0, flex: 1, minWidth: 0,
-          fontSize: 'clamp(30px, 8vw, 40px)', fontWeight: 'var(--weight-regular)',
-          letterSpacing: '-0.03em', color: 'var(--text-primary)', lineHeight: 1.05,
-        }}>
-          Аккаунт
-        </h1>
-        <button
-          ref={themeBtnRef}
-          onClick={() => setThemeOpen(v => !v)}
-          aria-label="Оформление" title="Оформление"
-          className="icon-btn" data-active={themeOpen}
-          style={{
-            width: '42px', height: '42px', flexShrink: 0,
-            borderRadius: 'var(--radius-control)',
-            border: '1px solid var(--hairline)',
-            background: 'rgb(var(--ink-rgb) / 0.04)',
-            color: themeOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
-          }}
-        >
-          <Appearance size={ICON_SIZE.md} />
-        </button>
-      </header>
+      {/* Аккаунт открывается пушем — у шапки есть «назад»; крупный заголовок
+          при этом сохранён: экран «свой», а не подраздел с узкой шапкой. */}
+      <LargeTitleHeader
+        title="Аккаунт"
+        onBack={onBack}
+        actions={[{
+          key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
+          icon: <Appearance size={ICON_SIZE.md} />,
+          onClick: () => setThemeOpen(v => !v),
+        }]}
+      />
 
       {/* ── Имя ──────────────────────────────────────────────────────── */}
       <Card>

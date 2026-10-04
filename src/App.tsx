@@ -20,6 +20,8 @@ import { applyHighlightVars } from './lib/audioPrefs';
 import { applyPaletteToDocument } from './lib/tajweedPalette';
 import { syncStatusBarToTheme } from './lib/nativeStatusBar';
 import { runLaunchReveal } from './lib/launchReveal';
+import { initNativeTabBar } from './lib/nativeTabBar';
+import { runNavTransition } from './lib/navTransition';
 import { wireAndroidBackButton } from './lib/androidBack';
 import { warmQuranSources } from './content/quran-sources-lazy';
 import { readActiveId, readCities } from './lib/prayerCities';
@@ -126,12 +128,11 @@ export default function App() {
    * функция `setStack` обязана быть чистой: в строгом режиме React вызывает
    * её дважды, и запись истории добавилась бы два раза. Ref даёт актуальную
    * длину прямо в обработчике события, до того как React перерисует.
+   * Переходы снимками (lib/navTransition.ts) откладывают перерисовку на
+   * кадр, поэтому зеркало обновляется сразу, а `setStack` — внутри
+   * перехода.
    */
   const stackRef = useRef<Screen[]>([INITIAL_SCREEN]);
-  const applyStack = (next: Screen[]) => {
-    stackRef.current = next;
-    setStack(next);
-  };
   const [backPreview, setBackPreview] = useState<IosBackPreview | null>(null);
   /**
    * Проигрывать ли короткое появление у следующего экрана.
@@ -218,11 +219,34 @@ export default function App() {
         : captured,
     );
 
-    setAnimateEnter(true);
+    edgeBackRef.current = false;
     const current = stackRef.current;
     history.pushState({ depth: current.length }, '');
-    applyStack([...current, next]);
+    // Экран «поверх» выезжает справа, как в UINavigationController
+    // (lib/navTransition.ts). Смена вкладки — без выезда, коротким
+    // проявлением, как и там, где View Transitions нет.
+    // Зеркало стека — сразу, перерисовка — внутри перехода (она там
+    // откладывается на кадр). Иначе второй тап в том же кадре прочитал бы
+    // старую глубину и записал в историю ту же.
+    const nextStack = [...current, next];
+    stackRef.current = nextStack;
+    // В колбэке — текущее зеркало, а не замкнутое значение: если до
+    // колбэка успел прийти popstate, побеждает самое свежее состояние,
+    // в каком бы порядке браузер ни вызвал колбэки.
+    const animated = runNavTransition(next.name === 'tabs' ? 'none' : 'push', () => {
+      setAnimateEnter(false);
+      setStack(stackRef.current);
+    });
+    if (!animated) setAnimateEnter(true);
   };
+
+  /**
+   * Возврат свайпом от края уже показан жестом. Метка говорит обработчику
+   * popstate не проигрывать его второй раз снимками.
+   */
+  const edgeBackRef = useRef(false);
+  const edgeBack = () => { edgeBackRef.current = true; goBack(); };
+  const edgeQuranHome = () => { edgeBackRef.current = true; goQuranHome(); };
 
   /** Шаг назад: снимаем одну запись истории, стек выровняет popstate. */
   const goBack = () => {
@@ -281,6 +305,8 @@ export default function App() {
       // ещё принадлежит уходящему экрану — момент снять его позицию.
       rememberTabScroll();
       setAnimateEnter(false);
+      const fromEdge = edgeBackRef.current;
+      edgeBackRef.current = false;
       // Запись попапа не несёт глубины и экраном не является: её обработает
       // сам попап, он закроется и снимет запись.
       if (e.state?.sheet) return;
@@ -296,7 +322,10 @@ export default function App() {
       // свернул нас в корень; чиним и историю, чтобы дальше стек и глубина
       // снова совпадали.
       if (depth + 1 > current.length) history.replaceState({ depth: 0 }, '');
-      applyStack(next);
+      // Возврат кнопкой «назад», системной «назад» Android или браузера —
+      // экран уезжает вправо; свайп от края свою анимацию уже показал.
+      stackRef.current = next;
+      runNavTransition(fromEdge ? 'none' : 'pop', () => setStack(stackRef.current));
     };
     window.addEventListener('popstate', onPop);
     const unwireBack = wireAndroidBackButton();
@@ -328,6 +357,10 @@ export default function App() {
   // что осталась незамеченной в прежнем QuranIng.
   // Снятие заставки и анимация появления — lib/launchReveal.ts.
   useEffect(() => { runLaunchReveal(); }, []);
+
+  // Системная панель вкладок iOS 26 (lib/nativeTabBar.ts): выяснить режим и
+  // подготовить вкладки, пока экран закрыт заставкой.
+  useEffect(() => { void initNativeTabBar(); }, []);
 
   // Переводы Корана лежат отдельным чанком, чтобы не задерживать первый
   // кадр. Прогреваем их в простое сразу после него: к моменту, когда
@@ -405,7 +438,7 @@ export default function App() {
   // ── Экраны «поверх» ──────────────────────────────────────────────────────
   if (screen.name === 'surah') {
     return (
-      <Shell key="surah" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goQuranHome} edgeBackPreview={backPreview}>
+      <Shell key="surah" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeQuranHome} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="SurahScreen" onReset={goQuranHome}>
           <SurahScreen
@@ -423,7 +456,7 @@ export default function App() {
 
   if (screen.name === 'qibla') {
     return (
-      <Shell key="qibla" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="qibla" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="QiblaScreen" onReset={goBack}>
           <QiblaScreen theme={theme} setTheme={setTheme} onBack={goBack} />
@@ -435,7 +468,7 @@ export default function App() {
 
   if (screen.name === 'player') {
     return (
-      <Shell key="player" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="player" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PlayerScreen" onReset={goBack}>
           <PlayerScreen onBack={goBack} />
@@ -447,7 +480,7 @@ export default function App() {
 
   if (screen.name === 'document') {
     return (
-      <Shell key="document" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="document" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="DocumentScreen" onReset={goBack}>
           <DocumentScreen doc={screen.doc} onBack={goBack} />
@@ -461,7 +494,7 @@ export default function App() {
   // в нижней панели ему не по чину. Открывается кнопкой в шапке главной.
   if (screen.name === 'account') {
     return (
-      <Shell key="account" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="account" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AccountScreen" onReset={goBack}>
           <AccountScreen
@@ -478,7 +511,7 @@ export default function App() {
 
   if (screen.name === 'prayer') {
     return (
-      <Shell key="prayer" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="prayer" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PrayerTimesScreen" onReset={goBack}>
           <PrayerTimesScreen
@@ -489,13 +522,19 @@ export default function App() {
           />
         </ErrorBoundary>
         </Suspense>
+        {/* Намаз ушёл из нижнего меню в отдельный экран, и полоска звучащей
+            суры пропала вместе с меню. Возвращаем её: включённую суру надо
+            уметь остановить и здесь. Панели вкладок нет — полоска над
+            домашней полосой. */}
+        <MiniPlayer placement="screen" onOpen={() => navigate({ name: 'player' })} />
+        <AudioErrorPlate placement="screen" />
       </Shell>
     );
   }
 
   if (screen.name === 'bookmarks') {
     return (
-      <Shell key="bookmarks" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="bookmarks" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="BookmarksScreen" onReset={goBack}>
           <BookmarksScreen
@@ -512,7 +551,7 @@ export default function App() {
 
   if (screen.name === 'azkar-category') {
     return (
-      <Shell key="azkar-category" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={goBack} edgeBackPreview={backPreview}>
+      <Shell key="azkar-category" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AzkarCategoryScreen" onReset={goBack}>
           <AzkarCategoryScreen
@@ -564,6 +603,7 @@ export default function App() {
       <AudioErrorPlate />
       <TabBar
         active={tab}
+        theme={theme}
         onSelect={next => {
           if (next === tab) {
             // TabBar вызывает этот путь только после двух быстрых тапов

@@ -26,6 +26,7 @@
 
 import { hideSplashNow } from './nativeSplash';
 import { releaseLaunchStatusBar } from './nativeStatusBar';
+import { markLaunchFaded } from './nativeTabBar';
 
 /** Сколько ждать декодирования медальона, прежде чем идти без него. */
 const DECODE_TIMEOUT_MS = 1500;
@@ -60,6 +61,7 @@ export function runLaunchReveal(): void {
   const overlay = document.getElementById('launch');
   if (!overlay) {
     releaseLaunchStatusBar();
+    markLaunchFaded();
     afterTwoFrames(() => { void hideSplashNow(); });
     return;
   }
@@ -73,7 +75,12 @@ export function runLaunchReveal(): void {
       // Статус-бар — тону темы, как только слой начинает растворяться
       // (launch-out держит его непрозрачным до 54 %), а не после удаления:
       // иначе на светлой теме ~0,6 с белые часы на светлом экране.
-      window.setTimeout(releaseLaunchStatusBar, reduce ? 0 : FADE_START_MS);
+      // Системная панель вкладок iOS 26 — с того же момента: над
+      // непрозрачной заставкой она висела бы одна на тёмно-красном поле.
+      window.setTimeout(() => {
+        releaseLaunchStatusBar();
+        markLaunchFaded();
+      }, reduce ? 0 : FADE_START_MS);
 
       let removed = false;
       const remove = () => {

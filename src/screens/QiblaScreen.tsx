@@ -32,8 +32,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as adhan from 'adhan';
-import { Compass, Appearance, ChevronLeft, ICON_SIZE } from '../components/icons';
+import { Compass, Appearance, ICON_SIZE } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
+import { LargeTitleHeader } from '../components/ScreenHeader';
 import type { Theme } from '../hooks/useTheme';
 import {
   CITIES, KAABA, distanceKm, locate, onPlaceChange, readPlace, writePlace,
@@ -155,53 +156,15 @@ export function QiblaScreen({ theme, setTheme, onBack }: Props) {
         />
       )}
 
-      <header style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-cozy)',
-        paddingTop: 'calc(env(safe-area-inset-top) + var(--space-margin))',
-        paddingBottom: 'var(--space-margin)',
-      }}>
-        <button
-          onClick={onBack}
-          aria-label="Назад"
-          className="icon-btn"
-          style={{
-            width: 'var(--hit-min)', height: 'var(--hit-min)', flexShrink: 0,
-            borderRadius: 'var(--radius-control)',
-            border: '1px solid var(--hairline)',
-            background: 'rgb(var(--ink-rgb) / 0.04)',
-            color: 'var(--text-secondary)', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <ChevronLeft size={ICON_SIZE.md} />
-        </button>
-        <h1 className="display-serif" style={{
-          margin: 0, flex: 1, minWidth: 0,
-          // Как и на экране намаза: кегль плавает между двумя ступенями
-          // шкалы, а межстрочный остаётся долей от него — фиксированная
-          // ступень не умеет следовать за clamp.
-          fontSize: 'clamp(var(--font-title1), 8vw, var(--font-largetitle))',
-          fontWeight: 'var(--weight-regular)',
-          letterSpacing: '-0.03em', color: 'var(--text-primary)', lineHeight: 1.05,
-        }}>
-          Кибла
-        </h1>
-        <button
-          ref={themeBtnRef}
-          onClick={() => setThemeOpen(v => !v)}
-          aria-label="Оформление" title="Оформление"
-          className="icon-btn" data-active={themeOpen}
-          style={{
-            width: 'var(--hit-min)', height: 'var(--hit-min)', flexShrink: 0,
-            borderRadius: 'var(--radius-control)',
-            border: '1px solid var(--hairline)',
-            background: 'rgb(var(--ink-rgb) / 0.04)',
-            color: themeOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
-          }}
-        >
-          <Appearance size={ICON_SIZE.md} />
-        </button>
-      </header>
+      <LargeTitleHeader
+        title="Кибла"
+        onBack={onBack}
+        actions={[{
+          key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
+          icon: <Appearance size={ICON_SIZE.md} />,
+          onClick: () => setThemeOpen(v => !v),
+        }]}
+      />
 
       {/* Круг компаса */}
       <div style={{

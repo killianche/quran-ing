@@ -23,13 +23,13 @@
 
 import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
 import { GLASS_BLUR } from '../lib/glass';
-import { TAB_BAR_BOTTOM, TAB_BAR_HEIGHT } from './TabBar';
+import { accessoryBottom, type AccessoryPlacement } from './TabBar';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { formatPlaybackTime } from '../lib/playbackTime';
 
 const GAP = 8;
 
-export function AudioErrorPlate() {
+export function AudioErrorPlate({ placement = 'tabs' }: { placement?: AccessoryPlacement } = {}) {
   const { failure } = useAudioState();
   const { handlePlay, dismissFailure } = useAudioActions();
   if (!failure) return null;
@@ -59,7 +59,7 @@ export function AudioErrorPlate() {
         position: 'fixed',
         left: '12px',
         right: '12px',
-        bottom: `calc(${TAB_BAR_BOTTOM} + ${TAB_BAR_HEIGHT - 10 + GAP}px)`,
+        bottom: accessoryBottom(placement, GAP),
         zIndex: 40,
         maxWidth: '560px',
         margin: '0 auto',

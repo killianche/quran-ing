@@ -28,6 +28,7 @@ import { Microphone, Close, ICON_SIZE } from './icons';
 import { OfflineAudioCard } from './OfflineAudioCard';
 import { AudioSpinner } from './BottomDock';
 import { INH_FONT_OPTIONS, INH_SOURCE_APP, INH_SOURCE_TITLE } from '../lib/inhTranslation';
+import { suppressNativeTabBar } from '../lib/nativeTabBar';
 
 const sectionTitle: CSSProperties = {
   margin: '0 0 8px',
@@ -47,6 +48,10 @@ const sectionTitle: CSSProperties = {
 // animation, edge-to-edge width on mobile).
 
 type SheetPlacement = 'bottom-sheet' | 'top-popover';
+
+/** Отступ нижней шторки от краёв экрана и её верхний радиус (см. ниже). */
+const SHEET_INSET = 8;
+const SHEET_RADIUS = 32;
 
 /**
  * Узкий экран — телефон.  Граница 640 px: до неё «привязанная к кнопке
@@ -137,6 +142,10 @@ export function SettingsSheet({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Системная панель вкладок iOS 26 лежит над веб-вью и закрыла бы низ
+  // шторки — на время шторки она уходит (lib/nativeTabBar.ts).
+  useEffect(() => suppressNativeTabBar(), []);
 
   // Esc — для десктопа и внешней клавиатуры.
   useEffect(() => {
@@ -296,19 +305,31 @@ export function SettingsSheet({
   // down from above.
   const positionStyles: React.CSSProperties = isBottom
     ? {
+        // Шторка iOS 26 на частичной высоте (владелец 2026-10-04, стиль
+        // xtrud; docs/IOS26_DESIGN_GUIDE.md § 3): не прилипает к краям, а
+        // висит над ними стеклянной карточкой, и нижние углы повторяют
+        // скругление экрана. Числа Apple не публикует — отступ 8 и верхний
+        // радиус 32 подобраны на глаз по системным шторкам.
         left: '50%',
-        bottom: '0',
-        transform: `translate(-50%, ${!open ? '100%' : `${dragY}px`})`,
-        width: 'min(480px, 100vw)',
+        bottom: `${SHEET_INSET}px`,
+        // Закрытая — уезжает целиком, вместе с отступом и тенью: сдвиг на
+        // 100 % своей высоты оставил бы над краем полоску в 8 px.
+        transform: `translate(-50%, ${!open ? `calc(100% + ${SHEET_INSET + 32}px)` : `${dragY}px`})`,
+        width: `min(480px, calc(100vw - ${SHEET_INSET * 2}px))`,
         // 86dvh, а не 70vh: в панели чтения живут чтец, офлайн-загрузки
         // и шрифты — на 70 % экрана из них видно полтора блока, и панель
         // читается как «обрезанная».  dvh, чтобы адресная строка и
         // системные панели не отрезали низ.
-        maxHeight: '86dvh',
-        borderTop: '1px solid var(--hairline)',
-        borderRadius: '20px 20px 0 0',
-        padding: '8px 16px max(12px, env(safe-area-inset-bottom)) 16px',
-        boxShadow: 'rgba(0,0,0,0.08) 0 -2px 12px, rgba(0,0,0,0.18) 0 -16px 48px',
+        maxHeight: `calc(86dvh - ${SHEET_INSET}px)`,
+        border: '1px solid var(--hairline)',
+        // Нижние углы концентричны углам экрана. Радиус экрана из веба не
+        // узнать; у iPhone с домашней полосой (зона 34) он около 47–62, без
+        // полосы углы почти прямые — поэтому считаем от безопасной зоны.
+        borderRadius: `${SHEET_RADIUS}px ${SHEET_RADIUS}px `
+          + `max(${SHEET_RADIUS}px, calc(env(safe-area-inset-bottom) + 12px)) `
+          + `max(${SHEET_RADIUS}px, calc(env(safe-area-inset-bottom) + 12px))`,
+        padding: `8px 16px max(12px, calc(env(safe-area-inset-bottom) - ${SHEET_INSET}px)) 16px`,
+        boxShadow: 'rgba(0,0,0,0.08) 0 2px 12px, rgba(0,0,0,0.18) 0 16px 48px',
       }
     : anchorRect
     ? (() => {

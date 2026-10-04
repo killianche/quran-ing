@@ -33,7 +33,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Theme } from '../hooks/useTheme';
 import { Appearance, ICON_SIZE, Sunrise, Sunset } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
-import { TAB_BAR_HEIGHT } from '../components/TabBar';
+import { LargeTitleHeader } from '../components/ScreenHeader';
+import { TAB_BAR_SPACE } from '../components/TabBar';
 import { loadAzkarData, type AzkarCategoryId, type AzkarData } from '../lib/azkar';
 
 type Props = {
@@ -76,7 +77,7 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory }: Props) {
       minHeight: '100dvh',
       maxWidth: 'min(100%, 720px)',
       margin: '0 auto',
-      padding: `0 var(--space-margin) calc(${TAB_BAR_HEIGHT}px + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
+      padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       position: 'relative',
       zIndex: 1,
       // Колонка на всю высоту: свободное место достаётся карточкам,
@@ -94,45 +95,14 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory }: Props) {
       )}
 
       {/* Шапка — один в один с главной Корана. */}
-      <header style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-cozy)',
-        paddingTop: 'calc(env(safe-area-inset-top) + var(--space-margin))',
-        paddingBottom: 'var(--space-margin)',
-      }}>
-        <h1
-          className="display-serif"
-          style={{
-            margin: 0, flex: 1, minWidth: 0,
-            fontSize: 'clamp(30px, 8vw, 40px)',
-            fontWeight: 'var(--weight-regular)',
-            letterSpacing: '-0.03em',
-            color: 'var(--text-primary)',
-            lineHeight: 1.05,
-          }}
-        >
-          Азкары
-        </h1>
-
-        <button
-          ref={themeBtnRef}
-          onClick={() => setThemeOpen(v => !v)}
-          aria-label="Оформление"
-          title="Оформление"
-          className="icon-btn"
-          data-active={themeOpen}
-          style={{
-            width: '42px', height: '42px', flexShrink: 0,
-            borderRadius: 'var(--radius-control)',
-            border: '1px solid var(--hairline)',
-            background: 'rgb(var(--ink-rgb) / 0.04)',
-            color: themeOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
-          }}
-        >
-          <Appearance size={ICON_SIZE.md} />
-        </button>
-      </header>
+      <LargeTitleHeader
+        title="Азкары"
+        actions={[{
+          key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
+          icon: <Appearance size={ICON_SIZE.md} />,
+          onClick: () => setThemeOpen(v => !v),
+        }]}
+      />
 
       {!data && !error && <CategorySkeleton />}
 

@@ -40,6 +40,33 @@ class MainViewController: CAPBridgeViewController {
         }
     }
 
+    /// Тема приложения → оформление системных элементов (Quran Ing,
+    /// 2026-10-04).
+    ///
+    /// Системная панель вкладок iOS 26 (`@capawesome/capacitor-tab-bar`)
+    /// берёт материал и цвет невыбранных вкладок из `userInterfaceStyle`, то
+    /// есть из темы СИСТЕМЫ. Тема приложения своя: тёмная «Аврора» на
+    /// светлом iPhone дала бы светлую панель под тёмным экраном. Отдельного
+    /// моста для темы нет, но приложение и так выставляет стиль статус-бара
+    /// под свою тему (src/lib/nativeStatusBar.ts → плагин StatusBar →
+    /// `bridge.statusBarStyle` → этот метод). Светлый текст статус-бара
+    /// значит тёмную тему, тёмный — светлую.
+    ///
+    /// Заодно клавиатура в поле поиска следует теме приложения.
+    /// `prefers-color-scheme` страница для темы не использует (только мета
+    /// theme-color, которая в приложении ни на что не влияет).
+    override func setStatusBarStyle(_ statusBarStyle: UIStatusBarStyle) {
+        super.setStatusBarStyle(statusBarStyle)
+        switch statusBarStyle {
+        case .lightContent:
+            overrideUserInterfaceStyle = .dark
+        case .darkContent:
+            overrideUserInterfaceStyle = .light
+        default:
+            overrideUserInterfaceStyle = .unspecified
+        }
+    }
+
     private func disableKeyboardShortcutBar() {
         inputAssistantItem.leadingBarButtonGroups = []
         inputAssistantItem.trailingBarButtonGroups = []

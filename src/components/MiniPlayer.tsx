@@ -52,13 +52,17 @@ import { useAudioActions, useAudioState } from '../hooks/AudioProvider';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { reciterById, usesTimelineSeek } from '../lib/reciters';
 import { GLASS_BLUR } from '../lib/glass';
-import { TAB_BAR_HEIGHT, TAB_BAR_BOTTOM } from './TabBar';
+import { accessoryBottom, type AccessoryPlacement } from './TabBar';
 
 /** Высота полоски и её зазор до панели вкладок. */
 const HEIGHT = 58;
 const GAP = 6;
 
-export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
+export function MiniPlayer({ onOpen, placement = 'tabs' }: {
+  onOpen: () => void;
+  /** 'tabs' — над панелью вкладок; 'screen' — экран без панели (намаз). */
+  placement?: AccessoryPlacement;
+}) {
   const { currentSurah, currentAyah, audioState, reciter, playbackRate } = useAudioState();
   const audio = useAudioActions();
 
@@ -92,11 +96,11 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
         position: 'fixed',
         left: '12px',
         right: '12px',
-        // Ровно над капсулой вкладок, с тем же зазором: две плавающие
+        // Ровно над панелью вкладок, с тем же зазором: две плавающие
         // панели должны читаться одной стопкой, а не случайной парой.
-        // Считаем от той же координаты, что и сама капсула: иначе панель
-        // опустилась бы, а полоска плеера осталась висеть на прежнем месте.
-        bottom: `calc(${TAB_BAR_BOTTOM} + ${TAB_BAR_HEIGHT - 10 + GAP}px)`,
+        // Считаем от верхней кромки самой панели (веб-капсулы или системной),
+        // иначе панель сдвинулась бы, а полоска осталась на прежнем месте.
+        bottom: accessoryBottom(placement, GAP),
         zIndex: 39,
         maxWidth: '560px',
         margin: '0 auto',

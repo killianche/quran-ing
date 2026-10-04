@@ -52,7 +52,9 @@ type Props = {
   width: number;
   /** Границы дорожки: отступы от верха и от низа экрана, px. */
   topInset: number;
-  bottomInset: number;
+  /** Число или функция: у системной панели iOS 26 высота известна только
+   *  по факту, её меряют в начале касания. */
+  bottomInset: number | (() => number);
   /** Позиция под пальцем в момент включения (с единицы). */
   startAt: (y: number) => number;
   /**
@@ -77,7 +79,7 @@ type Props = {
   canStart?: (target: Element | null) => boolean;
 };
 
-type View = { n: number; y: number };
+type View = { n: number; y: number; bottom: number };
 
 export function FastScrubber({
   enabled, count, left, width, topInset, bottomInset, startAt, onScrub, label, canStart,
@@ -107,9 +109,15 @@ export function FastScrubber({
     let swallowTimer = 0;
     let savedSelect = '';
 
+    /** Нижняя граница дорожки на текущий жест — снимается в начале касания. */
+    let insetNow = 0;
+    const resolveInset = () => {
+      const b = live.current.bottomInset;
+      return typeof b === 'function' ? b() : b;
+    };
     const track = () => ({
       top: live.current.topInset,
-      bottom: window.innerHeight - live.current.bottomInset,
+      bottom: window.innerHeight - insetNow,
     });
     const inStrip = (x: number, y: number) => {
       const { left: l, width: w } = live.current;
@@ -140,7 +148,7 @@ export function FastScrubber({
       // а его никто не вызывал, и вибрация на iOS молчала с самого начала
       // (Haptics.swift, ревью 10.09.2026).
       if (Capacitor.getPlatform() === 'ios') void Haptics.impact({ style: ImpactStyle.Light });
-      setView({ n: n0, y: start.y });
+      setView({ n: n0, y: start.y, bottom: insetNow });
     };
 
     const finish = () => {
@@ -190,6 +198,7 @@ export function FastScrubber({
       scrubbingUntil = 0;
       if (e.touches.length !== 1) { finish(); return; }
       const t = e.touches[0];
+      insetNow = resolveInset();
       if (!inStrip(t.clientX, t.clientY)) return;
       const ok = live.current.canStart;
       if (ok && !ok(e.target instanceof Element ? e.target : null)) return;
@@ -215,7 +224,7 @@ export function FastScrubber({
       const n = scrubIndex({
         y: t.clientY, y0: active.y0, top, bottom, n0: active.n0, count: live.current.count,
       });
-      setView({ n, y: t.clientY });
+      setView({ n, y: t.clientY, bottom: insetNow });
       if (n === active.n) return;
       active.n = n;
       // Прыжок — не чаще кадра: touchmove приходит чаще частоты экрана, а
@@ -261,7 +270,7 @@ export function FastScrubber({
         position: 'fixed',
         left: `${Math.max(6, left + width / 2 - 3)}px`,
         top: `${topInset}px`,
-        bottom: `${bottomInset}px`,
+        bottom: `${view.bottom}px`,
         width: '6px',
         borderRadius: 'var(--radius-pill)',
         background: 'rgb(var(--ink-rgb) / 0.12)',

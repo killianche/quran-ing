@@ -879,10 +879,9 @@ body {
   align-items: center;
   flex-shrink: 0;
   padding: var(--space-hair);
-  border: 0.5px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
-  border-radius: var(--radius-shell);
-  background: color-mix(in srgb, var(--surface-strong) 68%, transparent);
-  box-shadow: inset 0 0.5px 0 color-mix(in srgb, white 20%, transparent);
+  /* Материал — `.liquid-glass` (стекло группы кнопок, iOS 26); форма —
+     капсула. */
+  border-radius: 9999px;
 }
 /* Единый размер глифа в шапке.
    Правило выглядит как грубость — оно перебивает проп `size` у иконки, —
@@ -893,11 +892,6 @@ body {
 .ios-header-button svg {
   width: var(--icon-nav);
   height: var(--icon-nav);
-}
-.ios-header-back {
-  border: 0.5px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
-  background: color-mix(in srgb, var(--surface-strong) 68%, transparent);
-  box-shadow: inset 0 0.5px 0 color-mix(in srgb, white 20%, transparent);
 }
 .ios-tab-item:active,
 .ios-header-button:active {
@@ -936,6 +930,33 @@ body {
    Флаг ставит сама шапка на время перехода показа/скрытия. */
 .screen-header[data-animating="true"] {
   will-change: transform, opacity;
+}
+
+/* Растворение контента под верхней панелью (ScreenHeader) — scroll edge
+   effect iOS 26 в мягком стиле: фон экрана плотный у строки состояния и
+   сходит на нет ниже кнопок. Размытие (инлайном, src/lib/glass.ts) гаснет
+   той же маской. Цвет — фон экрана, а не стекло: стекло — только кнопки. */
+.screen-header-edge {
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--surface-rgb) / 0.94) 0%,
+    rgb(var(--surface-rgb) / 0.82) 55%,
+    rgb(var(--surface-rgb) / 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+}
+/* Космические темы рисуют небо отдельным слоем, и их --surface — цвет
+   этого неба; плотная заливка у кромки там закрыла бы звёзды под часами
+   так же, как и прежняя капсула, — оставляем, но чуть легче. */
+[data-theme="aurora2"] .screen-header-edge,
+[data-theme="cosmos"] .screen-header-edge {
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--surface-rgb) / 0.86) 0%,
+    rgb(var(--surface-rgb) / 0.6) 55%,
+    rgb(var(--surface-rgb) / 0) 100%
+  );
 }
 
 /* Кнопки плеера: во встроенном мусхаф-варианте кружок 40×40 по рисунку,
@@ -1423,5 +1444,45 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .app-screen-enter { animation: none; }
+}
+
+/* ─── Переходы между экранами — как в навигации iOS ──────────────────────
+   src/lib/navTransition.ts: снимки View Transitions, а не transform на
+   экране (иначе fixed-шапки теряли бы опору). push — новый экран выезжает
+   справа с тенью, прежний уходит влево на 28 % и темнеет на 12 %; pop —
+   обратно. 28 % и 12 % — те же, что у жеста «назад» от края
+   (IosEdgeBackGesture: PARALLAX, затемнение), чтобы кнопка и свайп
+   выглядели одним движением. 420 мс и кривая подобраны на глаз под
+   UINavigationController: Apple параметров не публикует. */
+:root[data-nav]::view-transition-old(root),
+:root[data-nav]::view-transition-new(root) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(.32, .72, 0, 1);
+  animation-fill-mode: both;
+  /* По умолчанию снимки смешиваются plus-lighter для перекрёстного
+     растворения; при сдвиге это дало бы засветку на стыке. */
+  mix-blend-mode: normal;
+}
+:root[data-nav="push"]::view-transition-old(root) { animation-name: nav-under-out; }
+:root[data-nav="push"]::view-transition-new(root) {
+  animation-name: nav-top-in;
+  box-shadow: -10px 0 28px rgb(0 0 0 / 0.16);
+}
+:root[data-nav="pop"]::view-transition-old(root) {
+  animation-name: nav-top-out;
+  z-index: 1;
+  box-shadow: -10px 0 28px rgb(0 0 0 / 0.16);
+}
+:root[data-nav="pop"]::view-transition-new(root) { animation-name: nav-under-in; }
+
+@keyframes nav-top-in { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes nav-top-out { from { transform: none; } to { transform: translateX(100%); } }
+@keyframes nav-under-out {
+  from { transform: none; filter: none; }
+  to { transform: translateX(-28%); filter: brightness(0.88); }
+}
+@keyframes nav-under-in {
+  from { transform: translateX(-28%); filter: brightness(0.88); }
+  to { transform: none; filter: none; }
 }
 

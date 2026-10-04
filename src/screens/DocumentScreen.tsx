@@ -29,7 +29,7 @@
  * влезает ни при каком кегле, поэтому в DOCS лежат короткие имена.
  */
 
-import { ChevronLeft, ICON_SIZE } from '../components/icons';
+import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
 
 export type DocumentId = 'privacy' | 'terms';
 
@@ -50,35 +50,10 @@ export function DocumentScreen({ doc, onBack }: {
       display: 'flex', flexDirection: 'column',
       background: 'transparent',
     }}>
-      <header style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-snug)',
-        padding: 'calc(env(safe-area-inset-top) + var(--space-margin)) var(--space-margin) var(--space-cozy)',
-        flexShrink: 0,
-      }}>
-        <button
-          onClick={onBack}
-          aria-label="Назад"
-          className="icon-btn"
-          style={{
-            width: '42px', height: '42px', flexShrink: 0,
-            borderRadius: 'var(--radius-control)',
-            border: '1px solid var(--hairline)',
-            background: 'rgb(var(--ink-rgb) / 0.04)',
-            color: 'var(--text-secondary)', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <ChevronLeft size={ICON_SIZE.md} />
-        </button>
-        <h1 className="display-serif" style={{
-          margin: 0, flex: 1, minWidth: 0,
-          fontSize: 'clamp(30px, 8vw, 40px)', fontWeight: 'var(--weight-regular)',
-          letterSpacing: '-0.03em', color: 'var(--text-primary)', lineHeight: 1.05,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {meta.title}
-        </h1>
-      </header>
+      {/* Документ — подробный экран: компактная шапка, как у вложенных
+          экранов iOS, а не крупный заголовок над страницей документа. */}
+      <ScreenHeader title={meta.title} onBack={onBack} />
+      <div aria-hidden style={{ height: screenHeaderOffset(), flexShrink: 0 }} />
 
       <iframe
         src={meta.src}
