@@ -67,10 +67,60 @@ class MainViewController: CAPBridgeViewController {
         }
     }
 
+    /// Плагины самого приложения (не из npm) регистрируются здесь —
+    /// документированный путь Capacitor для локального нативного кода.
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        bridge?.registerPluginInstance(ThemeBackgroundPlugin())
+    }
+
     private func disableKeyboardShortcutBar() {
         inputAssistantItem.leadingBarButtonGroups = []
         inputAssistantItem.trailingBarButtonGroups = []
         webView?.inputAssistantItem.leadingBarButtonGroups = []
         webView?.inputAssistantItem.trailingBarButtonGroups = []
+    }
+}
+
+/// Фон веб-вью цветом темы приложения (Quran Ing, 2026-10-04).
+///
+/// `ios.backgroundColor` в capacitor.config.ts — тёмно-красный #440505
+/// заставки, чтобы запуск был без вспышки. Но эффект края системной панели
+/// вкладок iOS 26 растворяет контент в фон прокрутки веб-вью: под панелью
+/// шла тёмно-красная полоса поверх списка сур (скриншот владельца, сборка 2).
+/// После заставки JS присылает сюда точный цвет страницы темы (`--canvas`,
+/// src/lib/themeBackground.ts) — у тем он разный (белый, бежевый, чёрный),
+/// и по стилю статус-бара его не угадать.
+@objc(ThemeBackgroundPlugin)
+public class ThemeBackgroundPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "ThemeBackgroundPlugin"
+    public let jsName = "ThemeBackground"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "setColor", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func setColor(_ call: CAPPluginCall) {
+        guard let hex = call.getString("color"), let color = ThemeBackgroundPlugin.color(fromHex: hex) else {
+            call.reject("Ожидается цвет в виде #RRGGBB")
+            return
+        }
+        DispatchQueue.main.async {
+            self.bridge?.webView?.backgroundColor = color
+            self.bridge?.webView?.scrollView.backgroundColor = color
+            call.resolve()
+        }
+    }
+
+    static func color(fromHex hex: String) -> UIColor? {
+        var digits = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard digits.hasPrefix("#") else { return nil }
+        digits.removeFirst()
+        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
+        return UIColor(
+            red: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: 1
+        )
     }
 }

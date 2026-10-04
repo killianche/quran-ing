@@ -1,22 +1,14 @@
 /**
- * SurahPicker — главный экран: обложка, «Продолжить чтение», поиск, 114 сур.
+ * SurahPicker — главный экран: «Коран», «Продолжить чтение», поиск, 114 сур.
  *
- * ── Новая главная (владелец 2026-10-04) ───────────────────────────────
+ * ── Главная (владелец 2026-10-04) ─────────────────────────────────────
  *
- * «Сверху фотография, какая-то обложка фоновая, какая-то последние суры…
- * поиск… потом снизу идут суры… в современном стиле, как сделали бы в
- * Apple либо в Airbnb». Порядок блоков — ровно этот:
+ * Порядок: крупный «Коран» со стеклянной панелью → «Продолжить чтение»
+ * (карточки недавних сур) → поиск → суры.
  *
- *   1. Обложка — фото ковров владельца во всю ширину, «Коран» на ней
- *      (`Cover`); над ней стеклянная панель (`CollapsingNavBar`): при
- *      прокрутке обложка уходит, и в панели проявляется компактный «Коран».
- *   2. «Продолжить чтение» — лента карточек недавних сур (`Recents`).
- *   3. Поиск — капсула; при фокусе поднимается к панели.
- *   4. «Все суры» — список строками (ниже: почему не карточки).
- *
- * Прежняя шапка — заголовок и четыре квадратные кнопки в одной строке — на
- * узком экране теснила «Коран»; теперь кнопки в стеклянной капсуле панели,
- * а заголовок на обложке.
+ * В тот же день была обложка-фото ковров с затемнением и подзаголовками —
+ * владелец: «слишком много всего… привести к минималистичному виду».
+ * Убрана; не возвращать. Стиль — как у остальных экранов (LargeTitleHeader).
  *
  * ── Что изменилось против прежней версии ──────────────────────────────
  *
@@ -54,7 +46,7 @@
  * (--space-hair), чтобы номер суры стоял ровно под словом «Суры».
  */
 
-import { useState, useMemo, useRef, useDeferredValue, useLayoutEffect, useEffect, useCallback, memo, forwardRef } from 'react';
+import { useState, useMemo, useRef, useDeferredValue, useLayoutEffect, useEffect, useCallback, memo } from 'react';
 import { FastScrubber } from '../components/FastScrubber';
 import { FAST_SCROLL } from '../lib/fastScroll';
 import { SURAHS, SURAH_BY_NUMBER, type SurahMeta } from '../content/surahs';
@@ -70,7 +62,7 @@ import { tabBarTopPx } from '../lib/nativeTabBar';
 import { prefetchSurahFeed } from '../hooks/useQcfAyahFeed';
 import type { Theme } from '../hooks/useTheme';
 import { HitArea } from '../components/HitArea';
-import { CollapsingNavBar, type HeaderAction } from '../components/ScreenHeader';
+import { LargeTitleHeader, type HeaderAction } from '../components/ScreenHeader';
 
 /**
  * Единственная форма капс-подзаголовка на экране: «Продолжить чтение»
@@ -178,7 +170,6 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
   // Попап оформления — портал в body: у припаркованной главной он остался
   // бы висеть над сурой.
   useEffect(() => { if (!active) setThemeOpen(false); }, [active]);
-  const coverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
   const actions: HeaderAction[] = [
@@ -201,15 +192,9 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
   /** Нижняя кромка панели в координатах окна. */
   const barBottom = () => barRef.current?.getBoundingClientRect().bottom ?? 0;
 
-  /** Где компактный «Коран» начинает проявляться: обложка ушла под панель. */
-  const collapseStart = (bar: number) => {
-    const cover = coverRef.current?.getBoundingClientRect();
-    return cover ? cover.bottom + window.scrollY - bar : 24;
-  };
-
   /**
    * Поднять поле поиска к панели: клавиатура закроет половину экрана, а
-   * поле стоит под обложкой и «Недавними» — выдача должна быть видна над
+   * поле стоит под заголовком и «Недавними» — выдача должна быть видна над
    * клавиатурой, как в системных списках iOS.
    */
   const raiseSearch = (smooth: boolean) => {
@@ -224,7 +209,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
   /**
    * Первая буква убирает «Недавние» и список сур — документ укорачивается,
    * и браузер срезал бы прокрутку до нуля: поле уехало бы обратно под
-   * обложку, под клавиатуру. Поэтому у блока выдачи минимальная высота в
+   * заголовок, под клавиатуру. Поэтому у блока выдачи минимальная высота в
    * экран (ниже), а здесь поле возвращается к панели сразу, до кадра.
    */
   useLayoutEffect(() => {
@@ -243,22 +228,20 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
         />
       )}
 
-      <CollapsingNavBar
-        title="Коран"
-        actionGroups={[actions, accountGroup]}
-        collapseStart={collapseStart}
-        headerRef={barRef}
-        active={active}
-      />
-
-      <Cover ref={coverRef} />
-
       <div style={{
         maxWidth: 'min(100%, 720px)',
         margin: '0 auto',
         padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       }}>
-        {!searching && (
+        {/* Крупный «Коран» — как заголовки остальных экранов; при
+            прокрутке уходит в компактный в стеклянной панели. */}
+        <LargeTitleHeader
+          title="Коран"
+          actionGroups={[actions, accountGroup]}
+          headerRef={barRef}
+          active={active}
+        />
+        {!searching && recents.length > 0 && (
           <Recents
             recents={recents}
             onOpen={(surah, ayah) => onSelectSurah(surah, ayah)}
@@ -332,7 +315,6 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
           )
           : (
             <>
-              <SectionTitle>Все суры</SectionTitle>
               <SurahList surahs={SURAHS} onSelect={onSelectSurah} />
               {/* Быстрая прокрутка: удержание на номере суры и протяжка
                   вверх-вниз. Только при полном списке — в результатах поиска номера
@@ -365,107 +347,6 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
   );
 }
 
-// ─── Обложка ──────────────────────────────────────────────────────────────
-
-/**
- * Обложка главной — фотография ковров владельца (решение 2026-10-04:
- * «сверху была фотография, какая-то обложка фоновая»). Тот же источник, что
- * у иконки и заставки (scripts/brand/design-logo.py → public/brand/cover.webp):
- * приложение открывается медальоном ковра и продолжается его полем.
- *
- * Во всю ширину и под строку состояния — как обложки в «Музыке» и
- * Airbnb. Часы читаются за счёт штатной «крышки» (StatusBarScrim): мягкая
- * полоса цвета фона под системной строкой. Светлый статус-бар над фото
- * здесь НЕ включается: стиль статус-бара заодно задаёт оформление
- * системной панели вкладок (MainViewController), и на светлой теме она
- * стала бы тёмной.
- *
- * Нижние углы скруглены — обложка лежит над списком отдельным листом.
- * Затемнение снизу держит контраст подписи на пёстром узоре; цвет подписи —
- * кремовый с заставки, а не цвет темы: фон под ней всегда тёмно-красный.
- * Пока фото не декодировано — поле ковра #440505, без белой вспышки.
- */
-const Cover = forwardRef<HTMLDivElement>(function Cover(_props, ref) {
-  const [loaded, setLoaded] = useState(false);
-  return (
-    <div
-      ref={ref}
-      style={{
-        position: 'relative',
-        height: 'calc(env(safe-area-inset-top) + 236px)',
-        overflow: 'hidden',
-        borderRadius: '0 0 32px 32px',
-        background: '#440505',
-        marginBottom: 'var(--space-section)',
-      }}
-    >
-      <img
-        src="/brand/cover.webp"
-        alt=""
-        aria-hidden
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        ref={img => { if (img?.complete && img.naturalWidth > 0 && !loaded) setLoaded(true); }}
-        style={{
-          position: 'absolute', inset: 0,
-          width: '100%', height: '100%',
-          objectFit: 'cover',
-          objectPosition: 'center 30%',
-          opacity: loaded ? 1 : 0,
-          transition: 'opacity var(--dur-slow) var(--ease-standard)',
-        }}
-      />
-      <div aria-hidden style={{
-        position: 'absolute', inset: 0,
-        // Тёмная часть начинается с середины: подпись «Quran Ing» над
-        // светлыми нитями узора иначе проваливалась до ~2.5:1 (ревью).
-        background: 'linear-gradient(180deg, rgba(26, 3, 3, 0.18) 0%, rgba(26, 3, 3, 0.06) 30%, rgba(26, 3, 3, 0.5) 55%, rgba(26, 3, 3, 0.78) 100%)',
-      }} />
-      <div style={{
-        position: 'absolute', left: 0, right: 0, bottom: 0,
-        maxWidth: 'min(100%, 720px)',
-        margin: '0 auto',
-        padding: '0 var(--space-margin) var(--space-margin)',
-        color: '#f6e7d0',
-      }}>
-        <div style={{
-          fontSize: 'var(--font-caption1)',
-          lineHeight: 'var(--leading-caption1)',
-          fontWeight: 'var(--weight-semibold)',
-          letterSpacing: '0.14em',
-          textTransform: 'uppercase',
-          textShadow: '0 1px 10px rgba(20, 0, 0, 0.7)',
-        }}>
-          Quran Ing
-        </div>
-        <h1
-          className="display-serif"
-          style={{
-            margin: '2px 0 0',
-            fontSize: 'clamp(38px, 11vw, 48px)',
-            fontWeight: 'var(--weight-regular)',
-            letterSpacing: '-0.03em',
-            lineHeight: 1.02,
-            color: '#fff7ec',
-            textShadow: '0 2px 18px rgba(20, 0, 0, 0.45)',
-          }}
-        >
-          Коран
-        </h1>
-        <div style={{
-          marginTop: 'var(--space-tight)',
-          fontSize: 'var(--font-subhead)',
-          lineHeight: 'var(--leading-subhead)',
-          opacity: 0.92,
-          textShadow: '0 1px 10px rgba(20, 0, 0, 0.6)',
-        }}>
-          Ингушский и русский переводы
-        </div>
-      </div>
-    </div>
-  );
-});
-
 // ─── Заголовок секции ─────────────────────────────────────────────────────
 
 /** Заголовок секции главной — как «Недавние» в «Музыке»: Title 3, полужирный. */
@@ -491,63 +372,56 @@ type RecentWithMeta = { surah: number; ayah: number; meta?: SurahMeta };
 
 /**
  * «Продолжить чтение» — лента карточек недавних сур (до четырёх, свежая
- * первой), листается вбок с прилипанием, как полки в App Store и Airbnb.
+ * первой), листается вбок с прилипанием.
  *
- * Первая карточка помечена «Продолжить» фирменным цветом — это главное
- * действие экрана. Прогресс — полоса того же цвета.
- *
- * Пусто (первый запуск) — одна карточка «Начать с Аль-Фатихи»: пустая
- * секция ничего не объясняла бы, а с этого чтение и начинают.
+ * Минимально (владелец 2026-10-04: «слишком много всего… привести к
+ * минималистичному виду»): в карточке только название, место чтения и
+ * тонкая полоса прогресса. Без капса-подписей и арабского названия; пусто —
+ * секции нет вовсе.
  */
 function Recents({ recents, onOpen }: {
   recents: RecentWithMeta[];
   onOpen: (surah: number, ayah?: number) => void;
 }) {
-  const fatiha = SURAH_BY_NUMBER[1];
   return (
-    <section style={{ marginBottom: 'var(--space-section)' }}>
-      <SectionTitle>{recents.length > 0 ? 'Продолжить чтение' : 'Начать чтение'}</SectionTitle>
+    <section style={{ marginBottom: 'var(--space-margin)' }}>
+      <SectionTitle>Продолжить чтение</SectionTitle>
       <div
         className="no-scrollbar"
         style={{
           display: 'flex',
-          gap: 'var(--space-cozy)',
+          gap: 'var(--space-snug)',
           overflowX: 'auto',
           scrollSnapType: 'x mandatory',
           // Карточки выходят к краям экрана, а прилипают к полю: лента
           // читается как продолжающаяся за край.
           margin: '0 calc(var(--space-margin) * -1)',
-          padding: '4px var(--space-margin) 14px',
+          padding: '0 var(--space-margin) 4px',
           scrollPaddingInline: 'var(--space-margin)',
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        {recents.length > 0
-          ? recents.map((r, i) => r.meta && (
-            <RecentCard
-              key={r.surah}
-              meta={r.meta}
-              ayah={r.ayah}
-              lead={i === 0}
-              onClick={() => onOpen(r.surah, r.ayah)}
-            />
-          ))
-          : fatiha && <RecentCard meta={fatiha} lead onClick={() => onOpen(1)} />}
+        {recents.map(r => r.meta && (
+          <RecentCard
+            key={r.surah}
+            meta={r.meta}
+            ayah={r.ayah}
+            onClick={() => onOpen(r.surah, r.ayah)}
+          />
+        ))}
       </div>
     </section>
   );
 }
 
-function RecentCard({ meta, ayah, lead = false, onClick }: {
+function RecentCard({ meta, ayah, onClick }: {
   meta: SurahMeta;
-  /** Аят, на котором остановились; нет — карточка «начать». */
-  ayah?: number;
-  lead?: boolean;
+  ayah: number;
   onClick: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
   const prefetch = usePressPrefetch(meta.number);
-  const pct = ayah ? Math.min(100, Math.round((ayah / meta.ayahs) * 100)) : 0;
+  const pct = Math.min(100, Math.round((ayah / meta.ayahs) * 100));
   return (
     <button
       onClick={onClick}
@@ -555,57 +429,24 @@ function RecentCard({ meta, ayah, lead = false, onClick }: {
       onPointerUp={() => { setPressed(false); prefetch.commit(); }}
       onPointerLeave={() => { setPressed(false); prefetch.cancel(); }}
       onPointerCancel={() => { setPressed(false); prefetch.cancel(); }}
-      aria-label={ayah
-        ? `Продолжить: ${meta.transliteration}, аят ${ayah} из ${meta.ayahs}`
-        : `Начать чтение: ${meta.transliteration}`}
+      aria-label={`Продолжить: ${meta.transliteration}, аят ${ayah} из ${meta.ayahs}`}
       style={{
-        flex: '0 0 min(264px, 74vw)',
+        flex: '0 0 min(200px, 56vw)',
         scrollSnapAlign: 'start',
-        display: 'flex', flexDirection: 'column',
-        minHeight: '148px',
-        padding: 'var(--space-margin)',
+        display: 'flex', flexDirection: 'column', gap: '2px',
+        padding: 'var(--space-cozy) var(--space-margin)',
         textAlign: 'left',
-        borderRadius: '22px',
+        borderRadius: '18px',
         border: '1px solid var(--hairline)',
-        background: 'var(--surface)',
-        boxShadow: '0 10px 28px -14px rgb(0 0 0 / 0.22), 0 2px 6px -2px rgb(0 0 0 / 0.06)',
+        background: 'transparent',
         cursor: 'pointer',
         fontFamily: 'inherit', color: 'inherit',
         WebkitTapHighlightColor: 'transparent',
-        transform: pressed ? 'scale(0.97)' : 'scale(1)',
-        transition: 'transform var(--dur-base) var(--ease-panel)',
+        opacity: pressed ? 0.6 : 1,
+        transition: 'opacity var(--dur-fast) var(--ease-standard)',
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-snug)' }}>
-        <span style={{
-          flex: 1, minWidth: 0,
-          fontSize: 'var(--font-caption2)',
-          lineHeight: 'var(--leading-caption2)',
-          fontWeight: 'var(--weight-semibold)',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: lead ? 'var(--brand)' : 'var(--text-tertiary)',
-        }}>
-          {ayah ? (lead ? 'Продолжить' : `Сура ${meta.number}`) : `Сура ${meta.number}`}
-        </span>
-        <span
-          dir="rtl"
-          lang="ar"
-          style={{
-            flexShrink: 0,
-            fontFamily: "'KFGQPC Uthmanic Hafs v22', serif",
-            fontSize: '24px',
-            lineHeight: 1.2,
-            color: 'var(--text-secondary)',
-          }}
-        >
-          {meta.arabic}
-        </span>
-      </span>
-
       <span style={{
-        marginTop: 'auto',
-        paddingTop: 'var(--space-cozy)',
         fontSize: 'var(--font-headline)',
         lineHeight: 'var(--leading-headline)',
         fontWeight: 'var(--weight-semibold)',
@@ -620,16 +461,13 @@ function RecentCard({ meta, ayah, lead = false, onClick }: {
         lineHeight: 'var(--leading-footnote)',
         color: 'var(--text-tertiary)',
         fontVariantNumeric: 'tabular-nums',
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
-        {ayah
-          ? `Аят ${ayah} из ${meta.ayahs}`
-          : `${meta.russian}\u00A0· ${meta.ayahs}\u00A0${ayahWord(meta.ayahs)}`}
+        Аят {ayah} из {meta.ayahs}
       </span>
       <span aria-hidden style={{
         display: 'block',
         marginTop: 'var(--space-snug)',
-        height: '4px',
+        height: '3px',
         borderRadius: 'var(--radius-pill)',
         background: 'rgb(var(--ink-rgb) / 0.08)',
         overflow: 'hidden',

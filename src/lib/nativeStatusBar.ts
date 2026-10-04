@@ -13,6 +13,7 @@
  * Capacitor.StatusBar — единственное API: web-fallback пустой.
  */
 import { themeMode, type Theme } from '../hooks/useTheme';
+import { syncWebViewBackground } from './themeBackground';
 
 let initialized = false;
 /** Последняя запрошенная тема — применяется после снятия заставки. */
@@ -41,6 +42,9 @@ async function loadStatusBar() {
 export async function syncStatusBarToTheme(theme: Theme) {
   pendingTheme = theme;
   if (launchHold) return;
+  // Фон веб-вью — тем же моментом, что статус-бар: после заставки и на
+  // смену темы (lib/themeBackground.ts).
+  syncWebViewBackground();
   const mod = await loadStatusBar();
   if (!mod) return;
   const { StatusBar, Style } = mod;

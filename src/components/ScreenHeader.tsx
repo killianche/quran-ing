@@ -331,7 +331,7 @@ const COMPACT_LENGTH = 36;
 
 /**
  * CollapsingNavBar — строка навигационной панели над экраном с крупным
- * заголовком или обложкой.
+ * заголовком.
  *
  * Сверху — стеклянный «назад» и группы действий; компактный заголовок по
  * центру проявляется, когда крупный ушёл под панель; растворение под
@@ -345,7 +345,7 @@ const COMPACT_LENGTH = 36;
  * стоят на одном месте на всех экранах приложения.
  */
 export function CollapsingNavBar({
-  title, onBack, actionGroups = [], collapseStart, headerRef, active = true,
+  title, onBack, actionGroups = [], headerRef, active = true,
 }: {
   /** false — экран припаркован (не виден): замер границы откладывается до
    *  возвращения, иначе он считался бы по нулевой геометрии. */
@@ -354,10 +354,6 @@ export function CollapsingNavBar({
   onBack?: () => void;
   /** Группы действий справа: каждая — своя стеклянная капсула. */
   actionGroups?: HeaderAction[][];
-  /** С какой прокрутки (px) начинать сворачивание; получает нижнюю кромку
-   *  самой панели в координатах окна. По умолчанию 24 — как у крупного
-   *  заголовка; экрану с обложкой — низ обложки минус кромка панели. */
-  collapseStart?: (barBottom: number) => number;
   /** Ref на саму панель — экрану, которому нужна её кромка (поднять поле
    *  поиска к панели, начать под ней дорожку быстрой прокрутки). Своя
    *  ссылка надёжнее поиска `header.screen-header` по документу: копия
@@ -367,16 +363,10 @@ export function CollapsingNavBar({
   const compactRef = useRef<HTMLDivElement>(null);
   const edgeRef = useRef<HTMLDivElement>(null);
   const ownRef = useRef<HTMLElement | null>(null);
-  const live = useRef({ collapseStart });
-  live.current = { collapseStart };
-
   useEffect(() => {
     if (!active) return;
-    const measure = () => {
-      const bar = ownRef.current?.getBoundingClientRect().bottom ?? 0;
-      return live.current.collapseStart?.(bar) ?? COMPACT_FROM;
-    };
-    let start = measure();
+    // Порог постоянный: крупный заголовок всегда в начале экрана.
+    const start = COMPACT_FROM;
     const apply = () => {
       const y = window.scrollY;
       const compact = Math.min(1, Math.max(0, (y - start) / COMPACT_LENGTH));
@@ -384,19 +374,9 @@ export function CollapsingNavBar({
       if (compactRef.current) compactRef.current.style.opacity = String(compact);
       if (edgeRef.current) edgeRef.current.style.opacity = String(edge);
     };
-    // Граница сворачивания зависит от раскладки (высота обложки) — её
-    // пересчитываем при смене размера окна, а не на каждой прокрутке.
-    const remeasure = () => {
-      start = measure();
-      apply();
-    };
     apply();
     window.addEventListener('scroll', apply, { passive: true });
-    window.addEventListener('resize', remeasure);
-    return () => {
-      window.removeEventListener('scroll', apply);
-      window.removeEventListener('resize', remeasure);
-    };
+    return () => window.removeEventListener('scroll', apply);
   }, [active]);
 
   const groups = actionGroups.filter(g => g.length > 0);
@@ -472,19 +452,23 @@ export function CollapsingNavBar({
  * прокрутке он уходит вверх, а в строке на 24–60 pt проявляется компактный.
  */
 export function LargeTitleHeader({
-  title, onBack, actions = [], bottomGap = 'var(--space-margin)', active = true,
+  title, onBack, actions = [], actionGroups, headerRef, bottomGap = 'var(--space-margin)', active = true,
 }: {
   /** false — экран припаркован: панель не слушает прокрутку. */
   active?: boolean;
   title: string;
   onBack?: () => void;
   actions?: HeaderAction[];
+  /** Несколько стеклянных групп вместо одной (`actions` тогда не нужен). */
+  actionGroups?: HeaderAction[][];
+  /** Ref на панель — см. CollapsingNavBar. */
+  headerRef?: React.MutableRefObject<HTMLElement | null>;
   /** Отступ под крупным заголовком до содержимого экрана. */
   bottomGap?: string;
 }) {
   return (
     <>
-      <CollapsingNavBar title={title} onBack={onBack} actionGroups={[actions]} active={active} />
+      <CollapsingNavBar title={title} onBack={onBack} actionGroups={actionGroups ?? [actions]} active={active} headerRef={headerRef} />
       <h1
         className="display-serif"
         style={{

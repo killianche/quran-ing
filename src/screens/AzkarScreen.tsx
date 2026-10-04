@@ -31,7 +31,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Theme } from '../hooks/useTheme';
-import { Appearance, ICON_SIZE, Sunrise, Sunset } from '../components/icons';
+import { Appearance, ChevronRight, ICON_SIZE, Sunrise, Sunset } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
 import { LargeTitleHeader } from '../components/ScreenHeader';
 import { TAB_BAR_SPACE } from '../components/TabBar';
@@ -84,10 +84,6 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: 
       padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       position: 'relative',
       zIndex: 1,
-      // Колонка на всю высоту: свободное место достаётся карточкам,
-      // и они опускаются к нижней кромке.
-      display: 'flex',
-      flexDirection: 'column',
     }}>
       {themeOpen && (
         <ThemeSettings
@@ -123,26 +119,14 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: 
       )}
 
       {data && visibleCats.length > 0 && (
-        <div style={{
-          flex: 1,
-          display: 'grid',
-          // Строк ровно столько, сколько категорий: две — значит по
-          // половине свободной высоты каждой.
-          gridTemplateRows: `repeat(${visibleCats.length}, minmax(120px, 1fr))`,
-          // Потолок нужен на планшете и в альбомной ориентации: без
-          // него карточка растянулась бы на пол-экрана и превратилась
-          // в баннер.
-          gridAutoRows: 'minmax(120px, 1fr)',
-          gap: 'var(--space-margin)',
-          alignContent: 'end',
-          paddingTop: 'var(--space-snug)',
-        }}>
-          {visibleCats.map(cat => (
-            <CategoryCard
+        <div role="list">
+          {visibleCats.map((cat, i) => (
+            <CategoryRow
               key={cat.id}
               id={cat.id}
               title={cat.title_ru || (cat.id === 'morning' ? 'Утренние азкары' : 'Вечерние азкары')}
               count={data.by_category[cat.id] ?? 0}
+              last={i === visibleCats.length - 1}
               onClick={() => onOpenCategory(cat.id)}
             />
           ))}
@@ -162,160 +146,129 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: 
 }
 
 /**
- * Крупная карточка категории.
+ * Строка категории — как строка суры на главной (владелец 2026-10-04:
+ * «страницу Азкары, их блоки… переделай под наш новый стиль»).
  *
- * Занимает половину свободной высоты — промахнуться невозможно даже на
- * ходу.  Прижата к низу экрана: тянуться пальцем в верхнюю треть
- * телефона неудобно, а пунктов тут всего два.
+ * Прежде были две карточки на полэкрана с градиентом и крупным знаком
+ * времени суток фактурой — их сняли вместе с обложкой главной: «слишком
+ * много всего». Осталось то, что работает: значок утра или вечера в
+ * маленьком круге с тёплым (рассвет) или холодным (закат) тоном — так
+ * категория узнаётся боковым зрением, — название, число азкаров и шеврон.
  *
- * ── Почему карточки цветные ───────────────────────────────────────────
- *
- * Сначала обе были одинаковыми серыми прямоугольниками и читались как
- * строки таблицы: чтобы понять, куда жмёшь, приходилось читать текст.
- * Теперь у утренних тёплый рассветный тон, у вечерних холодный
- * закатный — категория узнаётся боковым зрением, до чтения.
- *
- * Тон задан фиксированными rgb с малой прозрачностью, а не переменными
- * темы: смысл именно в «тепло против холода», и он должен сохраняться
- * на всех пяти темах одинаково.  Прозрачность низкая (0.05–0.12), так
- * что подложка остаётся подложкой и не спорит с текстом ни на белой
- * бумаге, ни на чёрной канве.
- *
- * Крупный знак времени суток в углу — не украшение, а способ заполнить
- * площадь: карточка высотой 300 px с одной строкой текста выглядит
- * пустой, а дорисовывать в неё содержание нечего.  Он обрезается
- * краем и уведён почти в прозрачность, чтобы работать как фактура,
- * а не как вторая иконка.
- *
- * Чего здесь СОЗНАТЕЛЬНО нет: отметки «сейчас читать эти».  Время
- * азкаров привязано к намазу (утренние — после фаджра, вечерние —
- * после асра), а расписания в приложении пока нет.  Подсказка по
- * часам была бы религиозным утверждением наугад.  Вернуться к этому
- * после раздела «Намаз».
+ * Чего здесь СОЗНАТЕЛЬНО нет: отметки «сейчас читать эти». Время азкаров
+ * привязано к намазу (утренние — после фаджра, вечерние — после асра);
+ * подсказка по часам была бы религиозным утверждением наугад.
  */
-function CategoryCard({
-  id, title, count, onClick,
+function CategoryRow({
+  id, title, count, last, onClick,
 }: {
   id: AzkarCategoryId;
   title: string;
   count: number;
+  last: boolean;
   onClick: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
   const release = () => setPressed(false);
   const evening = id === 'evening';
   const Icon = evening ? Sunset : Sunrise;
-
-  // Рассвет — тёплый янтарь, закат — холодный индиго.
+  // Рассвет — тёплый янтарь, закат — холодный индиго; фиксированные rgb,
+  // чтобы смысл «тепло против холода» был одинаков на всех темах.
   const tint = evening ? '86, 108, 190' : '214, 150, 74';
 
   return (
-    <button
-      onClick={onClick}
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={release}
-      onPointerLeave={release}
-      onPointerCancel={release}
-      style={{
-        position: 'relative',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        gap: 'var(--space-margin)',
-        width: '100%',
-        height: '100%',
-        padding: 'var(--space-section)',
-        borderRadius: 'var(--radius-card)',
-        border: `1px solid rgba(${tint}, 0.22)`,
-        background: `
-          radial-gradient(120% 90% at 100% 0%, rgba(${tint}, 0.16) 0%, rgba(${tint}, 0.05) 45%, transparent 78%),
-          var(--surface)
-        `,
-        cursor: 'pointer',
-        textAlign: 'left',
-        fontFamily: 'inherit',
-        color: 'inherit',
-        transform: pressed ? 'scale(0.985)' : 'scale(1)',
-        transition: 'transform 180ms cubic-bezier(0.4,0,0.2,1)',
-        WebkitTapHighlightColor: 'transparent',
-      }}
-    >
-      {/* Знак времени суток фактурой в углу. */}
-      <span
-        aria-hidden
+    <div role="listitem" style={{ position: 'relative' }}>
+      <button
+        onClick={onClick}
+        onPointerDown={() => setPressed(true)}
+        onPointerUp={release}
+        onPointerLeave={release}
+        onPointerCancel={release}
         style={{
-          position: 'absolute',
-          right: '-26px',
-          bottom: '-30px',
-          color: `rgba(${tint}, 0.5)`,
-          opacity: 0.28,
-          pointerEvents: 'none',
-          display: 'inline-flex',
+          display: 'flex', alignItems: 'center', gap: 'var(--space-cozy)',
+          minHeight: '68px',
+          // Поля по бокам — чтобы подсветка нажатия не упиралась в значок и
+          // шеврон; отрицательный отступ возвращает строку к краю колонки.
+          padding: 'var(--space-cozy) var(--space-snug)',
+          margin: '0 calc(var(--space-snug) * -1)',
+          width: 'calc(100% + var(--space-snug) * 2)',
+          border: 'none',
+          borderRadius: 'var(--radius-control)',
+          background: pressed ? 'rgb(var(--ink-rgb) / 0.05)' : 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+          color: 'inherit',
+          transition: 'background var(--dur-fast) var(--ease-standard)',
+          WebkitTapHighlightColor: 'transparent',
         }}
       >
-        <Icon size={168} />
-      </span>
-
-      <span
-        aria-hidden
-        style={{
-          position: 'relative',
-          flexShrink: 0,
-          width: '54px', height: '54px',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 'var(--radius-pill)',
-          background: `rgba(${tint}, 0.16)`,
-          border: `1px solid rgba(${tint}, 0.28)`,
-          color: 'var(--text-primary)',
-        }}
-      >
-        <Icon size={ICON_SIZE.lg} />
-      </span>
-
-      <span style={{ position: 'relative', minWidth: 0 }}>
         <span
-          className="display-serif"
+          aria-hidden
           style={{
-            display: 'block',
-            fontSize: 'clamp(22px, 6vw, 27px)',
-            fontWeight: 'var(--weight-regular)',
-            letterSpacing: '-0.015em',
+            flexShrink: 0,
+            width: '40px', height: '40px',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 'var(--radius-pill)',
+            background: `rgba(${tint}, 0.16)`,
             color: 'var(--text-primary)',
-            lineHeight: 1.15,
           }}
         >
-          {title}
+          <Icon size={ICON_SIZE.md} />
         </span>
-        <span style={{
-          display: 'block', marginTop: 'var(--space-snug)',
-          fontSize: 'var(--font-footnote)',
-          lineHeight: 'var(--leading-footnote)',
-          color: 'var(--text-secondary)',
-          fontVariantNumeric: 'tabular-nums',
-        }}>
-          {count} {azkarWord(count)}
+
+        <span style={{ flex: 1, minWidth: 0, display: 'grid', gap: '2px' }}>
+          <span style={{
+            fontSize: 'var(--font-body)',
+            lineHeight: 'var(--leading-body)',
+            fontWeight: 'var(--weight-semibold)',
+            letterSpacing: 'var(--tracking-tight)',
+            color: 'var(--text-primary)',
+          }}>
+            {title}
+          </span>
+          <span style={{
+            fontSize: 'var(--font-footnote)',
+            lineHeight: 'var(--leading-footnote)',
+            color: 'var(--text-tertiary)',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {count} {azkarWord(count)}
+          </span>
         </span>
-      </span>
-    </button>
+
+        <span aria-hidden style={{ flexShrink: 0, display: 'inline-flex', color: 'var(--text-tertiary)' }}>
+          <ChevronRight size={ICON_SIZE.sm} />
+        </span>
+      </button>
+
+      {/* Волосок начинается под текстом, а не под значком — как в
+          сгруппированных списках iOS и в списке сур. */}
+      {!last && (
+        <span aria-hidden style={{
+          position: 'absolute',
+          left: 'calc(40px + var(--space-cozy))',
+          right: 0, bottom: 0, height: '1px',
+          background: 'var(--hairline)',
+        }} />
+      )}
+    </div>
   );
 }
 
-/** Заглушка на время загрузки azkar.json.  Повторяет и геометрию, и
- *  положение карточек, чтобы при появлении данных ничего не прыгнуло. */
+/** Заглушка на время загрузки azkar.json — две строки той же высоты,
+ *  чтобы при появлении данных ничего не прыгнуло. */
 function CategorySkeleton() {
   return (
-    <div style={{
-      flex: 1,
-      display: 'grid',
-      gridTemplateRows: 'repeat(2, minmax(120px, 1fr))',
-      gap: 'var(--space-margin)',
-      alignContent: 'end',
-      paddingTop: 'var(--space-snug)',
-    }}>
+    <div aria-hidden>
       {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="skeleton" style={{ borderRadius: 'var(--radius-card)' }} />
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-cozy)', minHeight: '68px' }}>
+          <div className="skeleton" style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-pill)' }} />
+          <div style={{ flex: 1, display: 'grid', gap: '6px' }}>
+            <div className="skeleton" style={{ height: '16px', width: '55%', borderRadius: '4px' }} />
+            <div className="skeleton" style={{ height: '12px', width: '28%', borderRadius: '4px' }} />
+          </div>
+        </div>
       ))}
     </div>
   );
