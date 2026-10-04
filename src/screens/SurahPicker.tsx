@@ -1,5 +1,22 @@
 /**
- * SurahPicker — главный экран: продолжить чтение, поиск, 114 сур.
+ * SurahPicker — главный экран: обложка, «Продолжить чтение», поиск, 114 сур.
+ *
+ * ── Новая главная (владелец 2026-10-04) ───────────────────────────────
+ *
+ * «Сверху фотография, какая-то обложка фоновая, какая-то последние суры…
+ * поиск… потом снизу идут суры… в современном стиле, как сделали бы в
+ * Apple либо в Airbnb». Порядок блоков — ровно этот:
+ *
+ *   1. Обложка — фото ковров владельца во всю ширину, «Коран» на ней
+ *      (`Cover`); над ней стеклянная панель (`CollapsingNavBar`): при
+ *      прокрутке обложка уходит, и в панели проявляется компактный «Коран».
+ *   2. «Продолжить чтение» — лента карточек недавних сур (`Recents`).
+ *   3. Поиск — капсула; при фокусе поднимается к панели.
+ *   4. «Все суры» — список строками (ниже: почему не карточки).
+ *
+ * Прежняя шапка — заголовок и четыре квадратные кнопки в одной строке — на
+ * узком экране теснила «Коран»; теперь кнопки в стеклянной капсуле панели,
+ * а заголовок на обложке.
  *
  * ── Что изменилось против прежней версии ──────────────────────────────
  *
@@ -37,7 +54,7 @@
  * (--space-hair), чтобы номер суры стоял ровно под словом «Суры».
  */
 
-import { useState, useMemo, useRef, useDeferredValue } from 'react';
+import { useState, useMemo, useRef, useDeferredValue, useLayoutEffect, forwardRef } from 'react';
 import { FastScrubber } from '../components/FastScrubber';
 import { FAST_SCROLL } from '../lib/fastScroll';
 import { SURAHS, SURAH_BY_NUMBER, type SurahMeta } from '../content/surahs';
@@ -52,6 +69,7 @@ import { TAB_BAR_SPACE } from '../components/TabBar';
 import { tabBarTopPx } from '../lib/nativeTabBar';
 import type { Theme } from '../hooks/useTheme';
 import { HitArea } from '../components/HitArea';
+import { CollapsingNavBar, type HeaderAction } from '../components/ScreenHeader';
 
 /**
  * Единственная форма капс-подзаголовка на экране: «Продолжить чтение»
@@ -115,17 +133,62 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
     () => readRecents().map(r => ({ ...r, meta: SURAH_BY_NUMBER[r.surah] })).filter(r => r.meta),
     [],
   );
-  const lastRead = recents[0];
+  const coverRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const actions: HeaderAction[] = [
+    ...(onPrayer ? [{ key: 'prayer', label: 'Намаз', icon: <TabPrayer size={ICON_SIZE.md} />, onClick: onPrayer }] : []),
+    ...(onBookmarks ? [{ key: 'bookmarks', label: 'Закладки', icon: <BookmarkIcon size={ICON_SIZE.md} />, onClick: onBookmarks }] : []),
+    {
+      key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
+      icon: <Appearance size={ICON_SIZE.md} />,
+      onClick: () => setThemeOpen(v => !v),
+    },
+  ];
+  // Аккаунт — отдельным кругом справа, как профиль в системных приложениях:
+  // он о человеке, а не о чтении, и в одной капсуле с намазом и закладками
+  // выглядел бы четвёртым равным действием.
+  const accountGroup: HeaderAction[] = onAccount
+    ? [{ key: 'account', label: 'Аккаунт', icon: <Person size={ICON_SIZE.md} />, onClick: onAccount }]
+    : [];
+
+  const barRef = useRef<HTMLElement | null>(null);
+  /** Нижняя кромка панели в координатах окна. */
+  const barBottom = () => barRef.current?.getBoundingClientRect().bottom ?? 0;
+
+  /** Где компактный «Коран» начинает проявляться: обложка ушла под панель. */
+  const collapseStart = (bar: number) => {
+    const cover = coverRef.current?.getBoundingClientRect();
+    return cover ? cover.bottom + window.scrollY - bar : 24;
+  };
+
+  /**
+   * Поднять поле поиска к панели: клавиатура закроет половину экрана, а
+   * поле стоит под обложкой и «Недавними» — выдача должна быть видна над
+   * клавиатурой, как в системных списках iOS.
+   */
+  const raiseSearch = (smooth: boolean) => {
+    const field = searchRef.current;
+    if (!field) return;
+    const top = field.getBoundingClientRect().top + window.scrollY - barBottom() - 8;
+    if (Math.abs(window.scrollY - top) < 1) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+  };
+
+  /**
+   * Первая буква убирает «Недавние» и список сур — документ укорачивается,
+   * и браузер срезал бы прокрутку до нуля: поле уехало бы обратно под
+   * обложку, под клавиатуру. Поэтому у блока выдачи минимальная высота в
+   * экран (ниже), а здесь поле возвращается к панели сразу, до кадра.
+   */
+  useLayoutEffect(() => {
+    if (searching) raiseSearch(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searching]);
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      maxWidth: 'min(100%, 720px)',
-      margin: '0 auto',
-      padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
-      position: 'relative',
-      zIndex: 1,
-    }}>
+    <div style={{ position: 'relative', zIndex: 1, minHeight: '100dvh' }}>
       {themeOpen && (
         <ThemeSettings
           theme={theme}
@@ -135,188 +198,308 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
         />
       )}
 
-      {/* ── Шапка ─────────────────────────────────────────────────────
-          Заголовок и действия в одной строке.  Прежний огромный
-          вордмарк «Quran» на пол-экрана выглядел как обложка, а не как
-          начало списка, и отжимал сам список ниже сгиба. */}
-      <header style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-snug)',
-        paddingTop: 'calc(env(safe-area-inset-top) + var(--space-margin))',
-        paddingBottom: 'var(--space-margin)',
-      }}>
-        <h1
-          className="display-serif"
-          style={{
-            margin: 0, flex: 1, minWidth: 0,
-            fontSize: 'clamp(30px, 8vw, 40px)',
-            fontWeight: 'var(--weight-regular)',
-            letterSpacing: '-0.03em',
-            color: 'var(--text-primary)',
-            lineHeight: 1.05,
-          }}
-        >
-          Коран
-        </h1>
+      <CollapsingNavBar
+        title="Коран"
+        actionGroups={[actions, accountGroup]}
+        collapseStart={collapseStart}
+        headerRef={barRef}
+      />
 
-        {onPrayer && (
-          <IconAction label="Намаз" onClick={onPrayer}>
-            <TabPrayer size={ICON_SIZE.md} />
-          </IconAction>
-        )}
-        {onBookmarks && (
-          <IconAction label="Закладки" onClick={onBookmarks}>
-            <BookmarkIcon size={ICON_SIZE.md} />
-          </IconAction>
-        )}
-        <IconAction
-          label="Оформление"
-          onClick={() => setThemeOpen(v => !v)}
-          active={themeOpen}
-          btnRef={themeBtnRef}
-        >
-          <Appearance size={ICON_SIZE.md} />
-        </IconAction>
-        {/* Аккаунт переехал сюда из нижнего меню: там он занимал пятую часть
-            самой дорогой полосы экрана, а открывают его редко. */}
-        {onAccount && (
-          <IconAction label="Аккаунт" onClick={onAccount}>
-            <Person size={ICON_SIZE.md} />
-          </IconAction>
-        )}
-      </header>
+      <Cover ref={coverRef} />
 
-      {/* ── Поиск ─────────────────────────────────────────────────────── */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-snug)',
-        height: 'calc(var(--hit-min) + var(--space-tight))',
-        padding: '0 var(--space-cozy)',
-        // Капсула, а не скруглённый прямоугольник: в iOS 26 поле поиска
-        // именно пилюля, той же формы, что и плавающая панель вкладок.
-        borderRadius: 'var(--radius-pill)',
-        background: 'rgb(var(--ink-rgb) / 0.05)',
-        border: '1px solid var(--hairline)',
-        marginBottom: 'var(--space-margin)',
+        maxWidth: 'min(100%, 720px)',
+        margin: '0 auto',
+        padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       }}>
-        <span aria-hidden style={{ color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 }}>
-          <Search size={ICON_SIZE.md} />
-        </span>
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          // Фокус — сигнал, что сейчас будут искать: готовим поисковый
-          // словарь порциями, пока человек набирает первые буквы.
-          onFocus={warmSearchIndex}
-          placeholder="Сура, номер или слово из перевода"
-          aria-label="Поиск"
-          enterKeyHint="search"
+        {!searching && (
+          <Recents
+            recents={recents}
+            onOpen={(surah, ayah) => onSelectSurah(surah, ayah)}
+          />
+        )}
+
+        {/* ── Поиск ─────────────────────────────────────────────────────── */}
+        <div
+          ref={searchRef}
           style={{
-            flex: 1, minWidth: 0,
-            border: 'none', outline: 'none', background: 'transparent',
-            color: 'var(--text-primary)',
-            fontFamily: 'inherit',
-            fontSize: 'var(--font-subhead)',
-            lineHeight: 'var(--leading-subhead)',
-            letterSpacing: 'var(--tracking-loose)',
+            display: 'flex', alignItems: 'center', gap: 'var(--space-snug)',
+            height: 'calc(var(--hit-min) + var(--space-tight))',
+            padding: '0 var(--space-cozy)',
+            // Капсула, а не скруглённый прямоугольник: в iOS 26 поле поиска
+            // именно пилюля, той же формы, что и плавающие панели.
+            borderRadius: 'var(--radius-pill)',
+            background: 'rgb(var(--ink-rgb) / 0.06)',
+            marginTop: searching ? 'var(--space-section)' : 0,
+            marginBottom: 'var(--space-margin)',
           }}
-        />
-        {query && (
-          <button
-            onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-            aria-label="Очистить"
-            className="icon-btn"
+        >
+          <span aria-hidden style={{ color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 }}>
+            <Search size={ICON_SIZE.md} />
+          </span>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            // Фокус — сигнал, что сейчас будут искать: готовим поисковый
+            // словарь порциями, пока человек набирает первые буквы.
+            onFocus={() => { warmSearchIndex(); raiseSearch(true); }}
+            placeholder="Сура, номер или слово из перевода"
+            aria-label="Поиск"
+            enterKeyHint="search"
             style={{
-              position: 'relative',
-              width: '30px', height: '30px', flexShrink: 0,
-              color: 'var(--text-tertiary)',
+              flex: 1, minWidth: 0,
+              border: 'none', outline: 'none', background: 'transparent',
+              color: 'var(--text-primary)',
+              fontFamily: 'inherit',
+              // 17 px: Body — и заодно меньше 16 iOS увеличила бы страницу
+              // при фокусе.
+              fontSize: 'var(--font-body)',
+              lineHeight: 'var(--leading-body)',
+              letterSpacing: 'var(--tracking-tight)',
             }}
-          >
-            <Close size={ICON_SIZE.sm} />
-            <HitArea />
-          </button>
-        )}
-      </div>
+          />
+          {query && (
+            <button
+              onClick={() => { setQuery(''); inputRef.current?.focus(); }}
+              aria-label="Очистить"
+              className="icon-btn"
+              style={{
+                position: 'relative',
+                width: '30px', height: '30px', flexShrink: 0,
+                color: 'var(--text-tertiary)',
+              }}
+            >
+              <Close size={ICON_SIZE.sm} />
+              <HitArea />
+            </button>
+          )}
+        </div>
 
-      {searching
-        ? <SearchResults results={results} onOpen={onSelectSurah} />
-        : (
-          <>
-            {lastRead && (
-              <ContinueCard
-                title={lastRead.meta!.transliteration}
-                ayah={lastRead.ayah}
-                total={lastRead.meta!.ayahs}
-                onClick={() => onSelectSurah(lastRead.surah, lastRead.ayah)}
+        {searching
+          ? (
+            // Высота в экран: короткая выдача не должна укорачивать документ
+            // так, что поле съедет вниз (см. эффект подъёма поиска выше).
+            <div style={{ minHeight: 'calc(100dvh - env(safe-area-inset-top) - 140px)' }}>
+              <SearchResults results={results} onOpen={onSelectSurah} />
+            </div>
+          )
+          : (
+            <>
+              <SectionTitle>Все суры</SectionTitle>
+              <SurahList surahs={SURAHS} onSelect={onSelectSurah} />
+              {/* Быстрая прокрутка: удержание на номере суры и протяжка
+                  вверх-вниз. Только при полном списке — в результатах поиска номера
+                  идут вразбивку, и прокрутка по ним была бы бессмыслицей. */}
+              <FastScrubber
+                enabled={FAST_SCROLL.surahList}
+                count={SURAHS.length}
+                // Колонка номеров начинается с поля экрана (16 px) и занимает 26.
+                left={10}
+                width={44}
+                // От нижней кромки закреплённой панели: строка под стеклом
+                // не должна запускать прокрутку.
+                topInset={() => barBottom() + 8}
+                // Функция: высота системной панели iOS 26 известна только
+                // по факту, её меряют в момент жеста.
+                bottomInset={() => tabBarTopPx() + 24}
+                startAt={сураПодПальцем}
+                onScrub={кСуре}
+                // Только со строки суры. Полоса по координатам ловила и мини-плеер
+                // над панелью вкладок, и шапку, и заголовки джузов (ревью 10.09.2026);
+                // владелец просил именно «удержание на номере».
+                canStart={t => !!t?.closest('[data-surah]')}
+                label={n => ({ big: String(n), small: SURAH_BY_NUMBER[n]?.transliteration })}
               />
-            )}
-
-            <SurahList surahs={SURAHS} onSelect={onSelectSurah} />
-            {/* Быстрая прокрутка: удержание на номере суры и протяжка
-                вверх-вниз. Только при полном списке — в результатах поиска номера
-                идут вразбивку, и прокрутка по ним была бы бессмыслицей. */}
-            <FastScrubber
-              enabled={FAST_SCROLL.surahList}
-              count={SURAHS.length}
-              // Колонка номеров начинается с поля экрана (16 px) и занимает 26.
-              left={10}
-              width={44}
-              topInset={72}
-              // Функция: высота системной панели iOS 26 известна только
-              // по факту, её меряют в момент жеста.
-              bottomInset={() => tabBarTopPx() + 24}
-              startAt={сураПодПальцем}
-              onScrub={кСуре}
-              // Только со строки суры. Полоса по координатам ловила и мини-плеер
-              // над панелью вкладок, и шапку, и заголовки джузов (ревью 10.09.2026);
-              // владелец просил именно «удержание на номере».
-              canStart={t => !!t?.closest('[data-surah]')}
-              label={n => ({ big: String(n), small: SURAH_BY_NUMBER[n]?.transliteration })}
-            />
-          </>
-        )}
+            </>
+          )}
+      </div>
     </div>
   );
 }
 
-// ─── Действие в шапке ────────────────────────────────────────────────────
+// ─── Обложка ──────────────────────────────────────────────────────────────
 
-function IconAction({ label, onClick, children, active, btnRef }: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-  active?: boolean;
-  btnRef?: React.Ref<HTMLButtonElement>;
-}) {
+/**
+ * Обложка главной — фотография ковров владельца (решение 2026-10-04:
+ * «сверху была фотография, какая-то обложка фоновая»). Тот же источник, что
+ * у иконки и заставки (scripts/brand/design-logo.py → public/brand/cover.webp):
+ * приложение открывается медальоном ковра и продолжается его полем.
+ *
+ * Во всю ширину и под строку состояния — как обложки в «Музыке» и
+ * Airbnb. Часы читаются за счёт штатной «крышки» (StatusBarScrim): мягкая
+ * полоса цвета фона под системной строкой. Светлый статус-бар над фото
+ * здесь НЕ включается: стиль статус-бара заодно задаёт оформление
+ * системной панели вкладок (MainViewController), и на светлой теме она
+ * стала бы тёмной.
+ *
+ * Нижние углы скруглены — обложка лежит над списком отдельным листом.
+ * Затемнение снизу держит контраст подписи на пёстром узоре; цвет подписи —
+ * кремовый с заставки, а не цвет темы: фон под ней всегда тёмно-красный.
+ * Пока фото не декодировано — поле ковра #440505, без белой вспышки.
+ */
+const Cover = forwardRef<HTMLDivElement>(function Cover(_props, ref) {
+  const [loaded, setLoaded] = useState(false);
   return (
-    <button
-      ref={btnRef}
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="icon-btn"
-      data-active={active}
+    <div
+      ref={ref}
       style={{
-        width: '42px', height: '42px', flexShrink: 0,
-        borderRadius: 'var(--radius-control)',
-        border: '1px solid var(--hairline)',
-        background: 'rgb(var(--ink-rgb) / 0.04)',
-        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        position: 'relative',
+        height: 'calc(env(safe-area-inset-top) + 236px)',
+        overflow: 'hidden',
+        borderRadius: '0 0 32px 32px',
+        background: '#440505',
+        marginBottom: 'var(--space-section)',
       }}
     >
+      <img
+        src="/brand/cover.webp"
+        alt=""
+        aria-hidden
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        ref={img => { if (img?.complete && img.naturalWidth > 0 && !loaded) setLoaded(true); }}
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center 30%',
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity var(--dur-slow) var(--ease-standard)',
+        }}
+      />
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0,
+        // Тёмная часть начинается с середины: подпись «Quran Ing» над
+        // светлыми нитями узора иначе проваливалась до ~2.5:1 (ревью).
+        background: 'linear-gradient(180deg, rgba(26, 3, 3, 0.18) 0%, rgba(26, 3, 3, 0.06) 30%, rgba(26, 3, 3, 0.5) 55%, rgba(26, 3, 3, 0.78) 100%)',
+      }} />
+      <div style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0,
+        maxWidth: 'min(100%, 720px)',
+        margin: '0 auto',
+        padding: '0 var(--space-margin) var(--space-margin)',
+        color: '#f6e7d0',
+      }}>
+        <div style={{
+          fontSize: 'var(--font-caption1)',
+          lineHeight: 'var(--leading-caption1)',
+          fontWeight: 'var(--weight-semibold)',
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          textShadow: '0 1px 10px rgba(20, 0, 0, 0.7)',
+        }}>
+          Quran Ing
+        </div>
+        <h1
+          className="display-serif"
+          style={{
+            margin: '2px 0 0',
+            fontSize: 'clamp(38px, 11vw, 48px)',
+            fontWeight: 'var(--weight-regular)',
+            letterSpacing: '-0.03em',
+            lineHeight: 1.02,
+            color: '#fff7ec',
+            textShadow: '0 2px 18px rgba(20, 0, 0, 0.45)',
+          }}
+        >
+          Коран
+        </h1>
+        <div style={{
+          marginTop: 'var(--space-tight)',
+          fontSize: 'var(--font-subhead)',
+          lineHeight: 'var(--leading-subhead)',
+          opacity: 0.92,
+          textShadow: '0 1px 10px rgba(20, 0, 0, 0.6)',
+        }}>
+          Ингушский и русский переводы
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ─── Заголовок секции ─────────────────────────────────────────────────────
+
+/** Заголовок секции главной — как «Недавние» в «Музыке»: Title 3, полужирный. */
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 style={{
+      margin: '0 0 var(--space-snug)',
+      padding: '0 var(--space-hair)',
+      fontSize: 'var(--font-title3)',
+      lineHeight: 'var(--leading-title3)',
+      fontWeight: 'var(--weight-semibold)',
+      letterSpacing: 'var(--tracking-tight)',
+      color: 'var(--text-primary)',
+    }}>
       {children}
-    </button>
+    </h2>
   );
 }
 
-// ─── Продолжить чтение ───────────────────────────────────────────────────
+// ─── Недавние ─────────────────────────────────────────────────────────────
 
-function ContinueCard({ title, ayah, total, onClick }: {
-  title: string; ayah: number; total: number; onClick: () => void;
+type RecentWithMeta = { surah: number; ayah: number; meta?: SurahMeta };
+
+/**
+ * «Продолжить чтение» — лента карточек недавних сур (до четырёх, свежая
+ * первой), листается вбок с прилипанием, как полки в App Store и Airbnb.
+ *
+ * Первая карточка помечена «Продолжить» фирменным цветом — это главное
+ * действие экрана. Прогресс — полоса того же цвета.
+ *
+ * Пусто (первый запуск) — одна карточка «Начать с Аль-Фатихи»: пустая
+ * секция ничего не объясняла бы, а с этого чтение и начинают.
+ */
+function Recents({ recents, onOpen }: {
+  recents: RecentWithMeta[];
+  onOpen: (surah: number, ayah?: number) => void;
+}) {
+  const fatiha = SURAH_BY_NUMBER[1];
+  return (
+    <section style={{ marginBottom: 'var(--space-section)' }}>
+      <SectionTitle>{recents.length > 0 ? 'Продолжить чтение' : 'Начать чтение'}</SectionTitle>
+      <div
+        className="no-scrollbar"
+        style={{
+          display: 'flex',
+          gap: 'var(--space-cozy)',
+          overflowX: 'auto',
+          scrollSnapType: 'x mandatory',
+          // Карточки выходят к краям экрана, а прилипают к полю: лента
+          // читается как продолжающаяся за край.
+          margin: '0 calc(var(--space-margin) * -1)',
+          padding: '4px var(--space-margin) 14px',
+          scrollPaddingInline: 'var(--space-margin)',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {recents.length > 0
+          ? recents.map((r, i) => r.meta && (
+            <RecentCard
+              key={r.surah}
+              meta={r.meta}
+              ayah={r.ayah}
+              lead={i === 0}
+              onClick={() => onOpen(r.surah, r.ayah)}
+            />
+          ))
+          : fatiha && <RecentCard meta={fatiha} lead onClick={() => onOpen(1)} />}
+      </div>
+    </section>
+  );
+}
+
+function RecentCard({ meta, ayah, lead = false, onClick }: {
+  meta: SurahMeta;
+  /** Аят, на котором остановились; нет — карточка «начать». */
+  ayah?: number;
+  lead?: boolean;
+  onClick: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
-  const pct = Math.min(100, Math.round((ayah / total) * 100));
+  const pct = ayah ? Math.min(100, Math.round((ayah / meta.ayahs) * 100)) : 0;
   return (
     <button
       onClick={onClick}
@@ -324,54 +507,92 @@ function ContinueCard({ title, ayah, total, onClick }: {
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       onPointerCancel={() => setPressed(false)}
+      aria-label={ayah
+        ? `Продолжить: ${meta.transliteration}, аят ${ayah} из ${meta.ayahs}`
+        : `Начать чтение: ${meta.transliteration}`}
       style={{
-        display: 'block', width: '100%', textAlign: 'left',
-        padding: 'var(--space-margin) var(--space-margin) var(--space-cozy)',
-        marginBottom: 'var(--space-section)',
-        borderRadius: 'var(--radius-card)',
+        flex: '0 0 min(264px, 74vw)',
+        scrollSnapAlign: 'start',
+        display: 'flex', flexDirection: 'column',
+        minHeight: '148px',
+        padding: 'var(--space-margin)',
+        textAlign: 'left',
+        borderRadius: '22px',
         border: '1px solid var(--hairline)',
         background: 'var(--surface)',
+        boxShadow: '0 10px 28px -14px rgb(0 0 0 / 0.22), 0 2px 6px -2px rgb(0 0 0 / 0.06)',
         cursor: 'pointer',
         fontFamily: 'inherit', color: 'inherit',
-        transform: pressed ? 'scale(0.99)' : 'scale(1)',
-        transition: 'transform var(--dur-base) var(--ease-standard)',
+        WebkitTapHighlightColor: 'transparent',
+        transform: pressed ? 'scale(0.97)' : 'scale(1)',
+        transition: 'transform var(--dur-base) var(--ease-panel)',
       }}
     >
-      <div style={{ ...CAP_LABEL, color: 'var(--text-tertiary)' }}>
-        Продолжить чтение
-      </div>
-      <div
-        className="display-serif"
-        style={{
-          marginTop: 'var(--space-snug)',
-          fontSize: 'var(--font-title2)',
-          lineHeight: 'var(--leading-title2)',
-          fontWeight: 'var(--weight-regular)',
-          letterSpacing: 'var(--tracking-tight)',
-          color: 'var(--text-primary)',
-        }}
-      >
-        {title}
-      </div>
-      <div style={{
-        marginTop: 'var(--space-tight)',
-        fontSize: 'var(--font-caption1)',
-        lineHeight: 'var(--leading-caption1)',
-        color: 'var(--text-secondary)',
+      <span style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-snug)' }}>
+        <span style={{
+          flex: 1, minWidth: 0,
+          fontSize: 'var(--font-caption2)',
+          lineHeight: 'var(--leading-caption2)',
+          fontWeight: 'var(--weight-semibold)',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: lead ? 'var(--brand)' : 'var(--text-tertiary)',
+        }}>
+          {ayah ? (lead ? 'Продолжить' : `Сура ${meta.number}`) : `Сура ${meta.number}`}
+        </span>
+        <span
+          dir="rtl"
+          lang="ar"
+          style={{
+            flexShrink: 0,
+            fontFamily: "'KFGQPC Uthmanic Hafs v22', serif",
+            fontSize: '24px',
+            lineHeight: 1.2,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {meta.arabic}
+        </span>
+      </span>
+
+      <span style={{
+        marginTop: 'auto',
+        paddingTop: 'var(--space-cozy)',
+        fontSize: 'var(--font-headline)',
+        lineHeight: 'var(--leading-headline)',
+        fontWeight: 'var(--weight-semibold)',
+        letterSpacing: 'var(--tracking-tight)',
+        color: 'var(--text-primary)',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        {meta.transliteration}
+      </span>
+      <span style={{
+        fontSize: 'var(--font-footnote)',
+        lineHeight: 'var(--leading-footnote)',
+        color: 'var(--text-tertiary)',
         fontVariantNumeric: 'tabular-nums',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
-        Аят {ayah} из {total}
-      </div>
-      <div style={{
-        marginTop: 'var(--space-cozy)', height: '3px',
+        {ayah
+          ? `Аят ${ayah} из ${meta.ayahs}`
+          : `${meta.russian}\u00A0· ${meta.ayahs}\u00A0${ayahWord(meta.ayahs)}`}
+      </span>
+      <span aria-hidden style={{
+        display: 'block',
+        marginTop: 'var(--space-snug)',
+        height: '4px',
         borderRadius: 'var(--radius-pill)',
-        background: 'var(--hairline)', overflow: 'hidden',
+        background: 'rgb(var(--ink-rgb) / 0.08)',
+        overflow: 'hidden',
       }}>
-        <div style={{
+        <span style={{
+          display: 'block',
           height: '100%', width: `${pct}%`,
-          background: 'var(--text-primary)', opacity: 0.55,
+          borderRadius: 'inherit',
+          background: 'var(--brand)',
         }} />
-      </div>
+      </span>
     </button>
   );
 }

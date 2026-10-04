@@ -1352,6 +1352,11 @@ body {
 [data-reading-sheet] { scrollbar-width: none; }
 [data-reading-sheet]::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
+/* Ленты, которые листают пальцем вбок (недавние суры на главной): полоса
+   прокрутки там лишняя — край карточки за экраном и так говорит «дальше». */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
 /* Hide scrollbars on the azkar swipe carousel (both axes) and on every
    inner card's vertical scroll — visible scrollbars would draw a line
    on every card edge and break the clean "one screen, one azkar" feel.

@@ -20,6 +20,10 @@ design-logo — фирменный знак Quran Ing из фотографии 
   public/brand/medallion.webp — он же для анимации появления в приложении
                           (src/lib/launchReveal.ts, блок #launch в index.html): тот же кадр, что
                           и системная заставка, чтобы переход был без шва.
+  public/brand/cover.webp — обложка главной экрана (владелец 2026-10-04:
+                          «сверху фотография, какая-то обложка фоновая»):
+                          верх фотографии — два ковра с медальонами и узкий
+                          между ними.
   brand.json            — цвет поля вокруг медальона (фон заставки и
                           адаптивной иконки) и доля экрана под медальон.
 
@@ -104,6 +108,22 @@ def build_medallion(source: Image.Image, out_px: int = MEDALLION_PX) -> Image.Im
     return crop
 
 
+# Кадр обложки в точках исходника: верхние ковры целиком по ширине. Высота
+# 600 — до верхней каймы большого центрального ковра (y ≈ 460 — его рамка,
+# дальше она легла бы полосой по низу обложки, под затемнением).
+COVER_BOX = (0, 0, 720, 600)
+# Ширина на выходе: обложка во всю ширину телефона (390 pt × 3). Исходник
+# уже — увеличение ~1.6× с той же резкостью, что у иконки; на iPad
+# обложка шире и мягче, но она под затемнением и текстом.
+COVER_WIDTH = 1170
+
+
+def build_cover(source: Image.Image) -> Image.Image:
+    crop = source.crop(COVER_BOX)
+    height = round(COVER_WIDTH * crop.height / crop.width)
+    return sharpen(crop.resize((COVER_WIDTH, height), Image.Resampling.LANCZOS))
+
+
 def main() -> None:
     source = Image.open(SOURCE).convert("RGB")
     build_icon(source).save(ROOT / "logo.png", "PNG", optimize=True)
@@ -111,13 +131,14 @@ def main() -> None:
     medallion.save(ROOT / "logo-wordmark.png", "PNG", optimize=True)
     (ROOT / "public/brand").mkdir(parents=True, exist_ok=True)
     medallion.save(ROOT / "public/brand/medallion.webp", "WEBP", quality=88, method=6)
+    build_cover(source).save(ROOT / "public/brand/cover.webp", "WEBP", quality=72, method=6)
     (ROOT / "brand.json").write_text(json.dumps({
         "variant": "carpet",
         "background": FIELD_COLOR,
         "opticalLift": 0,
         "splashScale": SPLASH_SCALE,
     }, indent=2) + "\n", encoding="utf-8")
-    print("✓ logo.png, logo-wordmark.png, public/brand/medallion.webp, brand.json")
+    print("✓ logo.png, logo-wordmark.png, public/brand/medallion.webp, public/brand/cover.webp, brand.json")
 
 
 if __name__ == "__main__":

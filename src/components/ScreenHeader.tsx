@@ -327,22 +327,145 @@ function HeaderEdge({ edgeRef, initialOpacity = 1 }: {
 
 /** Прокрутка, на которой компактный заголовок проявляется (xtrud: 24–60 pt). */
 const COMPACT_FROM = 24;
-const COMPACT_TO = 60;
+const COMPACT_LENGTH = 36;
 
 /**
- * LargeTitleHeader — шапка экрана с крупным заголовком (Large Title iOS).
+ * CollapsingNavBar — строка навигационной панели над экраном с крупным
+ * заголовком или обложкой.
  *
- * Как в xtrud и в «Настройках» iOS 26: сверху строка панели (стеклянный
- * «назад», капсула действий), под ней в потоке страницы — крупный заголовок.
- * При прокрутке он уходит вверх, а в строке на 24–60 pt проявляется
- * компактный; растворение под строкой включается, только когда под неё
- * заехал контент (на самом верху панель чистая, как в системе).
+ * Сверху — стеклянный «назад» и группы действий; компактный заголовок по
+ * центру проявляется, когда крупный ушёл под панель; растворение под
+ * строкой включается, только когда под неё заехал контент (на самом верху
+ * панель чистая, как в системе).
  *
  * Прокрутка пишется прямо в style через ref — без setState, чтобы экран не
  * перерисовывался на каждом кадре прокрутки.
  *
  * Геометрия строки — та же, что у `ScreenHeader`: кнопки «назад» и действий
  * стоят на одном месте на всех экранах приложения.
+ */
+export function CollapsingNavBar({
+  title, onBack, actionGroups = [], collapseStart, headerRef,
+}: {
+  title: string;
+  onBack?: () => void;
+  /** Группы действий справа: каждая — своя стеклянная капсула. */
+  actionGroups?: HeaderAction[][];
+  /** С какой прокрутки (px) начинать сворачивание; получает нижнюю кромку
+   *  самой панели в координатах окна. По умолчанию 24 — как у крупного
+   *  заголовка; экрану с обложкой — низ обложки минус кромка панели. */
+  collapseStart?: (barBottom: number) => number;
+  /** Ref на саму панель — экрану, которому нужна её кромка (поднять поле
+   *  поиска к панели, начать под ней дорожку быстрой прокрутки). Своя
+   *  ссылка надёжнее поиска `header.screen-header` по документу: копия
+   *  шапки в предпросмотре жеста или вторая панель сбили бы замер. */
+  headerRef?: React.MutableRefObject<HTMLElement | null>;
+}) {
+  const compactRef = useRef<HTMLDivElement>(null);
+  const edgeRef = useRef<HTMLDivElement>(null);
+  const ownRef = useRef<HTMLElement | null>(null);
+  const live = useRef({ collapseStart });
+  live.current = { collapseStart };
+
+  useEffect(() => {
+    const measure = () => {
+      const bar = ownRef.current?.getBoundingClientRect().bottom ?? 0;
+      return live.current.collapseStart?.(bar) ?? COMPACT_FROM;
+    };
+    let start = measure();
+    const apply = () => {
+      const y = window.scrollY;
+      const compact = Math.min(1, Math.max(0, (y - start) / COMPACT_LENGTH));
+      const edge = Math.min(1, Math.max(0, (y - start + COMPACT_FROM) / COMPACT_FROM));
+      if (compactRef.current) compactRef.current.style.opacity = String(compact);
+      if (edgeRef.current) edgeRef.current.style.opacity = String(edge);
+    };
+    // Граница сворачивания зависит от раскладки (высота обложки) — её
+    // пересчитываем при смене размера окна, а не на каждой прокрутке.
+    const remeasure = () => {
+      start = measure();
+      apply();
+    };
+    apply();
+    window.addEventListener('scroll', apply, { passive: true });
+    window.addEventListener('resize', remeasure);
+    return () => {
+      window.removeEventListener('scroll', apply);
+      window.removeEventListener('resize', remeasure);
+    };
+  }, []);
+
+  const groups = actionGroups.filter(g => g.length > 0);
+
+  return (
+    <header
+      ref={el => {
+        ownRef.current = el;
+        if (headerRef) headerRef.current = el;
+      }}
+      role="banner"
+      className="screen-header"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 30,
+        height: `calc(env(safe-area-inset-top) + ${CAPSULE_TOP + SCREEN_HEADER_HEIGHT}px)`,
+        boxSizing: 'border-box',
+        paddingTop: `calc(env(safe-area-inset-top) + ${CAPSULE_TOP}px)`,
+        pointerEvents: 'none',
+      }}
+    >
+      <HeaderEdge edgeRef={edgeRef} initialOpacity={0} />
+      <div style={{
+        position: 'relative',
+        height: `${SCREEN_HEADER_HEIGHT}px`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-tight)',
+        padding: `0 ${CAPSULE_SIDE}px`,
+        maxWidth: '1200px',
+        margin: '0 auto',
+      }}>
+        {onBack ? <HeaderBackButton onBack={onBack} /> : <span style={{ width: '48px', flexShrink: 0 }} aria-hidden />}
+        {/* Компактный заголовок — по центру строки, как в системной
+            навигационной панели; проявляется по прокрутке. */}
+        <div
+          ref={compactRef}
+          aria-hidden
+          className="display-serif"
+          style={{
+            flex: 1, minWidth: 0,
+            textAlign: 'center',
+            opacity: 0,
+            fontSize: 'var(--font-headline)',
+            lineHeight: 'var(--leading-headline)',
+            fontWeight: 'var(--weight-semibold)',
+            color: 'var(--text-primary)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}
+        >
+          {title}
+        </div>
+        {groups.length > 0
+          ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-tight)', flexShrink: 0 }}>
+              {groups.map(g => <HeaderActionGroup key={g.map(a => a.key).join('+')} actions={g} />)}
+            </div>
+          )
+          : <span style={{ width: '48px', flexShrink: 0 }} aria-hidden />}
+      </div>
+    </header>
+  );
+}
+
+/**
+ * LargeTitleHeader — шапка экрана с крупным заголовком (Large Title iOS).
+ *
+ * Как в xtrud и в «Настройках» iOS 26: сверху строка панели
+ * (`CollapsingNavBar`), под ней в потоке страницы — крупный заголовок. При
+ * прокрутке он уходит вверх, а в строке на 24–60 pt проявляется компактный.
  */
 export function LargeTitleHeader({
   title, onBack, actions = [], bottomGap = 'var(--space-margin)',
@@ -353,76 +476,9 @@ export function LargeTitleHeader({
   /** Отступ под крупным заголовком до содержимого экрана. */
   bottomGap?: string;
 }) {
-  const compactRef = useRef<HTMLDivElement>(null);
-  const edgeRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const apply = () => {
-      const y = window.scrollY;
-      const compact = Math.min(1, Math.max(0, (y - COMPACT_FROM) / (COMPACT_TO - COMPACT_FROM)));
-      const edge = Math.min(1, Math.max(0, y / COMPACT_FROM));
-      if (compactRef.current) compactRef.current.style.opacity = String(compact);
-      if (edgeRef.current) edgeRef.current.style.opacity = String(edge);
-    };
-    apply();
-    window.addEventListener('scroll', apply, { passive: true });
-    return () => window.removeEventListener('scroll', apply);
-  }, []);
-
   return (
     <>
-      <header
-        role="banner"
-        className="screen-header"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 30,
-          height: `calc(env(safe-area-inset-top) + ${CAPSULE_TOP + SCREEN_HEADER_HEIGHT}px)`,
-          boxSizing: 'border-box',
-          paddingTop: `calc(env(safe-area-inset-top) + ${CAPSULE_TOP}px)`,
-          pointerEvents: 'none',
-        }}
-      >
-        <HeaderEdge edgeRef={edgeRef} initialOpacity={0} />
-        <div style={{
-          position: 'relative',
-          height: `${SCREEN_HEADER_HEIGHT}px`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-tight)',
-          padding: `0 ${CAPSULE_SIDE}px`,
-          maxWidth: '1200px',
-          margin: '0 auto',
-        }}>
-          {onBack ? <HeaderBackButton onBack={onBack} /> : <span style={{ width: '48px', flexShrink: 0 }} aria-hidden />}
-          {/* Компактный заголовок — по центру строки, как в системной
-              навигационной панели; проявляется по прокрутке. */}
-          <div
-            ref={compactRef}
-            aria-hidden
-            className="display-serif"
-            style={{
-              flex: 1, minWidth: 0,
-              textAlign: 'center',
-              opacity: 0,
-              fontSize: 'var(--font-headline)',
-              lineHeight: 'var(--leading-headline)',
-              fontWeight: 'var(--weight-semibold)',
-              color: 'var(--text-primary)',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}
-          >
-            {title}
-          </div>
-          {actions.length > 0
-            ? <HeaderActionGroup actions={actions} />
-            : <span style={{ width: '48px', flexShrink: 0 }} aria-hidden />}
-        </div>
-      </header>
-
+      <CollapsingNavBar title={title} onBack={onBack} actionGroups={[actions]} />
       <h1
         className="display-serif"
         style={{
