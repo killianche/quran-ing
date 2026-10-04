@@ -19,7 +19,7 @@ import { TabBar, type TabId } from './components/TabBar';
 import { applyHighlightVars } from './lib/audioPrefs';
 import { applyPaletteToDocument } from './lib/tajweedPalette';
 import { syncStatusBarToTheme } from './lib/nativeStatusBar';
-import { hideSplashAfterFirstPaint } from './lib/nativeSplash';
+import { runLaunchReveal } from './lib/launchReveal';
 import { wireAndroidBackButton } from './lib/androidBack';
 import { warmQuranSources } from './content/quran-sources-lazy';
 import { readActiveId, readCities } from './lib/prayerCities';
@@ -326,7 +326,8 @@ export default function App() {
   // держит заставку до явного вызова (launchAutoHide: false), поэтому
   // без этого эффекта приложение зависло бы на ней — ровно та ошибка,
   // что осталась незамеченной в прежнем QuranIng.
-  useEffect(() => { hideSplashAfterFirstPaint(); }, []);
+  // Снятие заставки и анимация появления — lib/launchReveal.ts.
+  useEffect(() => { runLaunchReveal(); }, []);
 
   // Переводы Корана лежат отдельным чанком, чтобы не задерживать первый
   // кадр. Прогреваем их в простое сразу после него: к моменту, когда

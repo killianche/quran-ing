@@ -15,6 +15,16 @@
 import { themeMode, type Theme } from '../hooks/useTheme';
 
 let initialized = false;
+/** Последняя запрошенная тема — применяется после снятия заставки. */
+let pendingTheme: Theme | null = null;
+/**
+ * Пока на экране заставка (#launch, тёмно-красное поле), статус-бар держится
+ * светлым при любой теме: тёмные часы на #440505 не читаются. Снимает
+ * releaseLaunchStatusBar() из launchReveal.ts. Стартовый светлый стиль задают
+ * Info.plist (UIStatusBarStyleLightContent — до запуска моста) и
+ * capacitor.config.ts (StatusBar.style 'DARK' — при загрузке плагина).
+ */
+let launchHold = typeof document !== 'undefined' && !!document.getElementById('launch');
 let StatusBarMod: typeof import('@capacitor/status-bar') | null = null;
 
 async function loadStatusBar() {
@@ -29,6 +39,8 @@ async function loadStatusBar() {
 }
 
 export async function syncStatusBarToTheme(theme: Theme) {
+  pendingTheme = theme;
+  if (launchHold) return;
   const mod = await loadStatusBar();
   if (!mod) return;
   const { StatusBar, Style } = mod;
@@ -45,6 +57,13 @@ export async function syncStatusBarToTheme(theme: Theme) {
   } catch {
     // Не нативная платформа — silent fail.
   }
+}
+
+/** Заставка снята — вернуть статус-бару тон текущей темы. */
+export function releaseLaunchStatusBar(): void {
+  if (!launchHold) return;
+  launchHold = false;
+  if (pendingTheme) void syncStatusBarToTheme(pendingTheme);
 }
 
 export function isStatusBarInitialized(): boolean {

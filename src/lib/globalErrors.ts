@@ -22,6 +22,8 @@
  */
 
 import { captureError } from './sentry';
+import { hideSplashNow } from './nativeSplash';
+import { releaseLaunchStatusBar } from './nativeStatusBar';
 
 const OVERLAY_ID = 'global-error-overlay';
 let shown = false;
@@ -39,7 +41,13 @@ function describe(value: unknown): string {
 }
 
 function showOverlay(title: string, detail: string) {
-  if (shown || typeof document === 'undefined') return;
+  if (typeof document === 'undefined') return;
+  // Ошибку надо увидеть: снимаем нативную заставку и её копию #launch,
+  // статус-бару возвращаем тон темы.
+  void hideSplashNow();
+  document.getElementById('launch')?.remove();
+  releaseLaunchStatusBar();
+  if (shown) return;
   shown = true;
 
   const root = document.createElement('div');

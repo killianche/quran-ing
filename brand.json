@@ -1,5 +1,6 @@
 {
-  "variant": "paper",
-  "background": "#f4dfc0",
-  "opticalLift": 0.025
+  "variant": "carpet",
+  "background": "#440505",
+  "opticalLift": 0,
+  "splashScale": 0.2
 }

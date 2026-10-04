@@ -1367,7 +1367,7 @@ export function Switch({ on }: { on: boolean }) {
     <span style={{
       position: 'relative', display: 'inline-block',
       width: '30px', height: '17px', borderRadius: '999px',
-      background: on ? 'var(--text-primary)' : 'var(--hairline-strong)',
+      background: on ? 'var(--brand)' : 'var(--hairline-strong)',
       transition: 'background 0.18s ease',
       flexShrink: 0,
     }}>

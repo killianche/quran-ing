@@ -198,7 +198,7 @@ export function TabBar({ active, onSelect }: {
                 border: 'none',
                 borderRadius: 0,
                 background: 'transparent',
-                color: selected ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                color: selected ? 'var(--brand)' : 'var(--text-tertiary)',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 display: 'flex',
@@ -226,10 +226,10 @@ export function TabBar({ active, onSelect }: {
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRadius: 'var(--radius-pill)',
-                  // Подложки под выбранной вкладкой нет: в iOS выбранное
-                  // отличается цветом и залитым глифом, а капсула под
-                  // значком — приём Material, не системы Apple.
-                  background: 'transparent',
+                  // Мягкая «пилюля» под выбранной вкладкой — как индикатор
+                  // панели вкладок iOS 26, окрашенный в мягкий акцент (так
+                  // же в xtrud: indicatorColor = accent-soft).
+                  background: selected ? 'var(--brand-soft)' : 'transparent',
                   transform: 'none',
                   transition:
                     'background var(--dur-base) var(--ease-standard),'

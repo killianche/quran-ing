@@ -71,12 +71,6 @@ def splash_background(size: tuple[int, int]) -> Image.Image:
     return Image.new("RGB", size, brand_background())
 
 
-def save_wordmark(wordmark: Image.Image) -> None:
-    target = ROOT / "public/brand/wordmark.png"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    wordmark.save(target, "PNG", optimize=True)
-
-
 def save_adaptive_foreground(wordmark: Image.Image, target: Path, size: int) -> None:
     """Передний слой адаптивной иконки Android: только знак, прозрачный фон.
 
@@ -107,7 +101,9 @@ def save_splash(wordmark: Image.Image, target: Path, size: tuple[int, int]) -> N
     # Storyboard показывает квадрат через aspectFill: на высоком iPhone
     # остаётся примерно 42% ширины исходника. Поэтому wordmark занимает 24%
     # квадрата и выглядит уверенно, но не превращается в огромную плитку.
-    logo_width = max(150, round(min(width, height) * 0.24))
+    # Доля экрана под знак — из brand.json (design-logo.py): у медальона
+    # ковра своё разрешение, крупнее он мылится.
+    logo_width = max(150, round(min(width, height) * float(brand().get("splashScale", 0.24))))
     logo_height = round(wordmark.height * logo_width / wordmark.width)
     logo = wordmark.resize((logo_width, logo_height), RESAMPLE)
     canvas.paste(
@@ -124,7 +120,7 @@ def main() -> None:
     parser.add_argument(
         "--ios-splash-only",
         action="store_true",
-        help="Generate only the iOS splash, shared splash previews and web wordmark",
+        help="Generate only the iOS splash and shared splash previews",
     )
     args = parser.parse_args()
 
@@ -136,7 +132,6 @@ def main() -> None:
         raise SystemExit(f"Logo must be square, got {source.size}")
 
     wordmark = load_wordmark()
-    save_wordmark(wordmark)
 
     splash = ROOT / "assets/splash.png"
     splash_dark = ROOT / "assets/splash-dark.png"
@@ -157,7 +152,7 @@ def main() -> None:
         )
 
     if args.ios_splash_only:
-        print("Generated iOS splash and web wordmark from logo.png")
+        print("Generated iOS splash from logo-wordmark.png")
         return
 
     save_square(source, ROOT / "assets/icon.png", 1024)
@@ -199,6 +194,33 @@ def main() -> None:
         encoding="utf-8",
     )
 
+    # Стартовая заставка Android: плагин Capacitor 8 всегда идёт через
+    # системный SplashScreen API (Android 12+, на старых — библиотека
+    # совместимости): фон + иконка по центру, а не картинка drawable/splash
+    # на весь экран. Иконка без подложки — холст 288 dp, содержимое обязано
+    # вписаться в круг 192 dp; медальон кладём ровно в 192 dp. Тот же размер
+    # (192 CSS px = 192 dp) у копии заставки #launch в index.html.
+    for density, scale in {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}.items():
+        canvas_px = round(288 * scale)
+        mark_px = round(192 * scale)
+        canvas = Image.new("RGBA", (canvas_px, canvas_px), (0, 0, 0, 0))
+        mark = wordmark.resize((mark_px, mark_px), RESAMPLE)
+        offset = (canvas_px - mark_px) // 2
+        canvas.paste(mark, (offset, offset), mark)
+        target = ROOT / f"android/app/src/main/res/drawable-{density}/splash_icon.png"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        canvas.save(target, "PNG", optimize=True)
+    (ROOT / "android/app/src/main/res/values/splash_colors.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<resources>\n'
+        f'    <color name="splash_background">{brand_background().upper()}</color>\n'
+        '</resources>\n',
+        encoding="utf-8",
+    )
+
+    # Полноэкранные картинки ниже — для старого пути плагина (без API
+    # Android 12). Сейчас он не используется, но ресурс drawable/splash
+    # остаётся валидным — на него ссылается тема запуска.
     android_splashes = {
         "drawable/splash.png": (320, 480),
         "drawable-night/splash.png": (320, 240),

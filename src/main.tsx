@@ -9,6 +9,7 @@ import { initAudioStore } from './lib/audioStore';
 import { armAutoDownload } from './lib/audioAutoDownload';
 import { Capacitor } from '@capacitor/core';
 import { lockReaderOrientation } from './lib/screenOrientation';
+import { armSplashFailsafe } from './lib/nativeSplash';
 
 // Отметка «мы внутри нативной обёртки» на <html>.
 //
@@ -45,6 +46,11 @@ void initAudioStore().then(() => armAutoDownload());
 // AudioProvider стоит НАД App, а не внутри: у App несколько точек возврата
 // по типу экрана, и провайдер внутри пересоздавался бы при смене экрана —
 // то есть ровно тогда, когда звук обязан продолжаться.
+// Страховка заставки — ДО первого рендера: если корень упадёт раньше
+// эффекта App (там runLaunchReveal), нативная заставка с launchAutoHide:false
+// иначе осталась бы навсегда.
+armSplashFailsafe();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AudioProvider>

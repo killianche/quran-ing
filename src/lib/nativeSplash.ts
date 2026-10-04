@@ -27,26 +27,22 @@ async function hideNow(): Promise<void> {
   done = true;
   try {
     const { SplashScreen } = await import('@capacitor/splash-screen');
-    await SplashScreen.hide();
+    // Без затухания: под заставкой уже лежит её точная копия #launch из
+    // index.html (lib/launchReveal.ts), и плавность даёт анимация копии.
+    // Затухание заставки поверх копии дало бы двойное «проявление».
+    await SplashScreen.hide({ fadeOutDuration: 0 });
   } catch {
     // Не нативная платформа — плагина нет, и скрывать нечего.
   }
 }
 
-/**
- * Снять сплэш после первого отрисованного кадра.
- *
- * Двойной requestAnimationFrame: первый колбэк выполняется перед
- * отрисовкой, второй — уже после того, как кадр ушёл на экран.  Один
- * rAF снял бы заставку на кадр раньше готовой картинки.
- */
-export function hideSplashAfterFirstPaint(): void {
+/** Снять сплэш сейчас — зовёт launchReveal, когда копия заставки готова. */
+export function hideSplashNow(): Promise<void> {
+  return hideNow();
+}
+
+/** Страховка: снять сплэш через FAILSAFE_MS, даже если всё зависло. */
+export function armSplashFailsafe(): void {
   if (typeof window === 'undefined') return;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => { void hideNow(); });
-  });
-  // Страховка: если рендер упал в ErrorBoundary до первого кадра или
-  // застрял, приложение всё равно должно показать хоть что-то, а не
-  // остаться заставкой.
   window.setTimeout(() => { void hideNow(); }, FAILSAFE_MS);
 }

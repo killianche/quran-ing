@@ -33,12 +33,13 @@ const config: CapacitorConfig = {
     // ~60 pt пустоты над заголовком.  Один источник истины надёжнее:
     // теперь safe-area знает только CSS.
     contentInset: 'never',
-    // Исходный бледно-бежевый цвет фирменной плитки. Он совпадает с
-    // LaunchScreen и не даёт вспышки между заставкой и первым кадром.
-    backgroundColor: '#f4dfc0',
+    // Поле ковра вокруг медальона (scripts/brand/design-logo.py): совпадает
+    // с LaunchScreen и с копией заставки #launch — без вспышки на старте.
+    backgroundColor: '#440505',
   },
   android: {
-    backgroundColor: '#0a0a14',
+    // Как на iOS: поле ковра — цвет под заставкой и её копией #launch.
+    backgroundColor: '#440505',
   },
   plugins: {
     LocalNotifications: {
@@ -57,7 +58,11 @@ const config: CapacitorConfig = {
       // есть, см. lib/nativeSplash.ts и App.tsx.
       launchShowDuration: 1000,
       launchAutoHide: false,
-      backgroundColor: '#f4dfc0',
+      // Android гасит стартовую заставку сам за 200 мс, и hide({fadeOutDuration})
+      // на неё не действует — только эта настройка. 0: под заставкой уже её
+      // копия #launch, плавность даёт анимация копии (lib/launchReveal.ts).
+      launchFadeOutDuration: 0,
+      backgroundColor: '#440505',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
