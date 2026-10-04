@@ -39,7 +39,6 @@ import { reconcile, stepsToQuranHome } from './lib/screenStack';
  */
 const SurahScreen = lazy(() => import('./screens/SurahScreen').then(m => ({ default: m.SurahScreen })));
 const AzkarScreen = lazy(() => import('./screens/AzkarScreen').then(m => ({ default: m.AzkarScreen })));
-const DuaScreen = lazy(() => import('./screens/DuaScreen').then(m => ({ default: m.DuaScreen })));
 const AzkarCategoryScreen = lazy(() => import('./screens/AzkarCategoryScreen').then(m => ({ default: m.AzkarCategoryScreen })));
 const PlayerScreen = lazy(() => import('./screens/PlayerScreen').then(m => ({ default: m.PlayerScreen })));
 const BookmarksScreen = lazy(() => import('./screens/BookmarksScreen').then(m => ({ default: m.BookmarksScreen })));
@@ -545,11 +544,6 @@ export default function App() {
           />
         </ErrorBoundary>
       )}
-      {tab === 'dua' && (
-        <ErrorBoundary name="DuaScreen">
-          <DuaScreen theme={theme} setTheme={setTheme} />
-        </ErrorBoundary>
-      )}
       </Suspense>
       {/* Полоска звучащей суры. Только на вкладках: в ленте и мусхафе свой
           плеер, и две панели разом были бы лишними. */}
@@ -562,7 +556,7 @@ export default function App() {
         onSelect={next => {
           if (next === tab) {
             // TabBar вызывает этот путь только после двух быстрых тапов
-            // по активной вкладке «Коран» или «Дуа» — прокручиваем к началу.
+            // по активной вкладке «Коран» — прокручиваем к началу.
             window.scrollTo({ top: 0, behavior: 'smooth' });
             return;
           }
