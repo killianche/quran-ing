@@ -165,6 +165,25 @@
    `docs/IOS26_DESIGN_GUIDE.md` (фактчек по HIG/WWDC25), подключена к
    CLAUDE.md и `.claude/agents/*`.
 
+### 2026-10-04 — App Store: карточка заполнена, ждёт App Privacy
+
+Владелец: «используй мои данные, для остальных материалов лицензия не
+нужна» → публикуем.
+
+- Карточка через API (`scripts/appstore/asc-listing.mjs`, тексты —
+  `APP_STORE.md`): Books + Reference, «Quran Ing» / «Коран с ингушским
+  переводом», описание, ключевые слова, промо, Support/Privacy URL на
+  quran-ing-site, Content Rights, рейтинг 4+, бесплатно, 175 стран,
+  copyright `2026 Victoria Hester` (ACCOUNT_HOLDER по API), контакт ревью —
+  как у бета-проверки.
+- Скриншоты iPhone 6.9″ и iPad 13″ — `make-screenshots.mjs` (главная, сура,
+  тафсир, азкары, намаз); мусхафа больше нет.
+- Сборка 1.0 (5) привязана к версии 1.0; открыта заявка на проверку
+  `24b4b4c6…`. Отправка упирается в одно: **анкета App Privacy** — у Apple
+  нет API, её публикует владелец (App Store Connect → Quran Ing → App
+  Privacy → «No, we do not collect data» → Publish). После этого —
+  `asc-submit.mjs --submit`.
+
 ### Что дальше (Quran Ing, после редизайна 2026-10-04)
 
 1. ✅ Сборка 1.0 (2) собрана в Actions (run 37202652170: Swift с

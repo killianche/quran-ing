@@ -108,7 +108,7 @@ for (const [folder, width, height] of [
   ['iphone-6.9', 1320, 2868],
   ['ipad-13', 2064, 2752],
 ]) {
-  for (const name of ['01-quran', '02-surah', '03-mushaf', '04-azkar', '05-prayer']) {
+  for (const name of ['01-quran', '02-surah', '03-tafsir', '04-azkar', '05-prayer']) {
     const path = `app-store/screenshots/${folder}/${name}.jpg`;
     const shot = picture(path);
     add(

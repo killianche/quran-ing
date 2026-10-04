@@ -115,6 +115,9 @@ async function main() {
   }
 
   // ── «Что нового» ───────────────────────────────────────────────────────
+  // У первой версии приложения поля нет: Apple отвечает 409 на попытку его
+  // записать (Quran Ing 1.0 — первая версия в этом аккаунте).
+  const firstVersion = versions.data.length <= 1;
   const locs = await ascGet(
     `/v1/appStoreVersions/${appVersion.id}/appStoreVersionLocalizations`,
     credentials, { limit: '20' },
@@ -123,14 +126,18 @@ async function main() {
   if (!loc) {
     throw new Error(`У версии ${version} нет локализации ${LOCALE} — карточка заполняется вручную.`);
   }
-  await ascSend('PATCH', `/v1/appStoreVersionLocalizations/${loc.id}`, {
-    data: {
-      type: 'appStoreVersionLocalizations',
-      id: loc.id,
-      attributes: { whatsNew },
-    },
-  }, credentials);
-  console.log(`✓ «Что нового» записано (${whatsNew.length} символов)`);
+  if (firstVersion) {
+    console.log('• первая версия — «Что нового» Apple не принимает, пропущено');
+  } else {
+    await ascSend('PATCH', `/v1/appStoreVersionLocalizations/${loc.id}`, {
+      data: {
+        type: 'appStoreVersionLocalizations',
+        id: loc.id,
+        attributes: { whatsNew },
+      },
+    }, credentials);
+    console.log(`✓ «Что нового» записано (${whatsNew.length} символов)`);
+  }
 
   // ── Привязка сборки ────────────────────────────────────────────────────
   await ascSend('PATCH', `/v1/appStoreVersions/${appVersion.id}/relationships/build`, {
@@ -149,15 +156,27 @@ async function main() {
   }
 
   // ── Отправка на ревью ──────────────────────────────────────────────────
-  const submission = await ascSend('POST', '/v1/reviewSubmissions', {
-    data: {
-      type: 'reviewSubmissions',
-      attributes: { platform: PLATFORM },
-      relationships: { app: { data: { id: APP_ID, type: 'apps' } } },
-    },
-  }, credentials);
-  const submissionId = submission.data.id;
-  console.log(`✓ заявка создана, id=${submissionId}`);
+  // Открытая (ещё не отправленная) заявка бывает одна на платформу. Она
+  // остаётся, если прошлый запуск упал на добавлении версии (2026-10-04:
+  // не была заполнена анкета App Privacy), — берём её, а не создаём вторую:
+  // вторую Apple не даст.
+  const open = await ascGet('/v1/reviewSubmissions', credentials, {
+    'filter[app]': APP_ID, 'filter[platform]': PLATFORM, 'filter[state]': 'READY_FOR_REVIEW',
+  });
+  let submissionId = open.data[0]?.id;
+  if (submissionId) {
+    console.log(`✓ открытая заявка уже есть, id=${submissionId}`);
+  } else {
+    const submission = await ascSend('POST', '/v1/reviewSubmissions', {
+      data: {
+        type: 'reviewSubmissions',
+        attributes: { platform: PLATFORM },
+        relationships: { app: { data: { id: APP_ID, type: 'apps' } } },
+      },
+    }, credentials);
+    submissionId = submission.data.id;
+    console.log(`✓ заявка создана, id=${submissionId}`);
+  }
 
   await ascSend('POST', '/v1/reviewSubmissionItems', {
     data: {
