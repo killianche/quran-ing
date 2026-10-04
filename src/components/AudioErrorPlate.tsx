@@ -38,15 +38,20 @@ export function AudioErrorPlate({ placement = 'tabs' }: { placement?: AccessoryP
   // Две короткие строки, а не абзац: первая говорит ЧТО случилось, вторая —
   // про что именно. Длинный текст переносился на три строки и обрезался
   // многоточием, то есть сообщал меньше, чем короткий.
-  const заголовок = failure.offline ? 'Нет связи' : 'Не удалось загрузить чтение';
+  // Отсутствующая у чтеца сура — не сбой: другой заголовок и без «Повторить».
+  const заголовок = failure.unavailable
+    ? 'Нет записи этой суры'
+    : failure.offline ? 'Нет связи' : 'Не удалось загрузить чтение';
   // У чтеца без границ аятов место обрыва — время записи: «аят 1» на
   // 25-й минуте был бы неправдой.
   const место = failure.positionSeconds !== undefined
     ? formatPlaybackTime(failure.positionSeconds)
     : `аят ${failure.ayah}`;
-  const пояснение = failure.offline
-    ? `«${название}» читается из сети`
-    : `«${название}», ${место}`;
+  const пояснение = failure.unavailable
+    ? `«${название}» — у этого чтеца пока нет записи`
+    : failure.offline
+      ? `«${название}» читается из сети`
+      : `«${название}», ${место}`;
 
   return (
     <div
@@ -94,6 +99,7 @@ export function AudioErrorPlate({ placement = 'tabs' }: { placement?: AccessoryP
           {пояснение}
         </div>
       </div>
+      {!failure.unavailable && (
       <button
         type="button"
         // Повтор — с места обрыва: у чтеца без границ аятов это секунда
@@ -117,6 +123,7 @@ export function AudioErrorPlate({ placement = 'tabs' }: { placement?: AccessoryP
       >
         Повторить
       </button>
+      )}
       <button
         type="button"
         aria-label="Скрыть сообщение"

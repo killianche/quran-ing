@@ -31,6 +31,16 @@ class MainViewController: CAPBridgeViewController {
         webView?.scrollView.maximumZoomScale = 1.0
         webView?.scrollView.minimumZoomScale = 1.0
 
+        // Системные эффекты края iOS 26 выключены (владелец 2026-10-04: «снизу
+        // это белое свечение… давай небольшое размытие»). Под панелью вкладок
+        // эффект давал светлую дымку на тёмной теме и тёмно-красную — от фона
+        // заставки. Кромки рисует страница сама: лёгкое размытие с тоном фона
+        // темы (.tabbar-edge и .screen-header-edge в src/index.css).
+        if #available(iOS 26.0, *) {
+            webView?.scrollView.bottomEdgeEffect.isHidden = true
+            webView?.scrollView.topEdgeEffect.isHidden = true
+        }
+
         // Убираем системную полосу над клавиатурой с кнопками перехода
         // между полями и галочкой «Готово». Саму клавиатуру, подсказки и
         // работу поля поиска это не меняет.
@@ -72,6 +82,7 @@ class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(ThemeBackgroundPlugin())
+        bridge?.registerPluginInstance(TabBarOffsetPlugin())
     }
 
     private func disableKeyboardShortcutBar() {
@@ -84,7 +95,7 @@ class MainViewController: CAPBridgeViewController {
 
 /// Фон веб-вью цветом темы приложения (Quran Ing, 2026-10-04).
 ///
-/// `ios.backgroundColor` в capacitor.config.ts — тёмно-красный #440505
+/// `ios.backgroundColor` в capacitor.config.ts — оливковый #786747
 /// заставки, чтобы запуск был без вспышки. Но эффект края системной панели
 /// вкладок iOS 26 растворяет контент в фон прокрутки веб-вью: под панелью
 /// шла тёмно-красная полоса поверх списка сур (скриншот владельца, сборка 2).
@@ -122,5 +133,44 @@ public class ThemeBackgroundPlugin: CAPPlugin, CAPBridgedPlugin {
             blue: CGFloat(value & 0xFF) / 255,
             alpha: 1
         )
+    }
+}
+
+/// Сдвиг системной панели вкладок вниз (владелец 2026-10-04: «кнопки Коран
+/// и Азкары сделать ниже, ближе к краю»).
+///
+/// Панель — `UITabBar` из плагина @capawesome/capacitor-tab-bar; её место
+/// задаёт система, отдельной настройки нет. Сдвигаем готовую панель
+/// преобразованием: касания и стекло работают как прежде, а плагин при
+/// следующей раскладке пересчитывает нижнюю безопасную зону веб-вью по
+/// фактическому положению панели (convert учитывает transform), так что
+/// отступ списка под ней остаётся верным. Вызывается из
+/// src/lib/nativeTabBar.ts после каждого показа панели.
+@objc(TabBarOffsetPlugin)
+public class TabBarOffsetPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "TabBarOffsetPlugin"
+    public let jsName = "TabBarOffset"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "apply", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func apply(_ call: CAPPluginCall) {
+        let offset = CGFloat(call.getInt("y") ?? 0)
+        DispatchQueue.main.async {
+            if let window = self.bridge?.viewController?.view.window {
+                for bar in TabBarOffsetPlugin.tabBars(in: window) {
+                    bar.transform = CGAffineTransform(translationX: 0, y: offset)
+                    bar.setNeedsLayout()
+                }
+            }
+            call.resolve()
+        }
+    }
+
+    static func tabBars(in view: UIView) -> [UITabBar] {
+        var found: [UITabBar] = []
+        if let bar = view as? UITabBar { found.append(bar) }
+        for sub in view.subviews { found += tabBars(in: sub) }
+        return found
     }
 }

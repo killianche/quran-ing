@@ -54,7 +54,7 @@ let instance = 0;
 /** Свежий экземпляр модуля (у него состояние на уровне модуля). */
 async function fresh(setup) {
   globalThis.__nativeMock = {
-    platform: 'ios', plugins: ['TabBar'], osVersion: '26.1', failOn: [], calls: [], emit: null,
+    platform: 'ios', plugins: ['TabBar'], osVersion: '26.1', failOn: [], calls: [], local: [], emit: null,
     ...setup,
   };
   instance += 1;
@@ -77,6 +77,7 @@ const TABS_CALL = 'setTabs:"quran=book.fill,azkar=moon.fill"';
   m.markLaunchFaded();
   await settle();
   same('после заставки — ровно один show', __nativeMock.calls.slice(2), ['show']);
+  same('после показа панель опущена на 8 pt', __nativeMock.local, ['TabBarOffset.apply:{"y":8}']);
 
   // Смена вкладки: размонтирование и монтирование в одном коммите.
   __nativeMock.calls.length = 0;
@@ -121,8 +122,8 @@ const TABS_CALL = 'setTabs:"quran=book.fill,azkar=moon.fill"';
   m.tintNativeTabBar('aurora');
   m.tintNativeTabBar('dark');
   m.tintNativeTabBar('cosmos');
-  same('цвет: светлые → #7a1512, тёмные → #d95e52, без повторов',
-    __nativeMock.calls, ['colors:"#7a1512"', 'colors:"#d95e52"']);
+  same('цвет: светлые → #7c6340, тёмные → #dcc5a3, без повторов',
+    __nativeMock.calls, ['colors:"#7c6340"', 'colors:"#dcc5a3"']);
 
   m.selectNativeTab('azkar');
   same('выбор вкладки уходит в плагин', __nativeMock.calls.at(-1), 'select:"azkar"');
@@ -163,7 +164,7 @@ const TABS_CALL = 'setTabs:"quran=book.fill,azkar=moon.fill"';
   same('сбой show: режим web', m.getTabBarMode(), 'web');
   same('сбой show: подписчики узнали', seen, ['web']);
   same('сбой show: геометрия веб-капсулы', cssVars['--tabbar-top'],
-    'calc(max(6px, calc(env(safe-area-inset-bottom) - 14px)) + 62px)');
+    'calc(max(6px, calc(env(safe-area-inset-bottom) - 18px)) + 62px)');
 }
 
 // 6. Android и веб: сразу веб-режим, init ничего не делает.

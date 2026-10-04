@@ -2,7 +2,7 @@
   "name": "quran-ing",
   "private": true,
   "version": "1.0.0",
-  "iosBuild": 3,
+  "iosBuild": 4,
   "type": "module",
   "scripts": {
     "brand:generate": "python3 scripts/generate-brand-assets.py",

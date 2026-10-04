@@ -35,11 +35,11 @@ const config: CapacitorConfig = {
     contentInset: 'never',
     // Поле ковра вокруг медальона (scripts/brand/design-logo.py): совпадает
     // с LaunchScreen и с копией заставки #launch — без вспышки на старте.
-    backgroundColor: '#440505',
+    backgroundColor: '#786747',
   },
   android: {
     // Как на iOS: поле ковра — цвет под заставкой и её копией #launch.
-    backgroundColor: '#440505',
+    backgroundColor: '#786747',
   },
   plugins: {
     LocalNotifications: {
@@ -62,7 +62,7 @@ const config: CapacitorConfig = {
       // на неё не действует — только эта настройка. 0: под заставкой уже её
       // копия #launch, плавность даёт анимация копии (lib/launchReveal.ts).
       launchFadeOutDuration: 0,
-      backgroundColor: '#440505',
+      backgroundColor: '#786747',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,

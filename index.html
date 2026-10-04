@@ -24,11 +24,11 @@
     <!-- #launch — копия системной заставки и сцена анимации появления
          (src/lib/launchReveal.ts). Стили инлайном: они нужны раньше, чем
          загрузится CSS приложения. Только transform/opacity — композитор,
-         без перерисовки. Цвет поля #440505 — scripts/brand/design-logo.py. -->
+         без перерисовки. Цвет поля #786747 — scripts/brand/design-logo.py. -->
     <style>
       /* Касания перехватываются, пока заставка видна: под ней уже живой
          главный экран, и случайный тап открыл бы суру вслепую. */
-      #launch { position: fixed; inset: 0; z-index: 2147483000; background: #440505;
+      #launch { position: fixed; inset: 0; z-index: 2147483000; background: #786747;
         overflow: hidden; touch-action: none; }
       #launch .launch-mark, #launch .launch-glow { position: absolute; left: 50%; top: 50%;
         transform: translate(-50%, -50%); will-change: transform, opacity; }
@@ -52,10 +52,10 @@
       #launch.launch--quick { animation: launch-out-quick 320ms ease-out forwards; }
       #launch .launch-failed { position: absolute; left: 24px; right: 24px;
         top: calc(50% + var(--launch-size, 160px) * 0.66 + 48px); text-align: center;
-        font: 400 17px/1.35 -apple-system, system-ui, sans-serif; color: #f1dcbc; }
+        font: 400 17px/1.35 -apple-system, system-ui, sans-serif; color: #fbf1e2; }
       #launch .launch-failed p { margin: 0 0 16px; }
       #launch .launch-failed button { min-height: 44px; padding: 0 22px; border: 0; border-radius: 22px;
-        background: #f1dcbc; color: #440505; font: 600 17px/1 -apple-system, system-ui, sans-serif; }
+        background: #fbf1e2; color: #3b2f1e; font: 600 17px/1 -apple-system, system-ui, sans-serif; }
 
       @keyframes launch-out { 0%, 54% { opacity: 1; } 100% { opacity: 0; } }
       @keyframes launch-out-quick { from { opacity: 1; } to { opacity: 0; } }
@@ -117,12 +117,12 @@
     <script>
       /* Размер медальона = как на системной заставке.
          iOS: LaunchScreen кладёт квадрат 1366 pt через aspectFill, медальон —
-         splashScale (0.20) его стороны → 0.20 × длинная сторона экрана.
+         splashScale (0.26) его стороны → 0.26 × длинная сторона экрана.
          Android: системная заставка (SplashScreen API) — медальон 192 dp.
          Сайт: заставки нет — разумный размер, не больше 240 px. */
       (function () {
         try {
-          var W = window.innerWidth, H = window.innerHeight, S = 0.2;
+          var W = window.innerWidth, H = window.innerHeight, S = 0.26;
           var cap = window.Capacitor;
           var platform = cap && cap.getPlatform ? cap.getPlatform() : 'web';
           var size;

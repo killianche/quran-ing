@@ -42,12 +42,15 @@ export type ReciterId =
   | 'shaatree'
   | 'yasser'
   | 'luhaidan'
-  | 'ajmi';
+  | 'ajmi'
+  | 'merzhoev';
 
 export type Reciter = {
   id: ReciterId;
   label: string;
-  arabic: string;
+  /** Имя по-арабски. В интерфейсе сейчас не выводится; у чтеца без
+   *  проверенного арабского написания не заполняется — не выдумываем. */
+  arabic?: string;
   /** Битрейт источника — нужен для честной оценки офлайн-загрузки. */
   bitrateKbps: 64 | 128;
   /** islamic.network slug — быстрый путь по сквозному номеру аята. */
@@ -72,6 +75,14 @@ export type Reciter = {
    * значит показывать не то, что звучит. См. `usesTimelineSeek`.
    */
   timelineOnly?: true;
+  /**
+   * Суры, для которых у чтеца есть запись; не задано — все 114.
+   *
+   * Отсутствующая сура — не сбой сети: приложение говорит «у чтеца нет
+   * записи этой суры» вместо плашки ошибки, а непрерывное чтение
+   * перепрыгивает её к следующей доступной (`nextAvailableSurah`).
+   */
+  availableSurahs?: readonly number[];
 };
 
 export const RECITERS: Reciter[] = [
@@ -111,6 +122,31 @@ export const RECITERS: Reciter[] = [
     everyayahDir: 'Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net',
     surahAudioBase: 'https://download.quranicaudio.com/quran/ahmed_ibn_3ali_al-3ajamy',
     surahAudioPadded: true,
+  },
+  /**
+   * Хьусейн Мержоев — друг владельца (решение владельца 03–04.10.2026).
+   *
+   * Записи целых сур из его Telegram-канала t.me/khmerzhoev1111 (исходник
+   * MP3 320 кбит/с), сжаты в 128 кбит/с CBR стерео: постоянный битрейт даёт
+   * точную перемотку по времени. Раздаются с сервера Quran Ing
+   * (Caddy `quraning-audio.…sslip.io` → /var/www/quraning/audio/merzhoev).
+   * Таймингов аятов нет — режим перемотки по времени (`timelineOnly`).
+   * Записи есть для 80 сур; остальные 34 владелец пришлёт, когда появятся.
+   */
+  {
+    id: 'merzhoev',
+    label: 'Хьусейн Мержоев',
+    bitrateKbps: 128,
+    surahAudioBase: 'https://quraning-audio.217-177-75-68.sslip.io/audio/merzhoev',
+    surahAudioPadded: true,
+    timelineOnly: true,
+    availableSurahs: [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 15, 16, 17, 18, 19, 21, 22, 25, 31, 32,
+      33, 36, 37, 43, 45, 47, 49, 50, 51, 53, 55, 56, 62, 63, 67, 68, 70, 71,
+      72, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+      91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106,
+      107, 108, 109, 110, 111, 112, 113, 114
+    ],
   },
 ];
 
@@ -167,6 +203,20 @@ export function usesWholeAyahHighlight(id: ReciterId): boolean {
  */
 export function usesTimelineSeek(id: ReciterId): boolean {
   return Boolean(reciterById(id).timelineOnly);
+}
+
+/** Есть ли у чтеца запись этой суры. */
+export function reciterHasSurah(id: ReciterId, surah: number): boolean {
+  const list = reciterById(id).availableSurahs;
+  return !list || list.includes(surah);
+}
+
+/** Следующая после `surah` сура, которая есть у чтеца; null — дальше нет. */
+export function nextAvailableSurah(id: ReciterId, surah: number): number | null {
+  for (let n = surah + 1; n <= 114; n++) {
+    if (reciterHasSurah(id, n)) return n;
+  }
+  return null;
 }
 
 /** Шаг перемотки кнопками и с экрана блокировки — как у музыкальных плееров. */

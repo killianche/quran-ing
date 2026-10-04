@@ -4,7 +4,8 @@ import { ayahAudioRange } from '../lib/ayahAudioRange';
 import { localAyahSrc, localSurahSrc, unmarkSurahFile } from '../lib/audioStore';
 import {
   DEFAULT_RECITER, RECITERS_WITH_SEGMENTS, TIMELINE_SEEK_STEP_SECONDS, hasSurahAudio,
-  requiresSurahAudioStream, surahAudioUrl, usesTimelineSeek, type ReciterId,
+  nextAvailableSurah, reciterHasSurah, requiresSurahAudioStream, surahAudioUrl,
+  usesTimelineSeek, type ReciterId,
 } from '../lib/reciters';
 import {
   setMediaSessionMetadata, setMediaSessionPlaybackState,
@@ -47,6 +48,9 @@ export type AudioFailure = {
   positionSeconds?: number;
   /** Устройство сообщает, что сети нет вовсе. */
   offline: boolean;
+  /** Не сбой, а отсутствие: у чтеца нет записи этой суры
+   *  (`availableSurahs`). Повторять нечего. */
+  unavailable?: true;
 };
 
 export type PlaybackRate = typeof PLAYBACK_RATES[number];
@@ -213,10 +217,13 @@ function уходитВСледующуюСуру(
   q: { surah: number; last: number } | null,
   surah: number,
   ayah: number,
+  reciter: ReciterId,
 ): boolean {
   if (!startedWholeSurah || !q || q.surah !== surah) return false;
   const конец = Math.min(q.last, SURAH_BY_NUMBER[surah]?.ayahs ?? q.last);
-  return ayah >= конец && !!SURAH_BY_NUMBER[surah + 1];
+  // «Следующая» — следующая, которая ЕСТЬ у чтеца: у Мержоева после 9-й
+  // идёт 12-я, а не несуществующая запись 10-й.
+  return ayah >= конец && nextAvailableSurah(reciter, surah) !== null;
 }
 
 /** Прогретые элементы — чтобы не звать `load()` на каждом кадре. */
@@ -850,11 +857,12 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       // иначе срезалась бы истиаза и басмала.
       if (!startedWholeSurah) { остановить(); return; }
 
-      const следующая = q.surah + 1;
-      const метаСледующей = SURAH_BY_NUMBER[следующая];
-      if (!метаСледующей) { остановить(); return; }
-
       const r = reciterRef.current;
+      // Сура, которой у чтеца нет, пропускается — чтение идёт дальше.
+      const следующая = nextAvailableSurah(r, q.surah);
+      const метаСледующей = следующая ? SURAH_BY_NUMBER[следующая] : undefined;
+      if (!следующая || !метаСледующей) { остановить(); return; }
+
       снятьАварийныйРежим();
       playbackMode = hasSurahAudio(r) ? 'surah' : 'ayah';
       startedWholeSurah = true;
@@ -1073,6 +1081,23 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
   }, [activeKey, stopAll]);
 
   /** Tap on an ayah — play / pause that ayah, joining the queue. */
+  /**
+   * У чтеца нет записи этой суры — сказать прямо, а не ходить в сеть.
+   *
+   * Без этого запрос уходил за несуществующим файлом, сервер отвечал 404, и
+   * человек видел «Не удалось загрузить чтение» с кнопкой «Повторить», которая
+   * никогда не поможет.
+   */
+  const отказНетСуры = useCallback((surah: number, ayah: number) => {
+    if (reciterHasSurah(reciterRef.current, surah)) return false;
+    stopAll();
+    setFailure({
+      surah, ayah, lastAyah: SURAH_BY_NUMBER[surah]?.ayahs ?? ayah,
+      offline: false, unavailable: true,
+    });
+    return true;
+  }, [stopAll]);
+
   const handlePlay = useCallback((
     surah: number,
     requestedAyah: number,
@@ -1081,6 +1106,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
   ) => {
     // У чтеца без границ аятов тап по любому аяту — это вся запись суры:
     // начать её, а на звучащей суре — пауза или продолжение с того же места.
+    if (отказНетСуры(surah, requestedAyah)) return;
     const timeline = usesTimelineSeek(reciterRef.current);
     const ayah = timeline ? 1 : requestedAyah;
     const lastAyah = timeline ? 1 : requestedLast;
@@ -1153,7 +1179,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     } else {
       startPlayback();
     }
-  }, [activeKey, audioState, pauseCurrent, playOne]);
+  }, [activeKey, audioState, pauseCurrent, playOne, отказНетСуры]);
 
   /** Start sequential playback from `fromAyah` through `lastAyah`. */
   /**
@@ -1166,6 +1192,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
   const playFrom = useCallback((
     surah: number, requestedFrom: number, requestedLast: number, mode: PlaybackMode = 'ayah',
   ) => {
+    if (отказНетСуры(surah, requestedFrom)) return;
     const { fromAyah, lastAyah } = timelineQueueBounds(
       reciterRef.current, requestedFrom, requestedLast,
     );
@@ -1179,7 +1206,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     startedWholeSurah = mode === 'surah';
     queueRef.current = { surah, first: fromAyah, last: lastAyah, current: fromAyah };
     playOne(surah, fromAyah);
-  }, [playOne]);
+  }, [playOne, отказНетСуры]);
 
   // 60fps progress driver — rAF loop bound to active audio. The native
   // `timeupdate` event fires only 4–10×/s; rAF gives us per-frame smoothness
@@ -1285,9 +1312,10 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
         && !completedRange.has(audio)
         && Number.isFinite(audio.duration)
         && audio.duration - audio.currentTime <= PREWARM_NEXT_SURAH_SECONDS
-        && уходитВСледующуюСуру(queueRef.current, Number(surahPart), Number(ayahPart))) {
+        && уходитВСледующуюСуру(queueRef.current, Number(surahPart), Number(ayahPart), reciterId as ReciterId)) {
         прогретаСледующая = true;
-        прогретьСуру(Number(surahPart) + 1, reciterId as ReciterId);
+        const следующая = nextAvailableSurah(reciterId as ReciterId, Number(surahPart));
+        if (следующая) прогретьСуру(следующая, reciterId as ReciterId);
       }
 
       if (range && audio.currentTime >= range.endSeconds) {
@@ -1302,7 +1330,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
           // onended здесь означает конец ЛОГИЧЕСКОГО аята; физический
           // HTMLAudioElement продолжает читать следующий байт потока.
           if (!hasNextInSameSurah) {
-            if (уходитВСледующуюСуру(q, Number(surahPart), Number(ayahPart))) {
+            if (уходитВСледующуюСуру(q, Number(surahPart), Number(ayahPart), reciterId as ReciterId)) {
               // 🔴 Не глушим перед следующей сурой. Раньше здесь стояла
               // пауза, и следующая сура запускалась в тишине — в фоне iOS
               // такой запуск отклоняет, и чтение замирало (владелец
@@ -1320,7 +1348,8 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
               // следующего элемента: наложение — десятки миллисекунд, а
               // тишины между сурами нет. Пока следующая ещё грузится, хвост
               // звучит один и держит звук живым для iOS.
-              const следующая = Number(surahPart) + 1;
+              const следующая = nextAvailableSurah(reciterId as ReciterId, Number(surahPart))
+                ?? Number(surahPart) + 1;
               прогретьСуру(следующая, reciterId as ReciterId);
               audioCache.get(mediaCacheKey(reciterId as ReciterId, следующая, 1))
                 ?.addEventListener('playing', () => {

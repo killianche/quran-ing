@@ -550,29 +550,31 @@
   --gold-rgb:      164 132 28;
 }
 
-/* ─── Фирменный тёмно-красный (владелец 2026-10-04) ───────────────────────
-   Снят с фотографии ковров (scripts/brand/source/carpets.png): поле ковра
-   #711111…#581110. Акцент интерфейса: выбранная вкладка, переключатели,
-   главные кнопки. Схема ролей — как в xtrud: brand (иконка/текст), brand-soft
-   (подложка выбранного, «пилюля»), on-brand (текст на заливке brand).
-   На тёмных темах тёмно-красный тонет в фоне — там светлее тот же оттенок:
-   #d95e52. Подпись цветом brand: 5.7:1 на #000, 4.6:1 на #1c1c1e (≥ 4.5 —
-   норма WCAG для мелкого текста). Белый на заливке brand — 3.7:1: только
-   крупные кнопки и значки (норма ≥ 3:1), не мелкий текст. */
+/* ─── Фирменный акцент — бежевый ковра (владелец 2026-10-04) ──────────────
+   Владелец: «акцентный цвет — какой-нибудь стандартный: бежевый, либо белый,
+   как у Apple». Взят с нового ковра-логотипа (scripts/brand/source/
+   carpet-olive.jpg): песочный медальон и тёмная охра узора. (До этого в тот
+   же день был тёмно-красный с прежнего фото ковров — снят вместе с ним.)
+   Роли — как в xtrud: brand (иконка/текст), brand-soft (подложка
+   выбранного), on-brand (текст на заливке brand).
+   Светлые темы — глубокая охра #7c6340: 5.7:1 на #fff, 5.1:1 на бежевой
+   канве «Авроры», белый на заливке 5.7:1. Тёмные — светлый песочный
+   #dcc5a3, почти белый, как акцент системы в тёмной теме: 12.6:1 на #000;
+   текст на его заливке — тёмный (#241c10, 10:1). */
 [data-theme="light"],
 [data-theme="aurora"] {
-  --brand:      #7a1512;
-  --brand-rgb:  122 21 18;
-  --brand-soft: #f5e2df;
+  --brand:      #7c6340;
+  --brand-rgb:  124 99 64;
+  --brand-soft: #eee5d6;
   --on-brand:   #ffffff;
 }
 [data-theme="dark"],
 [data-theme="aurora2"],
 [data-theme="cosmos"] {
-  --brand:      #d95e52;
-  --brand-rgb:  217 94 82;
-  --brand-soft: #3d1714;
-  --on-brand:   #ffffff;
+  --brand:      #dcc5a3;
+  --brand-rgb:  220 197 163;
+  --brand-soft: #2b241a;
+  --on-brand:   #241c10;
 }
 
 [data-theme="dark"],
@@ -937,10 +939,13 @@ body {
    сходит на нет ниже кнопок. Размытие (инлайном, src/lib/glass.ts) гаснет
    той же маской. Цвет — фон экрана, а не стекло: стекло — только кнопки. */
 .screen-header-edge {
+  /* Легче, чем было (0.94 → 0.72): владелец 2026-10-04 просил у кромок
+     «небольшое размытие, а не свечение». Под часами контраст держит
+     StatusBarScrim. */
   background: linear-gradient(
     to bottom,
-    rgb(var(--surface-rgb) / 0.94) 0%,
-    rgb(var(--surface-rgb) / 0.82) 55%,
+    rgb(var(--surface-rgb) / 0.72) 0%,
+    rgb(var(--surface-rgb) / 0.5) 55%,
     rgb(var(--surface-rgb) / 0) 100%
   );
   -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
@@ -953,10 +958,23 @@ body {
 [data-theme="cosmos"] .screen-header-edge {
   background: linear-gradient(
     to bottom,
-    rgb(var(--surface-rgb) / 0.86) 0%,
-    rgb(var(--surface-rgb) / 0.6) 55%,
+    rgb(var(--surface-rgb) / 0.66) 0%,
+    rgb(var(--surface-rgb) / 0.4) 55%,
     rgb(var(--surface-rgb) / 0) 100%
   );
+}
+
+/* Кромка под нижней панелью (TabBar.tsx, TabBarEdge) — зеркало верхней:
+   лёгкий тон фона темы снизу вверх, размытие (инлайн) гаснет той же маской. */
+.tabbar-edge {
+  background: linear-gradient(
+    to top,
+    rgb(var(--surface-rgb) / 0.55) 0%,
+    rgb(var(--surface-rgb) / 0.3) 55%,
+    rgb(var(--surface-rgb) / 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(to top, #000 50%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 50%, transparent 100%);
 }
 
 /* Кнопки плеера: во встроенном мусхаф-варианте кружок 40×40 по рисунку,

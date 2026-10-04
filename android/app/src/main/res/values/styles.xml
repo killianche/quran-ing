@@ -17,7 +17,7 @@
 
 
     <!-- Стартовая заставка (SplashScreen API, Android 12+ и совместимость):
-         поле ковра #440505 и медальон по центру — как на iOS и как копия
+         поле ковра #786747 и медальон по центру — как на iOS и как копия
          заставки #launch в index.html. Ресурсы делает
          scripts/generate-brand-assets.py. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">

@@ -68,6 +68,7 @@ const { tajweedPageJsonPath, tajweedAyahFromPage } = tajweedPageMod;
 const {
   RECITERS, RECITERS_WITH_SEGMENTS, reciterById, supportsAyahOffline,
   requiresSurahAudioStream, surahAudioUrl, usesWholeAyahHighlight, usesTimelineSeek,
+  reciterHasSurah, nextAvailableSurah,
 } = recitersMod;
 const { formatPlaybackTime } = playbackTimeMod;
 const { ayahAudioUrl } = quranUtilsMod;
@@ -156,10 +157,32 @@ group('Чтец без границ аятов: перемотка по врем
     ['0:59', '0:00', '0:00', '0:00']);
 });
 
+group('Хьусейн Мержоев: записи целых сур, 80 из 114', () => {
+  check('режим перемотки по времени, без поаятного офлайна',
+    [usesTimelineSeek('merzhoev'), supportsAyahOffline('merzhoev')], [true, false]);
+  check('URL записи суры — свой сервер, номер из трёх цифр',
+    surahAudioUrl('merzhoev', 2),
+    'https://quraning-audio.217-177-75-68.sslip.io/audio/merzhoev/002.mp3');
+  check('в списке 80 разных сур в пределах 1–114, по возрастанию',
+    (() => {
+      const list = reciterById('merzhoev').availableSurahs;
+      return [list.length, new Set(list).size, list.every((n, i) => n >= 1 && n <= 114 && (i === 0 || n > list[i - 1]))];
+    })(),
+    [80, 80, true]);
+  check('есть 1, 9, 12, 114; нет 10, 11, 74',
+    [1, 9, 12, 114, 10, 11, 74].map(n => reciterHasSurah('merzhoev', n)),
+    [true, true, true, true, false, false, false]);
+  check('после 9-й следующая доступная — 12-я, после 114-й — нет',
+    [nextAvailableSurah('merzhoev', 9), nextAvailableSurah('merzhoev', 73), nextAvailableSurah('merzhoev', 114)],
+    [12, 75, null]);
+  check('у чтецов без списка есть все суры',
+    [reciterHasSurah('yasser', 10), nextAvailableSurah('yasser', 9)], [true, 10]);
+});
+
 group('Каталог чтецов и источники аудио', () => {
-  check('в каталоге пять проверенных чтецов',
+  check('в каталоге шесть чтецов',
     RECITERS.map(reciter => reciter.id),
-    ['alafasy', 'shaatree', 'yasser', 'luhaidan', 'ajmi']);
+    ['alafasy', 'shaatree', 'yasser', 'luhaidan', 'ajmi', 'merzhoev']);
   check('Ясир Ад-Даусари подписан по-русски и по-арабски',
     [reciterById('yasser').label, reciterById('yasser').arabic],
     ['Ясир Ад-Даусари', 'ياسر الدوسري']);
@@ -231,7 +254,10 @@ group('Каталог чтецов и источники аудио', () => {
 
   let continuousRangeCount = 0;
   let invalidContinuousRanges = 0;
-  for (const reciter of RECITERS) {
+  // Чтец без границ аятов (`timelineOnly`) по определению вне этого
+  // инварианта: у него перемотка по времени, а не по аятам.
+  const ayahTimedReciters = RECITERS.filter(r => !r.timelineOnly);
+  for (const reciter of ayahTimedReciters) {
     for (let surah = 1; surah <= TOTAL_SURAHS; surah++) {
       for (let ayah = 1; ayah <= ayahsInSurah(surah); ayah++) {
         const range = ayahAudioRange(reciter.id, surah, ayah);
@@ -245,9 +271,9 @@ group('Каталог чтецов и источники аудио', () => {
       }
     }
   }
-  check('у всех пяти чтецов есть валидные границы для бесшовных 6236 аятов',
-    [continuousRangeCount, invalidContinuousRanges],
-    [TOTAL_AYAHS * RECITERS.length, 0]);
+  check('у всех пяти чтецов с поаятной разметкой есть валидные границы для 6236 аятов',
+    [ayahTimedReciters.length, continuousRangeCount, invalidContinuousRanges],
+    [5, TOTAL_AYAHS * 5, 0]);
 });
 
 group('iOS: стабильная подсветка QCF-глифов', () => {

@@ -38,7 +38,7 @@
  * от env(safe-area-inset-bottom).
  */
 
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Device } from '@capacitor/device';
 import { TabBar as NativeBar } from '@capawesome/capacitor-tab-bar';
 import type { TabId } from '../components/TabBar';
@@ -48,6 +48,15 @@ export type TabBarMode = 'pending' | 'native' | 'web';
 
 /** С какой версии iOS берём системную панель — первая с Liquid Glass. */
 const MIN_IOS_MAJOR = 26;
+
+/**
+ * Насколько системная панель ниже своего места, pt. Владелец 2026-10-04:
+ * «кнопки Коран и Азкары сделать ниже, ближе к краю». Штатно капсула стоит
+ * ~22 pt над краем экрана; 8 — ближе к домашней полосе, но не на ней.
+ * Сдвигает локальный плагин TabBarOffset (MainViewController.swift).
+ */
+const NATIVE_BAR_DROP_PT = 8;
+const TabBarOffset = registerPlugin<{ apply(o: { y: number }): Promise<void> }>('TabBarOffset');
 
 /**
  * Вкладки системной панели. Символы — SF Symbols в залитом варианте:
@@ -64,7 +73,7 @@ const NATIVE_TABS: { id: TabId; title: string; systemImage: string }[] = [
  * (светлые темы / тёмные). Плагин принимает только #RRGGBB, а CSS-переменную
  * с нативной стороны не прочитать.
  */
-export const BRAND_HEX = { light: '#7a1512', dark: '#d95e52' } as const;
+export const BRAND_HEX = { light: '#7c6340', dark: '#dcc5a3' } as const;
 
 /** Геометрия веб-капсулы: высота содержимого, зазор и подрезка зоны. */
 export const WEB_BAR = {
@@ -73,7 +82,7 @@ export const WEB_BAR = {
   /** Зазор, который экраны добавляют к капсуле в своём нижнем отступе. */
   inset: 10,
   /** Нижняя координата капсулы. */
-  bottom: 'max(6px, calc(env(safe-area-inset-bottom) - 14px))',
+  bottom: 'max(6px, calc(env(safe-area-inset-bottom) - 18px))',
 } as const;
 
 // Состояние показа — см. «Показ и скрытие» ниже.
@@ -210,6 +219,10 @@ async function pump(): Promise<void> {
       await (target ? NativeBar.show() : NativeBar.hide());
       shown = target;
       invalidateTop();
+      // Сдвиг ставится на каждый показ: панель — тот же объект, но так не
+      // зависит от того, сохранил ли плагин его между показами. Старая
+      // сборка без плагина ответит отказом — панель тогда на штатном месте.
+      if (target) void TabBarOffset.apply({ y: NATIVE_BAR_DROP_PT }).catch(() => undefined);
     }
   } catch {
     setMode('web');
