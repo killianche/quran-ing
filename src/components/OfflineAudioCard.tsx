@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import { RECITERS, hasSurahAudio, reciterById, reciterHasSurah, supportsAyahOffline, type ReciterId } from '../lib/reciters';
 import {
   getDownloadState, startDownload, pauseDownload, resetDownloadState,
-  subscribeDownloads, estimateBytes, formatBytes,
+  subscribeDownloads, estimateBytes, estimateSurahBytes, formatBytes, remainingAllBytes,
   type DownloadScope,
 } from '../lib/audioDownloads';
 import { optOutOfAutoDownload } from '../lib/audioAutoDownload';
@@ -128,6 +128,14 @@ function SurahRow({ reciter, surah }: { reciter: ReciterId; surah: number }) {
   const st = getDownloadState(reciter);
   const running = st.status === 'running';
   const busyOnThis = running && st.scope?.kind === 'surah' && st.scope.surah === surah;
+  // Отказ или обрыв загрузки ЭТОЙ суры — сказать, иначе нажатие на
+  // «Скачать» выглядело бы как ничего не сделавшее.
+  const failedHere = !running && st.error != null
+    && st.scope?.kind === 'surah' && st.scope.surah === surah;
+  // Пауза посреди файла этой суры: часть уже на диске, «Скачать» продолжит
+  // с того же места — так и показываем, а не пустой шкалой и полным объёмом.
+  const pausedHere = !running && !complete && st.status === 'paused'
+    && st.scope?.kind === 'surah' && st.scope.surah === surah && st.bytesTotal > 0;
 
   return (
     <div style={{
@@ -172,7 +180,7 @@ function SurahRow({ reciter, surah }: { reciter: ReciterId; surah: number }) {
           />
         ) : (
           <ActionButton
-            label={have > 0 ? 'Докачать суру' : 'Скачать суру'}
+            label={have > 0 || pausedHere ? 'Докачать суру' : 'Скачать суру'}
             icon={<Download size={ICON_SIZE.sm} />}
             onClick={() => { void startDownload(reciter, { kind: 'surah', surah }); }}
           />
@@ -182,12 +190,16 @@ function SurahRow({ reciter, surah }: { reciter: ReciterId; surah: number }) {
       {/* Во время сплошной загрузки поаятных отметок не появляется, и шкала
           по аятам стояла бы на нуле все несколько минут — человек решил бы,
           что зависло. Пока идёт эта сура, показываем байты. */}
-      {busyOnThis && st.bytesTotal > 0
+      {(busyOnThis || pausedHere) && st.bytesTotal > 0
         ? <Meter value={st.bytes} max={st.bytesTotal} />
         : <Meter value={asSurahFile ? total : have} max={total} />}
 
-      <span style={meta_}>
-        {busyOnThis && st.bytesTotal > 0
+      <span style={{ ...meta_, color: failedHere && st.status === 'error' ? 'var(--danger)' : meta_.color }}>
+        {failedHere && !complete
+          ? st.error
+          : pausedHere
+          ? `На паузе: ${formatBytes(st.bytes)} из ${formatBytes(st.bytesTotal)}`
+          : busyOnThis && st.bytesTotal > 0
           ? `Качаю одной записью: ${formatBytes(st.bytes)} из ${formatBytes(st.bytesTotal)}`
           : asSurahFile
           ? 'Эта сура есть офлайн одной записью — читается без стыков'
@@ -197,7 +209,7 @@ function SurahRow({ reciter, surah }: { reciter: ReciterId; surah: number }) {
           ? 'Для этого чтеца уже идёт другая загрузка. Управление — в разделе «Аккаунт».'
           : !supportsAyahOffline(reciter)
           // Только целыми сурами — счёт по аятам здесь ничего не значит.
-          ? `Скачается одной записью · ≈ ${formatBytes(estimateBytes(reciter, total))}`
+          ? `Скачается одной записью · ${formatBytes(estimateSurahBytes(reciter, surah))}`
           : `${have} из ${total} аятов · ≈ ${formatBytes(estimateBytes(reciter, total - have))} осталось`}
       </span>
     </div>
@@ -240,6 +252,19 @@ function ReciterRow({ id, label }: {
   const running = st.status === 'running';
   // Полоса показывает то, что реально даёт чтение без швов.
   const шкала = непрерывно ? сплошных : целиком;
+  // Точный остаток в байтах — только у чтеца с известными размерами файлов.
+  //
+  // Пока идёт или стоит на паузе задание «все записи», остаток берём из него:
+  // там учтены и уже пришедшие куски недокачанной суры. Иначе — по отметкам
+  // целых файлов на диске.
+  const заданиеВсех = st.scope?.kind === 'all' && st.bytesTotal > 0
+    && (st.status === 'running' || st.status === 'paused');
+  const осталосьБайт = заданиеВсех
+    ? Math.max(0, st.bytesTotal - st.bytes)
+    : remainingAllBytes(id);
+  const осталось = осталосьБайт != null && осталосьБайт > 0
+    ? `осталось ${formatBytes(осталосьБайт)}`
+    : null;
 
   const ALL: DownloadScope = { kind: 'all' };
 
@@ -335,7 +360,7 @@ function ReciterRow({ id, label }: {
 
       <span style={{
         ...meta_,
-        color: st.status === 'error' ? '#e0654a' : 'var(--text-tertiary)',
+        color: st.status === 'error' ? 'var(--danger)' : 'var(--text-tertiary)',
       }}>
         {st.status === 'error'
           ? st.error
@@ -347,13 +372,13 @@ function ReciterRow({ id, label }: {
           // Единицы задания зависят от того, что качается: сплошные записи
           // считаются сурами, аварийный поаятный путь — аятами. Одна подпись
           // на оба случая давала «0 из 1 сур» и «12 из 286 сур».
-          ? `Качаю ${st.done} из ${st.total} ${st.scope?.kind === 'all' && непрерывно ? 'сур' : 'файлов'} · ${formatBytes(st.bytes)}`
+          ? `Качаю ${st.done} из ${st.total} ${st.scope?.kind === 'all' && непрерывно ? 'сур' : 'файлов'} · ${formatBytes(st.bytes)}${заданиеВсех && осталось ? ` · ${осталось}` : ''}`
           : шкала > 0
-          ? `${шкала} из ${всего} сур одной записью${have > 0 ? ` · и ${have} аятов по старому` : ''}`
+          ? `${шкала} из ${всего} сур одной записью${have > 0 ? ` · и ${have} аятов по старому` : ''}${осталось ? ` · ${осталось}` : ''}`
           : have > 0
           // Старая фонотека: играет офлайн, но со стыками на границах аятов.
           ? `${suras} сур по аятам — офлайн есть, но со стыками. «Скачать» даст чтение без них`
-          : 'Не скачано — играет стримом'}
+          : `Не скачано — играет стримом${осталосьБайт ? ` · ${formatBytes(осталосьБайт)}` : ''}`}
       </span>
     </div>
   );

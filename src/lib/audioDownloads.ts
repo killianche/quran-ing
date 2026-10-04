@@ -139,6 +139,30 @@ export function estimateBytes(reciter: ReciterId, ayahCount: number): number {
   return AVG_AYAH_BYTES_64KBPS * bitrateRatio * ayahCount;
 }
 
+/**
+ * Сколько весит сура одной записью: точно, если размер известен
+ * (`surahBytes`), иначе — по среднему весу аята.
+ */
+export function estimateSurahBytes(reciter: ReciterId, surah: number): number {
+  return reciterById(reciter).surahBytes?.[surah]
+    ?? estimateBytes(reciter, ayahsInSurah(surah));
+}
+
+/**
+ * Сколько осталось скачать для «всех записей» — null, если точных размеров
+ * у чтеца нет: обещать человеку цифру по среднему весу аята для почти
+ * гигабайта мы не готовы.
+ */
+export function remainingAllBytes(reciter: ReciterId): number | null {
+  const sizes = reciterById(reciter).surahBytes;
+  if (!sizes) return null;
+  let n = 0;
+  for (const [surah, bytes] of Object.entries(sizes)) {
+    if (!hasSurahFile(reciter, Number(surah))) n += bytes;
+  }
+  return n;
+}
+
 export function formatBytes(n: number): string {
   if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} ГБ`;
   if (n >= 1024 ** 2) return `${Math.round(n / 1024 ** 2)} МБ`;
@@ -374,6 +398,8 @@ export async function downloadSurahFile(
 ): Promise<boolean> {
   if (!isOfflineSupported()) return false;
   if (hasSurahFile(reciter, surah)) return true;
+  // Суры, которой у чтеца нет, на сервере нет тоже — не ходим за 404.
+  if (!reciterHasSurah(reciter, surah)) return false;
 
   const url = surahAudioUrl(reciter, surah);
   if (!url) return false;
@@ -522,6 +548,26 @@ export async function startDownload(reciter: ReciterId, scope: DownloadScope): P
         patch(reciter, { ...IDLE, scope, done: 1, total: 1 });
         return;
       }
+      // 🔴 У чтеца только целыми сурами (Хьусейн Мержоев) отступать некуда.
+      //
+      // Поаятный путь здесь хуже, чем бесполезен: `remoteAyahAudioUrl` у
+      // такого чтеца отдаёт адрес файла ВСЕЙ суры, и очередь скачала бы его
+      // столько раз, сколько в суре аятов — Аль-Бакару 286 раз по 116 МБ,
+      // около 33 ГБ трафика и места (поймано ревью коммита 2008515).
+      if (!supportsAyahOffline(reciter)) {
+        if (cancelFlags.has(reciter)) {
+          cancelFlags.delete(reciter);
+          patch(reciter, { status: 'paused', scope });
+          return;
+        }
+        patch(reciter, {
+          status: 'error', scope, done: 0, total: 1,
+          error: reciterHasSurah(reciter, scope.surah)
+            ? 'Не удалось скачать суру — попробуйте позже. Она продолжит играть через интернет.'
+            : 'У этого чтеца пока нет записи этой суры.',
+        });
+        return;
+      }
     } catch (error) {
       // 🔴 Частично скачанное НЕ стираем.
       //
@@ -569,9 +615,17 @@ export async function startDownload(reciter: ReciterId, scope: DownloadScope): P
       return;
     }
 
+    // Полный объём задания — только когда размеры файлов известны точно
+    // (`surahBytes`): по нему интерфейс показывает «осталось N МБ», и
+    // цифра обязана убывать вместе с загрузкой, а не стоять до конца суры.
+    // Частично лежащий файл в `bytes` уже учтён: прогресс суры начинается с
+    // его длины.
+    const точно = reciterById(reciter).surahBytes != null;
     patch(reciter, {
       status: 'running', scope, done: 0, total: остались.length,
-      bytes: 0, bytesTotal: 0, error: null,
+      bytes: 0,
+      bytesTotal: точно ? остались.reduce((n, сура) => n + estimateSurahBytes(reciter, сура), 0) : 0,
+      error: null,
     });
 
     let готовых = 0;
@@ -637,6 +691,16 @@ export async function startDownload(reciter: ReciterId, scope: DownloadScope): P
     }
 
     patch(reciter, { ...IDLE, scope, done: готовых, total: остались.length });
+    return;
+  }
+
+  // Последний рубеж: поаятная очередь у чтеца без поаятного источника
+  // скачивала бы файл целой суры на каждый аят (см. ветку суры выше).
+  if (!supportsAyahOffline(reciter)) {
+    patch(reciter, {
+      status: 'error', scope,
+      error: 'Этого чтеца можно скачать только целыми сурами.',
+    });
     return;
   }
 

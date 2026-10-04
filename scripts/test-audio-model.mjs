@@ -178,6 +178,15 @@ group('Хьусейн Мержоев: записи целых сур, 80 из 11
   check('кнопка «‹» плеера: перед 12-й — 9-я, перед 1-й — нет',
     [prevAvailableSurah('merzhoev', 12), prevAvailableSurah('merzhoev', 75), prevAvailableSurah('merzhoev', 1)],
     [9, 73, null]);
+  {
+    const r = recitersMod.RECITERS.find(x => x.id === 'merzhoev');
+    const sized = Object.keys(r.surahBytes).map(Number).sort((x, y) => x - y);
+    check('размеры известны ровно для записанных сур Мержоева',
+      sized, [...r.availableSurahs]);
+    const total = Object.values(r.surahBytes).reduce((x, y) => x + y, 0);
+    check('все записи Мержоева — около 845 МБ',
+      Math.round(total / 1024 ** 2), 845);
+  }
   check('сур у чтеца: Мержоев 80, Ясир 114',
     [availableSurahCount('merzhoev'), availableSurahCount('yasser')], [80, 114]);
   check('у чтецов без списка есть все суры',
