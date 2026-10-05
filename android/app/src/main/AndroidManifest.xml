@@ -38,21 +38,19 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Фоновое воспроизведение.
-         Что известно точно (сверено с исходниками @capacitor/android):
-         Bridge.onPause() НЕ приостанавливает WebView — он только
-         оповещает плагины, а webView.onPause()/pauseTimers() не
-         вызывает.  Значит <audio> в фоне не глушится самим Capacitor,
-         и navigator.mediaSession (он у нас настроен в lib/mediaSession.ts)
-         должен поднять системное медиа-уведомление силами WebView.
-         ⚠️ НЕ ПРОВЕРЕНО на устройстве: Android вправе убить фоновый
-         процесс без foreground service, поэтому длительное чтение с
-         погашенным экраном может обрываться.  Если проверка это
-         подтвердит — понадобится нативный foreground service с
-         MediaSession; разрешения под него объявлены здесь заранее,
-         чтобы не пересобирать манифест и не ловить сюрприз на ревью.
+         Bridge.onPause() у Capacitor НЕ приостанавливает WebView, поэтому
+         <audio> в фоне не глушится, а navigator.mediaSession
+         (lib/mediaSession.ts) поднимает системное медиа-уведомление силами
+         WebView.
+
+         Разрешения FOREGROUND_SERVICE / FOREGROUND_SERVICE_MEDIA_PLAYBACK
+         сняты 2026-10-05 перед выкладкой в Google Play: самой службы в
+         приложении нет, а за объявленный тип службы Play требует
+         декларацию с видео её работы — пустая декларация ведёт к отказу.
+         Если проверка на устройстве покажет, что Android обрывает долгое
+         чтение с погашенным экраном, — нужна настоящая служба с
+         MediaSession, и тогда разрешения возвращаются вместе с ней.
          На iOS сценарий закрыт ключом UIBackgroundModes=audio. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Android 13+ требует явного разрешения, чтобы показать

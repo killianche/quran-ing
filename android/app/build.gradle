@@ -1,5 +1,22 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+// Номер сборки для Google Play — из package.json (`androidBuild`), рядом с
+// `iosBuild`: один источник правды, как у iOS. Play отвергает повторную
+// выгрузку с тем же versionCode, поэтому перед каждой выгрузкой его
+// поднимают на единицу.
+def packageJson = new JsonSlurper().parse(rootProject.file('../package.json'))
+def androidBuild = (packageJson.androidBuild ?: 1) as int
+
+// Ключ загрузки (upload key) для Play — только из окружения: в CI его кладёт
+// android-release.yml из секретов репозитория, локально — secrets/android/
+// android.env. В git ключа нет. Без переменных release собирается
+// неподписанным — debug-проверка (android-check.yml) от этого не зависит.
+def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+def keystoreFile = keystorePath ? rootProject.file("../${keystorePath}") : null
+if (keystorePath && keystorePath.startsWith('/')) keystoreFile = file(keystorePath)
+
 android {
     namespace = "ing.quran.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,7 +24,7 @@ android {
         applicationId "ing.quran.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode androidBuild
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -16,8 +33,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystoreFile != null && keystoreFile.exists()) {
+                storeFile keystoreFile
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystoreFile != null && keystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

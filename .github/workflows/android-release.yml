@@ -1,0 +1,111 @@
+# Android release — подписанные AAB (для Google Play) и APK (поставить
+# на телефон напрямую, мимо магазина).
+#
+# Подпись — ключ загрузки (upload key) из секретов репозитория:
+#   ANDROID_KEYSTORE_B64       — keystore в base64
+#   ANDROID_KEYSTORE_PASSWORD  — пароль хранилища
+#   ANDROID_KEY_ALIAS          — псевдоним ключа (upload)
+#   ANDROID_KEY_PASSWORD       — пароль ключа
+# Оригинал ключа — secrets/android/ на сервере проекта (в git его нет).
+# В Google Play включается подпись Play (Play App Signing): Google хранит
+# ключ приложения, а этим ключом подписываются только выгрузки, поэтому
+# при утере его можно сбросить через поддержку Play.
+#
+# Номер сборки (versionCode) — `androidBuild` в package.json. Play не
+# принимает повторную выгрузку с тем же номером: перед выгрузкой поднять.
+#
+# Запуск только вручную: Actions → Android release → Run workflow.
+
+name: Android release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Тесты
+        run: npm test
+
+      - name: Сакральный гард
+        run: npm run check:sacred
+
+      - name: Разбивка страниц мусхафа
+        run: npm run check:mushaf-pages
+
+      - name: Сборка веба
+        run: npm run build
+
+      - name: Перенос веб-ассетов в нативный проект
+        run: npx cap sync android
+
+      - name: Ключ загрузки из секретов
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64}" ]; then
+            echo "Секрет ANDROID_KEYSTORE_B64 не задан — подписывать нечем." >&2
+            exit 1
+          fi
+          echo "${KEYSTORE_B64}" | base64 -d > "${RUNNER_TEMP}/upload-keystore.jks"
+
+      - name: Сборка подписанных AAB и APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon bundleRelease assembleRelease
+
+      - name: Проверка подписи
+        run: |
+          set -euo pipefail
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          # Неподписанный файл Gradle назвал бы *-unsigned.apk — его здесь
+          # быть не должно.
+          test -f "$AAB" && test -f "$APK"
+          jarsigner -verify "$AAB" | tail -1
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          # 16 КБ страницы памяти (требование Play для targetSdk 35+): все
+          # нативные библиотеки в APK должны быть выровнены.
+          ZIPALIGN=$(ls "$ANDROID_HOME"/build-tools/*/zipalign | sort -V | tail -1)
+          "$ZIPALIGN" -c -P 16 -v 4 "$APK" | tail -1
+
+      - name: Забрать AAB и APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: quran-ing-android-release
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30

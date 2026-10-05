@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "iosBuild": 6,
+  "androidBuild": 1,
   "type": "module",
   "scripts": {
     "brand:generate": "python3 scripts/generate-brand-assets.py",
