@@ -42,23 +42,6 @@ export function isScrubbing(): boolean {
   return performance.now() < scrubbingUntil;
 }
 
-/**
- * Касание, начатое в полосе захвата, — ещё до удержания.
- *
- * Нужен листанию вкладок (TabPager): полоса прокрутки лежит у левого края
- * списка сур, и горизонтальный жест оттуда листать вкладки не должен —
- * палец там «примеряется» к удержанию. Храним само событие, а не флаг:
- * экземпляров прокрутки может быть несколько, и флаг один из них сбросил бы
- * другому. Сравнение по ссылке — то же событие доходит до всех слушателей,
- * а полоса слушает окно на погружении, то есть раньше листания.
- */
-let stripStartEvent: TouchEvent | null = null;
-
-/** Это касание началось в полосе быстрой прокрутки (или она уже идёт). */
-export function isScrubStripStart(event: TouchEvent): boolean {
-  return stripStartEvent === event || isScrubbing();
-}
-
 type Props = {
   /** Выключатель места — из `FAST_SCROLL`. */
   enabled: boolean;
@@ -225,7 +208,6 @@ export function FastScrubber({
       const ok = live.current.canStart;
       if (ok && !ok(e.target instanceof Element ? e.target : null, t.clientX, t.clientY)) return;
       start = { x: t.clientX, y: t.clientY };
-      stripStartEvent = e;
       cancelHold();
       hold = window.setTimeout(activate, HOLD_MS);
     };

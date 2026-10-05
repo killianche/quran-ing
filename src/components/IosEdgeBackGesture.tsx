@@ -118,6 +118,10 @@ export function IosEdgeBackGesture({
           '[style*="position: fixed"], [style*="position:fixed"], .screen-header',
         )
         .forEach(el => {
+          // Шапки вкладок живут в слое своей страницы, а не у окна
+          // (TabPager): в копии они уже стоят на месте, вторая копия на
+          // слое жеста легла бы поверх них дважды.
+          if (el.closest('[data-tab-pager]')) return;
           // 🔴 КОПИРУЕМ, а не переносим.
           //
           // Раньше узел переносился в `shell`, а в очистке возвращался на

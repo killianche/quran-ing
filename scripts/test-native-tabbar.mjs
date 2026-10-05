@@ -77,7 +77,8 @@ const TABS_CALL = 'setTabs:"player=play.circle.fill,quran=book.fill,azkar=moon.f
   m.markLaunchFaded();
   await settle();
   same('после заставки — ровно один show', __nativeMock.calls.slice(2), ['show']);
-  same('после показа панель опущена на 8 pt', __nativeMock.local, ['TabBarOffset.apply:{"y":8}']);
+  // 2026-10-05: «слишком низко… подними» — штатное место iOS, смещение 0.
+  same('после показа панель на штатном месте (смещение 0)', __nativeMock.local, ['TabBarOffset.apply:{"y":0}']);
 
   // Смена вкладки: размонтирование и монтирование в одном коммите.
   __nativeMock.calls.length = 0;
@@ -164,7 +165,7 @@ const TABS_CALL = 'setTabs:"player=play.circle.fill,quran=book.fill,azkar=moon.f
   same('сбой show: режим web', m.getTabBarMode(), 'web');
   same('сбой show: подписчики узнали', seen, ['web']);
   same('сбой show: геометрия веб-капсулы', cssVars['--tabbar-top'],
-    'calc(max(6px, calc(env(safe-area-inset-bottom) - 18px)) + 62px)');
+    'calc(max(6px, calc(env(safe-area-inset-bottom) - 10px)) + 62px)');
 }
 
 // 6. Android и веб: сразу веб-режим, init ничего не делает.

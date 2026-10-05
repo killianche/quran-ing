@@ -45,11 +45,14 @@ import { Appearance, ChevronRight, ICON_SIZE, Sparkle } from '../components/icon
 import { ThemeSettings } from '../components/ReadingSettings';
 import { LargeTitleHeader } from '../components/ScreenHeader';
 import { TAB_BAR_SPACE } from '../components/TabBar';
+import type { TabFrame } from '../components/TabPager';
 import { loadAzkarData, type AzkarCategoryId, type AzkarData } from '../lib/azkar';
 
 type Props = {
   /** false — вкладка припаркована под экраном «поверх» (App.tsx). */
   active?: boolean;
+  /** Своя прокрутка вкладки и слой шапки (TabPager); null — первый кадр. */
+  frame?: TabFrame | null;
   theme: Theme;
   setTheme: (t: Theme) => void;
   // onBack убран: возврат к Корану — это переключение вкладки в
@@ -84,7 +87,7 @@ const TILE_ORDER: AzkarCategoryId[] = ['morning', 'evening'];
  */
 const TILE_HEIGHT = 'clamp(300px, calc(100svh - 330px), 560px)';
 
-export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: Props) {
+export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true, frame }: Props) {
   const [data, setData] = useState<AzkarData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -132,6 +135,7 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: 
       {/* Шапка — один в один с главной Корана. */}
       <LargeTitleHeader
         active={active}
+        frame={frame}
         title="Азкары"
         actions={[{
           key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,

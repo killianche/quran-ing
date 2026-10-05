@@ -31,6 +31,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { ChevronLeft } from './icons';
@@ -330,6 +331,19 @@ const COMPACT_FROM = 24;
 const COMPACT_LENGTH = 36;
 
 /**
+ * Крупный заголовок корневой вкладки (Large Title iOS) — тот же кегль, что
+ * был у отдельной строки под панелью: Title 1…Large Title, решает 8vw.
+ */
+const ROOT_TITLE_SIZE = 'clamp(var(--font-title1), 8vw, var(--font-largetitle))';
+/** До какого кегля он сжимается при прокрутке — Title 2, px. */
+const ROOT_TITLE_MIN_PX = 22;
+/** За сколько пикселей прокрутки крупный заголовок сжимается до Title 2. */
+const ROOT_TITLE_SHRINK = 44;
+
+/** Где слушать прокрутку: у вкладки — её страница, у экрана «поверх» — окно. */
+type ScrollSource = HTMLElement | null | undefined;
+
+/**
  * CollapsingNavBar — строка навигационной панели над экраном с крупным
  * заголовком.
  *
@@ -338,14 +352,20 @@ const COMPACT_LENGTH = 36;
  * строкой включается, только когда под неё заехал контент (на самом верху
  * панель чистая, как в системе).
  *
+ * У корневой вкладки (`rootTitle`) отдельного компактного заголовка нет:
+ * крупный стоит в самой строке, слева, на уровне кнопок, и при прокрутке тот
+ * же элемент плавно сжимается до Title 2, оставаясь на месте (владелец
+ * 2026-10-05: «чтобы они были в левом верхнем углу, как у айфонов»).
+ *
  * Прокрутка пишется прямо в style через ref — без setState, чтобы экран не
- * перерисовывался на каждом кадре прокрутки.
+ * перерисовывался на каждом кадре прокрутки. Сжатие — только `transform`:
+ * смена `font-size` перекладывала бы строку на каждом кадре.
  *
  * Геометрия строки — та же, что у `ScreenHeader`: кнопки «назад» и действий
  * стоят на одном месте на всех экранах приложения.
  */
 export function CollapsingNavBar({
-  title, onBack, actionGroups = [], headerRef, active = true,
+  title, onBack, actionGroups = [], headerRef, active = true, scroller, host, rootTitle = false,
 }: {
   /** false — экран припаркован (не виден): замер границы откладывается до
    *  возвращения, иначе он считался бы по нулевой геометрии. */
@@ -359,29 +379,72 @@ export function CollapsingNavBar({
    *  ссылка надёжнее поиска `header.screen-header` по документу: копия
    *  шапки в предпросмотре жеста или вторая панель сбили бы замер. */
   headerRef?: React.MutableRefObject<HTMLElement | null>;
+  /**
+   * Своя прокрутка экрана (страница вкладки, TabPager). Не задана — окно,
+   * как у экранов «поверх»; null — прокрутки ещё нет (первый кадр
+   * вкладки), слушать нечего.
+   */
+  scroller?: ScrollSource;
+  /**
+   * Слой страницы, в который встаёт панель (TabPager, `data-tab-header-host`):
+   * панель едет со страницей при листании и не уезжает при прокрутке. Не
+   * задан — панель закреплена у окна; null — слоя ещё нет, панель не рисуем.
+   */
+  host?: HTMLElement | null;
+  /** Корневая вкладка: крупный заголовок в строке, сжимается на месте. */
+  rootTitle?: boolean;
 }) {
   const compactRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
   const edgeRef = useRef<HTMLDivElement>(null);
   const ownRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (!active) return;
-    // Порог постоянный: крупный заголовок всегда в начале экрана.
-    const start = COMPACT_FROM;
+    if (!active || scroller === null) return;
+    const target: HTMLElement | Window = scroller ?? window;
+    const readY = () => (scroller ? scroller.scrollTop : window.scrollY);
+    // Во сколько раз крупный заголовок меньше на Title 2. Кегль крупного
+    // плавает с шириной экрана (8vw), поэтому меряется, а не берётся числом.
+    let minScale = 1;
+    const measure = () => {
+      const el = titleRef.current;
+      const px = el ? parseFloat(getComputedStyle(el).fontSize) : NaN;
+      minScale = Number.isFinite(px) && px > ROOT_TITLE_MIN_PX ? ROOT_TITLE_MIN_PX / px : 1;
+    };
     const apply = () => {
-      const y = window.scrollY;
+      const y = Math.max(0, readY());
+      if (rootTitle) {
+        const t = Math.min(1, y / ROOT_TITLE_SHRINK);
+        if (titleRef.current) titleRef.current.style.transform = `scale(${1 + (minScale - 1) * t})`;
+        // Кромка — как только контент заехал под строку: у корневой вкладки
+        // он начинается сразу под ней.
+        if (edgeRef.current) edgeRef.current.style.opacity = String(Math.min(1, y / COMPACT_FROM));
+        return;
+      }
+      // Порог постоянный: крупный заголовок всегда в начале экрана.
+      const start = COMPACT_FROM;
       const compact = Math.min(1, Math.max(0, (y - start) / COMPACT_LENGTH));
       const edge = Math.min(1, Math.max(0, (y - start + COMPACT_FROM) / COMPACT_FROM));
       if (compactRef.current) compactRef.current.style.opacity = String(compact);
       if (edgeRef.current) edgeRef.current.style.opacity = String(edge);
     };
+    const onResize = () => { measure(); apply(); };
+    measure();
     apply();
-    window.addEventListener('scroll', apply, { passive: true });
-    return () => window.removeEventListener('scroll', apply);
-  }, [active]);
+    target.addEventListener('scroll', apply, { passive: true });
+    window.addEventListener('resize', onResize);
+    return () => {
+      target.removeEventListener('scroll', apply);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [active, scroller, rootTitle]);
 
   const groups = actionGroups.filter(g => g.length > 0);
 
-  return (
+  // Слой страницы ещё не готов (первый коммит вкладки) — панели нет; кадр
+  // с ней не отрисуется: TabPager отдаёт слой до первой отрисовки.
+  if (host === null) return null;
+
+  const header = (
     <header
       ref={el => {
         ownRef.current = el;
@@ -390,7 +453,8 @@ export function CollapsingNavBar({
       role="banner"
       className="screen-header"
       style={{
-        position: 'fixed',
+        // В слое страницы — по нему; без слоя — закреплена у окна.
+        position: host ? 'absolute' : 'fixed',
         top: 0,
         left: 0,
         right: 0,
@@ -413,36 +477,66 @@ export function CollapsingNavBar({
         margin: '0 auto',
       }}>
         {onBack && <HeaderBackButton onBack={onBack} />}
-        {/* Компактный заголовок проявляется по прокрутке. С «назад» — по
-            центру строки, как в системной навигационной панели. Без него
-            (корневые вкладки) — слева, на линии крупного заголовка:
-            центрированный между пустым местом под «назад» и капсулой
-            действий, он висел посреди экрана без опоры (владелец
-            2026-10-05: «должен быть слева вверху»). */}
-        <div
-          ref={compactRef}
-          aria-hidden
-          className="display-serif"
-          style={{
+        {rootTitle ? (
+          // Крупный заголовок корневой вкладки — в строке кнопок, слева, на
+          // линии поля страницы. Ширина — до капсулы действий, длинное
+          // название уходит в многоточие, а не под кнопки. Сжатие — scale от
+          // левого края, поэтому буква стоит на месте.
+          <div style={{
             flex: 1, minWidth: 0,
-            textAlign: onBack ? 'center' : 'left',
-            // Поля строки — CAPSULE_SIDE; добираем до поля страницы, чтобы
-            // буква встала ровно над крупным заголовком.
-            paddingLeft: onBack ? 0 : `calc(var(--space-margin) - ${CAPSULE_SIDE}px)`,
-            opacity: 0,
-            // Title 2, а не Headline: у системной панели компактный заголовок
-            // — 17 pt SF Pro, но наша антиква на тех же 17 читалась на
-            // полкегля мельче (владелец 2026-10-04: «заголовок Коран
-            // слишком мелкий при прокрутке»).
-            fontSize: 'var(--font-title2)',
-            lineHeight: 'var(--leading-title2)',
-            fontWeight: 'var(--weight-semibold)',
-            color: 'var(--text-primary)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}
-        >
-          {title}
-        </div>
+            paddingLeft: `calc(var(--space-margin) - ${CAPSULE_SIDE}px)`,
+          }}>
+            <h1
+              ref={titleRef}
+              className="display-serif"
+              style={{
+                margin: 0,
+                fontSize: ROOT_TITLE_SIZE,
+                fontWeight: 'var(--weight-regular)',
+                letterSpacing: '-0.03em',
+                // 1.2, а не 1.05, как было у отдельной строки: тут заголовок
+                // режется по ширине (многоточие), и при тесной строке
+                // `overflow: hidden` срезал бы выносные элементы букв.
+                lineHeight: 1.2,
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                transformOrigin: 'left center',
+              }}
+            >
+              {title}
+            </h1>
+          </div>
+        ) : (
+          /* Компактный заголовок проявляется по прокрутке. С «назад» — по
+             центру строки, как в системной навигационной панели. Без него —
+             слева, на линии крупного заголовка: центрированный между пустым
+             местом под «назад» и капсулой действий, он висел посреди экрана
+             без опоры (владелец 2026-10-05: «должен быть слева вверху»). */
+          <div
+            ref={compactRef}
+            aria-hidden
+            className="display-serif"
+            style={{
+              flex: 1, minWidth: 0,
+              textAlign: onBack ? 'center' : 'left',
+              // Поля строки — CAPSULE_SIDE; добираем до поля страницы, чтобы
+              // буква встала ровно над крупным заголовком.
+              paddingLeft: onBack ? 0 : `calc(var(--space-margin) - ${CAPSULE_SIDE}px)`,
+              opacity: 0,
+              // Title 2, а не Headline: у системной панели компактный заголовок
+              // — 17 pt SF Pro, но наша антиква на тех же 17 читалась на
+              // полкегля мельче (владелец 2026-10-04: «заголовок Коран
+              // слишком мелкий при прокрутке»).
+              fontSize: 'var(--font-title2)',
+              lineHeight: 'var(--leading-title2)',
+              fontWeight: 'var(--weight-semibold)',
+              color: 'var(--text-primary)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}
+          >
+            {title}
+          </div>
+        )}
         {groups.length > 0
           ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-tight)', flexShrink: 0 }}>
@@ -453,17 +547,25 @@ export function CollapsingNavBar({
       </div>
     </header>
   );
+  return host ? createPortal(header, host) : header;
 }
 
 /**
  * LargeTitleHeader — шапка экрана с крупным заголовком (Large Title iOS).
  *
- * Как в xtrud и в «Настройках» iOS 26: сверху строка панели
- * (`CollapsingNavBar`), под ней в потоке страницы — крупный заголовок. При
- * прокрутке он уходит вверх, а в строке на 24–60 pt проявляется компактный.
+ * Экран «поверх» (с «назад»): как в xtrud и в «Настройках» iOS 26 — сверху
+ * строка панели (`CollapsingNavBar`), под ней в потоке страницы — крупный
+ * заголовок. При прокрутке он уходит вверх, а в строке на 24–60 pt
+ * проявляется компактный.
+ *
+ * Корневая вкладка (`frame` от TabPager): крупный заголовок стоит в самой
+ * строке панели, слева вверху, и сжимается на месте (см. CollapsingNavBar).
+ * Отдельной строки нет — в потоке остаётся только отступ под панель, и
+ * содержимое начинается сразу под ней. На всех трёх вкладках заголовок в
+ * одной точке: при перелистывании он не прыгает.
  */
 export function LargeTitleHeader({
-  title, onBack, actions = [], actionGroups, headerRef, bottomGap = 'var(--space-margin)', active = true,
+  title, onBack, actions = [], actionGroups, headerRef, bottomGap = 'var(--space-margin)', active = true, frame,
 }: {
   /** false — экран припаркован: панель не слушает прокрутку. */
   active?: boolean;
@@ -476,7 +578,32 @@ export function LargeTitleHeader({
   headerRef?: React.MutableRefObject<HTMLElement | null>;
   /** Отступ под крупным заголовком до содержимого экрана. */
   bottomGap?: string;
+  /**
+   * Корневая вкладка: её прокрутка и слой шапки (TabPager). `null` — слой
+   * ещё не готов (первый коммит); не задан — экран «поверх» на окне.
+   */
+  frame?: { scroller: HTMLElement; headerHost: HTMLElement } | null;
 }) {
+  if (frame !== undefined) {
+    return (
+      <>
+        <CollapsingNavBar
+          title={title}
+          onBack={onBack}
+          actionGroups={actionGroups ?? [actions]}
+          active={active}
+          headerRef={headerRef}
+          scroller={frame ? frame.scroller : null}
+          host={frame ? frame.headerHost : null}
+          rootTitle
+        />
+        {/* Место панели в потоке: содержимое начинается сразу под строкой с
+            заголовком. Есть и в первом кадре, когда самой панели ещё нет, —
+            иначе содержимое подпрыгнуло бы. */}
+        <div aria-hidden style={{ height: screenHeaderOffset(), marginBottom: 'var(--space-snug)' }} />
+      </>
+    );
+  }
   return (
     <>
       <CollapsingNavBar title={title} onBack={onBack} actionGroups={actionGroups ?? [actions]} active={active} headerRef={headerRef} />
@@ -489,7 +616,7 @@ export function LargeTitleHeader({
           // Кегль плавает между Title 1 и Large Title: на телефоне решает
           // 8vw, ступени шкалы держат границы. Межстрочный — доля от кегля:
           // фиксированная ступень не умеет следовать за clamp.
-          fontSize: 'clamp(var(--font-title1), 8vw, var(--font-largetitle))',
+          fontSize: ROOT_TITLE_SIZE,
           fontWeight: 'var(--weight-regular)',
           letterSpacing: '-0.03em',
           color: 'var(--text-primary)',

@@ -72,6 +72,7 @@ import { TOTAL_SURAHS } from '../lib/ayahNumbering';
 import { formatPlaybackTime } from '../lib/playbackTime';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import type { Theme } from '../hooks/useTheme';
+import type { TabFrame } from '../components/TabPager';
 
 type Props =
   | {
@@ -84,6 +85,8 @@ type Props =
     placement: 'tab';
     /** false — вкладка скрыта или под экраном поверх (App, TabPager). */
     active: boolean;
+    /** Прокрутка вкладки и слой её шапки (TabPager); null — первый кадр. */
+    frame: TabFrame | null;
     theme: Theme;
     setTheme: (t: Theme) => void;
   };
@@ -467,6 +470,7 @@ export function PlayerScreen(props: Props) {
               неправильный заголовок (владелец 2026-10-05). */}
           <LargeTitleHeader
             active={active}
+            frame={props.frame}
             title="Плеер"
             actions={[{
               key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,

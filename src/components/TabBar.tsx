@@ -36,6 +36,7 @@ import {
   subscribeTabBarMode,
   tintNativeTabBar,
 } from '../lib/nativeTabBar';
+import { getLiveTab, subscribeLiveTab } from '../lib/tabLive';
 
 /**
  * Разделы нижнего меню.
@@ -104,9 +105,10 @@ const BAR_HEIGHT = WEB_BAR.height;
 /** Зазор до нижнего края безопасной области.
  *
  * Владелец 07.09.2026: «нижнее меню слишком высоко, надо спустить», и
- * 2026-10-04 ещё раз: «сделать ниже, ближе к краю». От безопасной области
- * отнимается 18 px (`WEB_BAR.bottom`): капсула стоит примерно в 16 px от
- * края — у домашней полосы (её верх ≈ 13 pt), но не на ней. На устройствах без полосы
+ * 2026-10-04 ещё раз: «сделать ниже, ближе к краю» — отнимали 18 px.
+ * 2026-10-05: «слишком низко… немного подними» — теперь от безопасной
+ * области отнимается 10 px (`WEB_BAR.bottom`): капсула примерно в 24 px от
+ * края, над домашней полосой с запасом. На устройствах без полосы
  * (`inset` = 0) остаётся минимум в 6 px. Системную панель iOS 26 так же
  * опускает NATIVE_BAR_DROP_PT (lib/nativeTabBar.ts). */
 const TAB_BAR_BOTTOM = WEB_BAR.bottom;
@@ -148,12 +150,17 @@ export function accessoryBottom(placement: AccessoryPlacement, gap: number): str
 /** Максимальная пауза между двумя тапами по активной вкладке. */
 const DOUBLE_TAP_MS = 420;
 
-export function TabBar({ active, onSelect, theme }: {
+export function TabBar({ active: accepted, onSelect, theme }: {
+  /** Принятая вкладка (App). */
   active: TabId;
   onSelect: (id: TabId) => void;
   theme: Theme;
 }) {
   const mode = useSyncExternalStore(subscribeTabBarMode, getTabBarMode, getTabBarMode);
+  // Пока лента вкладок едет, подсвечена вкладка под пальцем (TabPager пишет
+  // её в стор): панель следует за лентой, а App не перерисовывается.
+  const live = useSyncExternalStore(subscribeLiveTab, getLiveTab, getLiveTab);
+  const active = live ?? accepted;
   const handleTap = useTabTap(active, onSelect, mode !== 'native');
 
   // Системная панель живёт столько же, сколько экран вкладок: ушли на

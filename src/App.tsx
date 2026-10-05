@@ -17,7 +17,8 @@ import {
 } from './components/IosEdgeBackGesture';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar, TAB_ORDER, type TabId } from './components/TabBar';
-import { TabPager } from './components/TabPager';
+import { TabPager, freezeTabsForPreview, scrollTabToTop } from './components/TabPager';
+import { setLiveTab } from './lib/tabLive';
 import { applyHighlightVars } from './lib/audioPrefs';
 import { applyPaletteToDocument } from './lib/tajweedPalette';
 import { syncStatusBarToTheme } from './lib/nativeStatusBar';
@@ -65,11 +66,10 @@ const DocumentScreen = lazy(() => import('./screens/DocumentScreen').then(m => (
  * С четырьмя разделами приём не масштабировался, и активный раздел стал
  * ровно один. Теперь разделов три — «Плеер», «Коран», «Азкары» (решения
  * владельца 2026-10-04 и 2026-10-05), и ради свайпа между ними все вкладки
- * снова живут в DOM — но не слайд-парой:
- * скрытая лежит отдельным слоем (components/TabPager.tsx), потому что
- * transform на контейнере ломал fixed-шапки. Окно по-прежнему прокручивает
- * только видимую вкладку, поэтому позиция каждой хранится вручную
- * (tabScrollRef ниже).
+ * снова живут в DOM — лентой нативной горизонтальной прокрутки
+ * (components/TabPager.tsx), у каждой своя вертикальная прокрутка. Окно на
+ * вкладках не прокручивается; экраны «поверх» прокручивают окно, как
+ * прежде. Позиция каждой вкладки хранится в её прокрутке сама.
  */
 type Screen =
   | { name: 'tabs'; tab: TabId }
@@ -185,15 +185,10 @@ export default function App() {
    * добавляют записей, а снимают их.
    */
   const navigate = (next: Screen) => {
-    // Позицию уходящей вкладки снимаем ЗДЕСЬ, а не в эффекте: к моменту
-    // эффекта новый экран уже мог сбросить скролл (SurahScreen делает
-    // это, когда восстанавливать нечего), и мы записали бы ноль.
     // Тот же экран уже наверху — второй тап по той же строке (двойной тап,
     // дребезг) не открывает суру второй раз поверх первой.
     const top = stackRef.current[stackRef.current.length - 1];
     if (JSON.stringify(top) === JSON.stringify(next)) return;
-
-    rememberTabScroll();
 
     // Для интерактивного iOS edge-pop сохраняем настоящий DOM уходящего
     // экрана. Во время жеста он будет виден под текущим — как предыдущий
@@ -227,11 +222,9 @@ export default function App() {
       // пальцем гас до 72% и проявлялся. Тот самый дефект, от которого
       // избавились на самом экране, переезжал в его копию.
       clone.classList.remove('app-screen-enter');
-      // Скрытую вкладку (TabPager держит обе в DOM) из копии убираем: жест
-      // поднимает закреплённые элементы копии на свой слой, и шапка скрытой
-      // вкладки, оторванная от скрывающего её родителя, всплыла бы в
-      // предпросмотре поверх видимой.
-      clone.querySelectorAll('[data-tab-parked]').forEach(parkedTab => parkedTab.remove());
+      // Копия вкладок не уносит положений прокрутки ленты и страниц —
+      // TabPager оставляет в ней одну видимую страницу на её прокрутке.
+      freezeTabsForPreview(node, clone);
       captured = { node: clone, scrollY: window.scrollY };
     }
     if (screen.name === 'tabs' && screen.tab === 'quran' && captured) {
@@ -275,7 +268,6 @@ export default function App() {
 
   /** Шаг назад: снимаем одну запись истории, стек выровняет popstate. */
   const goBack = () => {
-    rememberTabScroll();
     setAnimateEnter(false);
     history.back();
   };
@@ -289,7 +281,6 @@ export default function App() {
    * её снять.
    */
   const goQuranHome = () => {
-    rememberTabScroll();
     setAnimateEnter(false);
     // Открыт попап — его запись лежит сверху. Один шаг назад закроет его,
     // а не уведёт с экрана; арифметику по глубине в этот момент применять
@@ -326,9 +317,6 @@ export default function App() {
     // приложение считало любую вкладку.
     history.replaceState({ depth: 0 }, '');
     const onPop = (e: PopStateEvent) => {
-      // popstate прилетает ДО перерисовки, поэтому window.scrollY здесь
-      // ещё принадлежит уходящему экрану — момент снять его позицию.
-      rememberTabScroll();
       setAnimateEnter(false);
       const fromEdge = edgeBackRef.current;
       edgeBackRef.current = false;
@@ -432,34 +420,14 @@ export default function App() {
   }, []);
 
   // ── Позиция прокрутки вкладок ────────────────────────────────────────────
-  // Окно прокручивает только видимую вкладку (скрытая — отдельный слой,
-  // TabPager), поэтому браузер сам позицию не вернёт.  Запоминаем scrollY уходящей вкладки и
-  // восстанавливаем при возврате — иначе список сур каждый раз
-  // открывается сверху, хотя человек читал середину.
-  //
-  // Экраны «поверх» тут не участвуют: SurahScreen сам решает, куда
-  // встать (последний прочитанный аят либо аят из закладки).
-  const tabScrollRef = useRef<Partial<Record<TabId, number>>>({});
-  const currentTab = screen.name === 'tabs' ? screen.tab : null;
-  // Держим активную вкладку в ref'е, чтобы rememberTabScroll могла
-  // работать синхронно из обработчика, не завися от замыкания рендера.
-  const currentTabRef = useRef<TabId | null>(currentTab);
-  currentTabRef.current = currentTab;
-
-  function rememberTabScroll() {
-    const t = currentTabRef.current;
-    if (t) tabScrollRef.current[t] = window.scrollY;
-  }
-
+  // У каждой вкладки своя прокрутка (TabPager), и позиция хранится в ней
+  // сама — прежняя ручная память (`tabScrollRef`) не нужна. Окно на
+  // вкладках стоит в начале: экран «поверх» мог оставить его прокрученным,
+  // а под вкладками ему прокручивать нечего.
+  const onTabs = screen.name === 'tabs';
   useLayoutEffect(() => {
-    if (!currentTab) return;
-    // Ставим сохранённую позицию до первого видимого кадра. Прежний
-    // двойной rAF сначала показывал начало списка, а через два кадра
-    // резко переставлял его на сохранённую позицию — это и выглядело
-    // как рывок при возврате из суры.
-    const saved = tabScrollRef.current[currentTab] ?? 0;
-    window.scrollTo(0, saved);
-  }, [currentTab]);
+    if (onTabs && window.scrollY !== 0) window.scrollTo(0, 0);
+  }, [onTabs]);
 
   // Экраны «поверх» всегда открываются с начала.  Исключение — сура:
   // она сама восстанавливает позицию чтения, и сброс здесь гонялся бы
@@ -637,19 +605,19 @@ export default function App() {
   // анимация крутилась бы впустую). Атрибут `data-app-screen` у неё
   // `parked`: клон для жеста «назад» снимается только с видимого экрана.
   //
-  // Сами вкладки — в TabPager: все три живут в DOM, скрытые — листами за краем экрана,
-  // и между ними листают свайпом. Поэтому у Shell постоянный key: смена
-  // вкладки больше не пересоздаёт экран вместе с панелями. Смена вкладки
-  // тапом мгновенная, как в iOS (почему без проявления — TabPager).
+  // Сами вкладки — в TabPager: все три живут в DOM лентой нативной
+  // горизонтальной прокрутки, и между ними листает сам iOS. Поэтому у Shell
+  // постоянный key: смена вкладки не пересоздаёт экран вместе с панелями.
   const baseTabEntry = [...stack].reverse().find(s => s.name === 'tabs');
   const tab: TabId = baseTabEntry && baseTabEntry.name === 'tabs' ? baseTabEntry.tab : 'quran';
   const parked = overlay != null;
-  /** Выбор вкладки — один путь для тапа по панели и свайпа по странице. */
+  /** Выбор вкладки — один путь для тапа по панели и остановки ленты. */
   const selectTab = (next: TabId) => {
+    setLiveTab(null);
     if (next === tab) {
       // TabBar вызывает этот путь только после двух быстрых тапов
-      // по активной вкладке «Коран» — прокручиваем к началу.
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // по активной вкладке «Коран» — прокручиваем её к началу.
+      scrollTabToTop(next);
       return;
     }
     navigate({ name: 'tabs', tab: next });
@@ -663,14 +631,14 @@ export default function App() {
         order={TAB_ORDER}
         active={tab}
         enabled={!parked}
-        scrollOf={id => tabScrollRef.current[id] ?? 0}
-        onSwipe={selectTab}
+        onSettle={selectTab}
         fallback={<ScreenFallback />}
-        renderTab={(id, isActive) => (id === 'player'
+        renderTab={(id, isActive, frame) => (id === 'player'
           ? (
             <ErrorBoundary name="PlayerScreen">
               <PlayerScreen
                 placement="tab"
+                frame={frame}
                 active={isActive && !parked}
                 theme={theme}
                 setTheme={setTheme}
@@ -681,6 +649,7 @@ export default function App() {
           ? (
             <ErrorBoundary name="SurahPicker">
               <SurahPicker
+                frame={frame}
                 active={isActive && !parked}
                 onSelectSurah={(n, ayah) => navigate({ name: 'surah', number: n, initialAyah: ayah })}
                 onBookmarks={() => navigate({ name: 'bookmarks' })}
@@ -694,6 +663,7 @@ export default function App() {
           : (
             <ErrorBoundary name="AzkarScreen">
               <AzkarScreen
+                frame={frame}
                 active={isActive && !parked}
                 theme={theme}
                 setTheme={setTheme}
@@ -708,8 +678,8 @@ export default function App() {
               плеер, и две панели разом были бы лишними. Тап по ней —
               вкладка «Плеер», а не экран поверх: панель вкладок остаётся.
               На самой вкладке «Плеер» полоска скрыта — она повторяла бы
-              экран. Скрыта, а не размонтирована: на свайпе к плееру и
-              обратно TabPager плавно гасит и проявляет её по
+              экран. Скрыта, а не размонтирована: при листании к плееру и
+              обратно TabPager гасит и проявляет её вместе с лентой по
               `data-tab-chrome` (список вкладок, где она видна). */}
           <div
             data-tab-chrome="quran azkar"
@@ -721,6 +691,8 @@ export default function App() {
           {/* Отказ звука говорит словами: чтение идёт из сети, и молчаливая
               остановка читается как поломка приложения. */}
           <AudioErrorPlate />
+          {/* Принятая вкладка; подсветку на ходу ленты панель берёт сама
+              из lib/tabLive.ts — App при этом не перерисовывается. */}
           <TabBar
             active={tab}
             theme={theme}

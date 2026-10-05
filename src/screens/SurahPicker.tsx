@@ -64,6 +64,7 @@ import { prefetchSurahFeed } from '../hooks/useQcfAyahFeed';
 import type { Theme } from '../hooks/useTheme';
 import { HitArea } from '../components/HitArea';
 import { LargeTitleHeader, type HeaderAction } from '../components/ScreenHeader';
+import type { TabFrame } from '../components/TabPager';
 
 /**
  * Единственная форма капс-подзаголовка на экране: «Продолжить чтение»
@@ -93,6 +94,9 @@ type Props = {
   /** false — главная припаркована под экраном «поверх» (App.tsx): она в
    *  DOM, но не видна; жесты и попапы выключены. */
   active?: boolean;
+  /** Своя прокрутка вкладки и слой шапки (TabPager); null — первый кадр.
+   *  Главная прокручивает не окно, а свою страницу. */
+  frame?: TabFrame | null;
 };
 
 /** Склонение слова «аят». */
@@ -138,7 +142,7 @@ function usePressPrefetch(surah: number) {
   };
 }
 
-export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, theme, setTheme, active = true }: Props) {
+export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, theme, setTheme, active = true, frame }: Props) {
   const [query, setQuery] = useState('');
   const [themeOpen, setThemeOpen] = useState(false);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
@@ -201,10 +205,14 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
   const raiseSearch = (smooth: boolean) => {
     const field = searchRef.current;
     if (!field) return;
-    const top = field.getBoundingClientRect().top + window.scrollY - barBottom() - 8;
-    if (Math.abs(window.scrollY - top) < 1) return;
+    // Прокручивается страница вкладки (TabPager), а не окно; без неё —
+    // окно, как прежде.
+    const scroller = frame?.scroller;
+    const current = scroller ? scroller.scrollTop : window.scrollY;
+    const top = field.getBoundingClientRect().top + current - barBottom() - 8;
+    if (Math.abs(current - top) < 1) return;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+    (scroller ?? window).scrollTo({ top, behavior: smooth && !reduce ? 'smooth' : 'auto' });
   };
 
   /**
@@ -234,9 +242,10 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
         margin: '0 auto',
         padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + var(--mini-player-space, 0px) + env(safe-area-inset-bottom))`,
       }}>
-        {/* Крупный «Коран» — как заголовки остальных экранов; при
-            прокрутке уходит в компактный в стеклянной панели. */}
+        {/* Крупный «Коран» — в строке панели, слева вверху, как у остальных
+            вкладок; при прокрутке сжимается на месте. */}
         <LargeTitleHeader
+          frame={frame}
           title="Коран"
           actionGroups={[actions, accountGroup]}
           headerRef={barRef}
@@ -337,7 +346,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
                 // по факту, её меряют в момент жеста.
                 bottomInset={() => tabBarTopPx() + 24}
                 startAt={сураПодПальцем}
-                onScrub={кСуре}
+                onScrub={n => кСуре(n, frame?.scroller)}
                 // Только со строки суры. Полоса по координатам ловила и мини-плеер
                 // над панелью вкладок, и шапку, и заголовки джузов (ревью 10.09.2026);
                 // владелец просил именно «удержание на номере».
@@ -406,6 +415,9 @@ function Recents({ recents, onOpen }: {
           padding: '0 var(--space-margin) 4px',
           scrollPaddingInline: 'var(--space-margin)',
           WebkitOverflowScrolling: 'touch',
+          // Дошли до края ленты — жест не переходит на ленту вкладок: листая
+          // «Недавние», человек не просил менять вкладку.
+          overscrollBehaviorX: 'contain',
         }}
       >
         {recents.map(r => r.meta && (
@@ -524,9 +536,18 @@ function surahTitleLeft(): number {
 }
 
 /** Прыжок к строке суры: по центру экрана, без плавности — палец ведёт сам. */
-function кСуре(n: number) {
-  document.querySelector<HTMLElement>(`[data-surah="${n}"]`)
-    ?.scrollIntoView({ block: 'center', behavior: 'auto' });
+function кСуре(n: number, scroller?: HTMLElement | null) {
+  const row = document.querySelector<HTMLElement>(`[data-surah="${n}"]`);
+  if (!row) return;
+  // На вкладке прокручиваем только свою страницу. `scrollIntoView` двигает
+  // ВСЕ прокручиваемые предки — и ленту вкладок тоже (TabPager).
+  if (!scroller) {
+    row.scrollIntoView({ block: 'center', behavior: 'auto' });
+    return;
+  }
+  const r = row.getBoundingClientRect();
+  const view = scroller.getBoundingClientRect();
+  scroller.scrollTop += r.top - view.top - (scroller.clientHeight - r.height) / 2;
 }
 
 function SurahList({ surahs, onSelect, grouped = true }: {

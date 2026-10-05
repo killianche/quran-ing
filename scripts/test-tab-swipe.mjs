@@ -1,25 +1,29 @@
 #!/usr/bin/env node
 /**
- * test-tab-swipe.mjs — правила свайпа между вкладками (src/lib/tabSwipe.ts)
- * без браузера.
+ * test-tab-swipe.mjs — лента корневых вкладок на нативной прокрутке
+ * (src/lib/tabStrip.ts, src/components/TabPager.tsx) без браузера.
  *
- * На телефоне ошибка в этих числах выглядит как «иногда не листается» или
- * «листается от прокрутки списка» и глазами не ловится. Здесь проверяется:
- *   • направление выбирается только после порога и только при явной
- *     горизонтали (вертикальная прокрутка списка не перехватывается);
- *   • за крайней вкладкой — резинка, дальше ширины экрана страница не уходит;
- *   • отпускание: дальше 35 % или флик — перелистнуть, иначе вернуть;
- *     взмах назад отменяет; за крайнюю вкладку не листается никогда;
- *   • скорость считается по последнему взмаху, а не по всему жесту.
+ * С 2026-10-05 вкладки листает сам iOS: лента — горизонтальная прокрутка с
+ * привязкой, своей физики нет (владелец на iPhone: «происходит дёргание»;
+ * то же решение an-Nur принял для мусхафа 14.09.2026). Здесь проверяется:
+ *   • шаг ленты целый — дробная ширина давала набегающую ошибку;
+ *   • вкладка ↔ прокрутка взаимно обратны, середина решает в пользу той
+ *     страницы, что занимает больше экрана, резинка не выводит за края;
+ *   • доля пути между вкладками — для панелей, видимых не везде;
+ *   • остановка — в допуске от страницы: запаздывание WebKit (−10…+7 px)
+ *     считается остановкой, палец посреди перелистывания — нет;
+ *   • 🔴 страж: самодельная физика листания не вернулась.
  *
  * Запуск: npm test (после test-native-tabbar).
  */
 
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const m = await import(pathToFileURL(resolve(__dirname, '../src/lib/tabSwipe.ts')).href);
+const ROOT = resolve(__dirname, '..');
+const m = await import(pathToFileURL(resolve(ROOT, 'src/lib/tabStrip.ts')).href);
 
 let failures = 0;
 let passed = 0;
@@ -33,72 +37,70 @@ const same = (name, actual, expected) =>
     `ожидалось ${JSON.stringify(expected)}, получено ${JSON.stringify(actual)}`);
 
 const W = 390;
+const N = 3; // Плеер | Коран | Азкары
 
-// 1. Направление.
-same('до порога направление не выбрано', m.lockAxis(6, 3), null);
-same('явная горизонталь', m.lockAxis(-12, 4), 'horizontal');
-same('явная вертикаль', m.lockAxis(3, 14), 'vertical');
-same('равный сдвиг отдаётся прокрутке', m.lockAxis(11, 11), 'vertical');
-same('диагональ чуть круче 45° — прокрутка', m.lockAxis(10, 12), 'vertical');
-same('порог считается и по вертикали', m.lockAxis(2, -10), 'vertical');
-
-// 2. Сдвиг под пальцем и резинка.
-same('к соседу — один к одному', m.dragOffset(-120, W, false, true), -120);
-same('к соседу — не дальше ширины', m.dragOffset(-500, W, false, true), -W);
+// 1. Шаг — целый.
+same('шаг — ширина ленты', m.tabStep(390), 390);
+same('дробная ширина — целый шаг', m.tabStep(412.5), 412);
+same('нулевая ширина — шага нет', m.tabStep(0), 0);
+same('не число — шага нет', m.tabStep(Number.NaN), 0);
 {
-  const r = m.dragOffset(120, W, false, true);
-  check('без соседа — резинка: меньше пальца', r > 0 && r < 120, `получено ${r}`);
-  const far = m.dragOffset(5000, W, false, true);
-  check('резинка не уводит дальше ширины', far > 0 && far < W, `получено ${far}`);
-  const left = m.dragOffset(-120, W, true, false);
-  check('резинка симметрична', Math.abs(left + r) < 1e-9, `${left} против ${r}`);
-  const a = m.rubberBand(50, W);
-  const b = m.rubberBand(100, W);
-  check('резинка тянется всё туже', b - a < a, `${a}, ${b}`);
-}
-same('нулевой сдвиг', m.dragOffset(0, W, true, true), 0);
-
-// 3. Скорость.
-{
-  const samples = [
-    { t: 0, x: 300 }, { t: 400, x: 280 }, // долгое медленное ведение
-    { t: 460, x: 250 }, { t: 500, x: 200 }, // резкий взмах влево
-  ];
-  const v = m.velocityOf(samples);
-  // Средняя за весь жест −0,2 px/мс; за последние 100 мс — −0,8.
-  check('скорость — по последнему взмаху', Math.abs(v + 0.8) < 1e-9, `получено ${v}`);
-  // Отпускание через 200 мс на том же месте — палец постоял.
-  same('палец постоял перед отпусканием — скорости нет',
-    m.velocityOf([...samples, { t: 700, x: 200 }]), 0);
-  same('одна точка — скорости нет', m.velocityOf([{ t: 0, x: 0 }]), 0);
-  // Редкие события (между ними больше окна) — берём хотя бы соседнюю пару.
-  const sparse = m.velocityOf([{ t: 0, x: 300 }, { t: 30, x: 240 }]);
-  check('две точки в окне — скорость есть', Math.abs(sparse + 2) < 1e-9, `получено ${sparse}`);
+  // Набегающая ошибка: на целом шаге каждая вкладка встаёт ровно в точку.
+  const step = m.tabStep(412.5);
+  let off = 0;
+  for (let i = 0; i < N; i++) if (m.scrollLeftForTab(i, step) % 1 !== 0) off++;
+  same('координаты вкладок целые', off, 0);
 }
 
-// 4. Решение на отпускании (+1 — следующая вкладка, −1 — предыдущая).
-const release = (offset, velocity, hasPrev = false, hasNext = true) =>
-  m.releaseTarget({ offset, velocity, width: W, hasPrev, hasNext });
-same('протащили дальше 35 % — листаем', release(-0.4 * W, 0), 1);
-same('меньше 35 % без флика — возврат', release(-0.3 * W, 0), 0);
-same('короткий быстрый флик — листаем', release(-40, -0.8), 1);
-same('флик короче минимума — возврат', release(-10, -2), 0);
-same('медленно и недалеко — возврат', release(-60, -0.2), 0);
-same('взмах назад отменяет даже далёкий сдвиг', release(-0.6 * W, 0.9), 0);
-same('за крайнюю вкладку не листается', release(0.9 * W, 2, false, true), 0);
-same('вправо к предыдущей', release(0.5 * W, 0, true, false), -1);
-same('флик вправо к предыдущей', release(50, 0.7, true, false), -1);
-same('нулевой сдвиг — на месте', release(0, -3), 0);
+// 2. Вкладка ↔ прокрутка.
+{
+  let diverge = 0;
+  for (let i = 0; i < N; i++) if (m.tabAtScrollLeft(m.scrollLeftForTab(i, W), W, N) !== i) diverge++;
+  same('вкладка → прокрутка → та же вкладка', diverge, 0);
+}
+same('чуть сдвинули — вкладка прежняя', m.tabAtScrollLeft(W + W * 0.4, W, N), 1);
+same('больше половины — уже следующая', m.tabAtScrollLeft(W + W * 0.6, W, N), 2);
+same('резинка за левым краем — первая', m.tabAtScrollLeft(-120, W, N), 0);
+same('резинка за правым краем — последняя', m.tabAtScrollLeft(W * 2 + 150, W, N), 2);
+same('нулевой шаг не делит на ноль', m.tabAtScrollLeft(500, 0, N), 0);
 
-// 5. Средняя вкладка (с 2026-10-05 их три: Плеер | Коран | Азкары) —
-// соседи с обеих сторон, резинки нет ни там, ни там.
-same('середина: влево один к одному', m.dragOffset(-150, W, true, true), -150);
-same('середина: вправо один к одному', m.dragOffset(150, W, true, true), 150);
-same('середина: вправо не дальше ширины', m.dragOffset(900, W, true, true), W);
-same('середина: дальше 35 % влево — следующая', release(-0.5 * W, 0, true, true), 1);
-same('середина: дальше 35 % вправо — предыдущая', release(0.5 * W, 0, true, true), -1);
-same('середина: флик вправо — предыдущая', release(40, 0.9, true, true), -1);
-same('середина: недотянули — на месте', release(0.2 * W, 0.1, true, true), 0);
+// 3. Доля пути между вкладками.
+same('на вкладке — пути нет', m.tabProgress(W, W, N), { from: 1, to: 2, t: 0 });
+same('четверть пути от «Корана» к «Азкарам»', m.tabProgress(W * 1.25, W, N), { from: 1, to: 2, t: 0.25 });
+same('на последней — дальше некуда', m.tabProgress(W * 2, W, N), { from: 2, to: 2, t: 0 });
+same('резинка за краями не выводит долю за ленту', m.tabProgress(-50, W, N), { from: 0, to: 1, t: 0 });
+
+// 4. Остановка.
+{
+  const tol = m.tabSettleTolerance(W);
+  check('на вкладке лента выровнена', m.isTabAligned(W, W));
+  check('посередине — нет', !m.isTabAligned(W * 1.5, W));
+  check('полпикселя дрожи — ещё выровнена', m.isTabAligned(W + 0.5, W));
+  check('запаздывание WebKit в 10 px — лента стоит', m.isTabAligned(W - 10, W, tol));
+  check('и +7 px — тоже', m.isTabAligned(W + 7, W, tol));
+  check('палец посреди перелистывания — не стоит', !m.isTabAligned(W + W * 0.3, W, tol));
+  same('допуск не меньше 16 px даже на узком экране', m.tabSettleTolerance(100), 16);
+}
+
+// 5. 🔴 Страж: своей физики листания нет — листает системная прокрутка.
+// Прежний пейджер вёл листы пальцем через transform и доводил CSS-переходом;
+// на iPhone это дёргалось. Возврат любого из этих путей ловится здесь.
+{
+  const pager = readFileSync(resolve(ROOT, 'src/components/TabPager.tsx'), 'utf8');
+  // Код без комментариев: в шапке файла история прежних решений упоминает
+  // запрещённые приёмы словами.
+  const code = pager
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  check('лента — нативная прокрутка с привязкой к вкладкам',
+    /scrollSnapType:\s*'x mandatory'/.test(code) && /scrollSnapStop:\s*'always'/.test(code)
+      && /overflowX:\s*'auto'/.test(code));
+  check('пейджер не ведёт листы пальцем (touchmove)', !/touchmove/.test(code));
+  check('пейджер не гасит прокрутку (preventDefault)', !/preventDefault/.test(code));
+  check('пейджер не двигает листы transform', !/translate3d|translateX|\.style\.transform/.test(code));
+  check('пейджер не анимирует сам (Web Animations, переходы)', !/\.animate\(|transition/.test(code));
+  check('самодельная физика (tabSwipe.ts) удалена', !existsSync(resolve(ROOT, 'src/lib/tabSwipe.ts')));
+}
 
 if (failures) {
   console.error(`\ntest-tab-swipe: ${failures} провал(ов), ${passed} прошло`);

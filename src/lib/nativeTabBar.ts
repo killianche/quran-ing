@@ -51,11 +51,12 @@ const MIN_IOS_MAJOR = 26;
 
 /**
  * Насколько системная панель ниже своего места, pt. Владелец 2026-10-04:
- * «кнопки Коран и Азкары сделать ниже, ближе к краю». Штатно капсула стоит
- * ~22 pt над краем экрана; 8 — ближе к домашней полосе, но не на ней.
- * Сдвигает локальный плагин TabBarOffset (MainViewController.swift).
+ * «кнопки Коран и Азкары сделать ниже, ближе к краю» — было 8. 2026-10-05,
+ * после сборки 7: «слишком низко нижнее меню поставил, немного подними» —
+ * вернули штатное место iOS (0). Сдвигает локальный плагин TabBarOffset
+ * (MainViewController.swift); 0 оставляет вызов безвредным.
  */
-const NATIVE_BAR_DROP_PT = 8;
+const NATIVE_BAR_DROP_PT = 0;
 const TabBarOffset = registerPlugin<{ apply(o: { y: number }): Promise<void> }>('TabBarOffset');
 
 /**
@@ -85,7 +86,7 @@ export const WEB_BAR = {
   /** Зазор, который экраны добавляют к капсуле в своём нижнем отступе. */
   inset: 10,
   /** Нижняя координата капсулы. */
-  bottom: 'max(6px, calc(env(safe-area-inset-bottom) - 18px))',
+  bottom: 'max(6px, calc(env(safe-area-inset-bottom) - 10px))',
 } as const;
 
 // Состояние показа — см. «Показ и скрытие» ниже.
