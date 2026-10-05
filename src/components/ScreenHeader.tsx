@@ -412,16 +412,23 @@ export function CollapsingNavBar({
         maxWidth: '1200px',
         margin: '0 auto',
       }}>
-        {onBack ? <HeaderBackButton onBack={onBack} /> : <span style={{ width: '48px', flexShrink: 0 }} aria-hidden />}
-        {/* Компактный заголовок — по центру строки, как в системной
-            навигационной панели; проявляется по прокрутке. */}
+        {onBack && <HeaderBackButton onBack={onBack} />}
+        {/* Компактный заголовок проявляется по прокрутке. С «назад» — по
+            центру строки, как в системной навигационной панели. Без него
+            (корневые вкладки) — слева, на линии крупного заголовка:
+            центрированный между пустым местом под «назад» и капсулой
+            действий, он висел посреди экрана без опоры (владелец
+            2026-10-05: «должен быть слева вверху»). */}
         <div
           ref={compactRef}
           aria-hidden
           className="display-serif"
           style={{
             flex: 1, minWidth: 0,
-            textAlign: 'center',
+            textAlign: onBack ? 'center' : 'left',
+            // Поля строки — CAPSULE_SIDE; добираем до поля страницы, чтобы
+            // буква встала ровно над крупным заголовком.
+            paddingLeft: onBack ? 0 : `calc(var(--space-margin) - ${CAPSULE_SIDE}px)`,
             opacity: 0,
             // Title 2, а не Headline: у системной панели компактный заголовок
             // — 17 pt SF Pro, но наша антиква на тех же 17 читалась на

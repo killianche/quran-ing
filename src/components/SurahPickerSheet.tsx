@@ -23,7 +23,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SettingsSheet } from './ReadingSettings';
+import { SettingsSheet, SheetCloseButton } from './ReadingSettings';
 import { Close, Search, ICON_SIZE } from './icons';
 import { SURAHS, type SurahMeta } from '../content/surahs';
 import { findSurahs } from '../lib/search';
@@ -86,8 +86,14 @@ export function SurahPickerSheet({
       const row = listRef.current?.querySelector<HTMLElement>(`[data-picker-surah="${current}"]`);
       const sheet = row?.closest<HTMLElement>('[data-reading-sheet]');
       if (!row || !sheet) return;
+      // Центр — между прилипающей шапкой и кнопкой «Закрыть», а не по всей
+      // высоте шторки: иначе на коротком экране строка вставала бы у края
+      // видимой полосы, под шапкой или кнопкой.
+      const head = sheet.querySelector<HTMLElement>('[data-sheet-head]')?.offsetHeight ?? 0;
+      const foot = sheet.querySelector<HTMLElement>('[data-sheet-foot]')?.offsetHeight ?? 0;
       const rowTop = row.getBoundingClientRect().top - sheet.getBoundingClientRect().top + sheet.scrollTop;
-      sheet.scrollTop = Math.max(0, rowTop - sheet.clientHeight / 2 + row.offsetHeight / 2);
+      const visible = sheet.clientHeight - head - foot;
+      sheet.scrollTop = Math.max(0, rowTop - head - visible / 2 + row.offsetHeight / 2);
     }, 0);
     return () => window.clearTimeout(id);
     // Только при открытии: смена чтеца или поиск не должны дёргать список.
@@ -95,14 +101,35 @@ export function SurahPickerSheet({
   }, []);
 
   return (
-    <SettingsSheet onClose={onClose} title="Суры">
-      {/* Поиск и область — прилипают к верху шторки, пока список едет. */}
-      <div style={{
+    <SettingsSheet onClose={onClose}>
+      {/* Заголовок с ✕, поиск и область — одна прилипающая шапка.
+
+          Заголовок раньше был у самой шторки (проп `title`) и уезжал вверх
+          вместе со списком: шторка открывается сразу прокрученной к текущей
+          суре, и кнопки «закрыть» на экране не оставалось вовсе (владелец
+          2026-10-05, iPhone). Фон полностью непрозрачный: внутри стекла
+          шторки (backdrop-filter) даже 97 % давали заметный просвет — строки
+          списка читались поверх поля поиска (замер в Chromium; на iPhone
+          владелец видел то же при прежних 86 %). */}
+      <div data-sheet-head="" style={{
         position: 'sticky', top: '-8px', zIndex: 1,
-        margin: '0 -16px', padding: '8px 16px 10px',
-        background: 'color-mix(in srgb, var(--surface) 86%, transparent)',
+        margin: '0 -16px', padding: '4px 16px 10px',
+        background: 'var(--surface)',
+        boxShadow: '0 1px 0 var(--hairline)',
         display: 'grid', gap: '10px',
       }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '44px' }}>
+          <span style={{
+            flex: 1, minWidth: 0,
+            fontSize: '17px',
+            fontWeight: 'var(--weight-semibold)',
+            letterSpacing: '-0.01em',
+            color: 'var(--text-primary)',
+          }}>
+            Суры
+          </span>
+          <SheetCloseButton onClose={onClose} />
+        </div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px',
           minHeight: '40px', padding: '0 12px',
@@ -228,6 +255,36 @@ export function SurahPickerSheet({
           )}
         </div>
       )}
+      {/* «Закрыть» внизу, под большим пальцем: тянуться к ✕ наверху высокой
+          шторки неудобно (владелец 2026-10-05). Прилипает к низу шторки;
+          отрицательный bottom снимает её нижнее поле (padding шторки —
+          max(12px, safe-area − 8px), см. SettingsSheet). */}
+      <div data-sheet-foot="" style={{
+        position: 'sticky',
+        bottom: 'calc(-1 * max(12px, calc(env(safe-area-inset-bottom) - 8px)))',
+        zIndex: 1,
+        margin: '8px -16px 0',
+        padding: '16px 16px max(12px, calc(env(safe-area-inset-bottom) - 8px))',
+        background: 'linear-gradient(to bottom, transparent, var(--surface) 40%)',
+      }}>
+        <button
+          onClick={onClose}
+          className="player-press"
+          style={{
+            width: '100%', minHeight: '50px',
+            border: 'none', borderRadius: 'var(--radius-pill)',
+            background: 'rgb(var(--ink-rgb) / 0.08)',
+            color: 'var(--text-primary)',
+            fontFamily: 'inherit',
+            fontSize: 'var(--font-body)',
+            fontWeight: 'var(--weight-semibold)',
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          Закрыть
+        </button>
+      </div>
     </SettingsSheet>
   );
 }

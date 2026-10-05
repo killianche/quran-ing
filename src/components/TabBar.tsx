@@ -132,7 +132,17 @@ export type AccessoryPlacement = 'tabs' | 'screen';
 export function accessoryBottom(placement: AccessoryPlacement, gap: number): string {
   return placement === 'tabs'
     ? `calc(${TAB_BAR_TOP} + ${gap}px)`
-    : `calc(max(12px, env(safe-area-inset-bottom)) + ${gap}px)`;
+    // Без панели — у самой домашней полосы, как системный аксессуар: прежние
+    // «безопасная зона + зазор» (~42 px на iPhone) поднимали капсулу так,
+    // что она висела посреди текста суры (владелец 2026-10-05: «опусти
+    // ниже»). Полоса занимает нижние ~13 px зоны в 34 — капсула садится
+    // над ней; без домашней полосы (старые iPhone) — 8 px от края.
+    // 🔴 Только не на Android: там нижняя зона — это системные кнопки
+    // навигации (до ~48 px), и вычет посадил бы капсулу на них (ревью
+    // 2026-10-05). Там — вся зона плюс зазор, как раньше.
+    : Capacitor.getPlatform() === 'android'
+      ? `calc(max(12px, env(safe-area-inset-bottom)) + ${gap}px)`
+      : `calc(max(8px, env(safe-area-inset-bottom) - 20px) + ${gap}px)`;
 }
 
 /** Максимальная пауза между двумя тапами по активной вкладке. */

@@ -481,7 +481,7 @@ export function SettingsSheet({
  * это стандартная форма закрытия в системных панелях iOS, глаз узнаёт
  * её без чтения.
  */
-function SheetCloseButton({ onClose }: { onClose: () => void }) {
+export function SheetCloseButton({ onClose }: { onClose: () => void }) {
   const [pressed, setPressed] = useState(false);
   return (
     <button

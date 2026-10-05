@@ -462,9 +462,12 @@ export function PlayerScreen(props: Props) {
               anchorEl={themeBtnRef.current}
             />
           )}
+          {/* Заголовок вкладки — её же подпись в нижнем меню, как у «Корана» и
+              «Азкаров»: «Слушать» над вкладкой «Плеер» читалось как
+              неправильный заголовок (владелец 2026-10-05). */}
           <LargeTitleHeader
             active={active}
-            title="Слушать"
+            title="Плеер"
             actions={[{
               key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
               icon: <Appearance size={ICON_SIZE.md} />,
