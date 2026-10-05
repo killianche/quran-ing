@@ -5,7 +5,13 @@
  * Снимает веб-сборку (`dist/`, тот же код, что внутри iOS-приложения) в
  * headless Chromium на точных размерах Apple, без рамок браузера:
  *   iPhone 6.9″ — 440 × 956 pt × 3 = 1320 × 2868;
- *   iPad 13″    — 1032 × 1376 pt × 2 = 2064 × 2752.
+ *   iPad 13″    — 1032 × 1376 pt × 2 = 2064 × 2752;
+ *   Android     — 360 × 720 dp × 3 = 1080 × 2160 (Google Play: сторона
+ *                 320–3840 px, вытянутость не больше 2:1 — кадры iPhone
+ *                 6.9″ с их 2,17:1 Play не примет). Кладутся в
+ *                 play-store/screenshots/phone.
+ *
+ * Только часть устройств: ONLY=android-phone (через запятую).
  *
  * Кадры (порядок — порядок в магазине):
  *   01-quran  — главная: «Продолжить чтение», поиск, суры;
@@ -13,7 +19,8 @@
  *               (тёмная тема — для разнообразия карточки);
  *   03-tafsir — толкование ас-Саади к аяту;
  *   04-azkar  — утренние азкары;
- *   05-prayer — время намаза.
+ *   05-prayer — время намаза;
+ *   06-player — плеер суры.
  *
  * Отличие от телефона: внизу веб-капсула вкладок (на iOS 26 там системная
  * панель — в браузере её нет). Строки состояния нет — как у многих карточек.
@@ -33,10 +40,14 @@ if (!PW) throw new Error('Укажите PLAYWRIGHT_CORE — путь к пак�
 const { chromium } = await import(resolve(PW, 'index.mjs'));
 const BASE = process.env.BASE_URL ?? 'http://localhost:5292/';
 
-const DEVICES = [
+const ALL_DEVICES = [
   { folder: 'iphone-6.9', width: 440, height: 956, scale: 3 },
   { folder: 'ipad-13', width: 1032, height: 1376, scale: 2 },
+  { folder: 'android-phone', width: 360, height: 720, scale: 3, out: 'play-store/screenshots/phone' },
 ];
+const ONLY = (process.env.ONLY ?? '').split(',').map(s => s.trim()).filter(Boolean);
+const DEVICES = ONLY.length ? ALL_DEVICES.filter(d => ONLY.includes(d.folder)) : ALL_DEVICES;
+if (DEVICES.length === 0) throw new Error(`ONLY=${process.env.ONLY}: таких устройств нет`);
 
 /** Недавние для главной — как у человека, который читает несколько сур. */
 const RECENTS = [
@@ -92,7 +103,7 @@ async function waitArabic(page) {
 }
 
 async function shoot(page, device, name) {
-  const dir = resolve(ROOT, 'app-store/screenshots', device.folder);
+  const dir = device.out ? resolve(ROOT, device.out) : resolve(ROOT, 'app-store/screenshots', device.folder);
   mkdirSync(dir, { recursive: true });
   await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
   await page.screenshot({ path: resolve(dir, `${name}.jpg`), type: 'jpeg', quality: 92 });
@@ -142,6 +153,18 @@ for (const device of DEVICES) {
     await tap(page, 'button[aria-label="Намаз"]');
     await page.waitForTimeout(1500);
     await shoot(page, device, '05-prayer');
+    problems.push(...errors);
+    await ctx.close();
+  }
+  // 06 — плеер: сура звучит, экран «Слушать»
+  {
+    const { ctx, page, errors } = await open(browser, device, 'dark');
+    await tap(page, '[aria-label="Слушать суру Ар-Рахман целиком"], [aria-label="Слушать суру Аль-Фатиха целиком"]');
+    await page.waitForSelector('[aria-label^="Открыть плеер"]', { timeout: 10000 });
+    await tap(page, '[aria-label^="Открыть плеер"]');
+    await page.waitForSelector('[aria-label="Список сур"]', { timeout: 10000 });
+    await page.waitForTimeout(900);
+    await shoot(page, device, '06-player');
     problems.push(...errors);
     await ctx.close();
   }
