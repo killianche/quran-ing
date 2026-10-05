@@ -2,7 +2,7 @@
   "name": "quran-ing",
   "private": true,
   "version": "1.0.0",
-  "iosBuild": 6,
+  "iosBuild": 7,
   "androidBuild": 1,
   "type": "module",
   "scripts": {
