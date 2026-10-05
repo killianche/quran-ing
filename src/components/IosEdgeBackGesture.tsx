@@ -15,11 +15,130 @@ const SETTLE_MS = 260;
 const SETTLE_EASING = 'cubic-bezier(.22,1,.36,1)';
 const PARALLAX = 0.28;
 
-export type IosBackPreview = {
-  /** Клон уходящего экрана. Готовится в navigate() до размонтирования. */
-  node: HTMLElement;
-  scrollY: number;
+/**
+ * Что показать под уезжающим экраном.
+ *
+ *  • `node` — клон прежнего экрана «поверх» (закладки под сурой и т. п.):
+ *    тот размонтирован, живого под рукой нет.
+ *  • `live` — сам прежний экран, живой (вкладки, App): он припаркован за
+ *    краем и на время жеста выезжает из-под уходящего. Клон вкладок не
+ *    годился: копия DOM не уносит положений прокрутки ленты и страниц, а
+ *    лента в копии теряла опору и схлопывалась в ноль — под жестом был
+ *    пустой фон темы, на тёмной — чёрный (владелец, iPhone, 2026-10-05).
+ */
+export type IosBackPreview =
+  | {
+    /** Клон уходящего экрана. Готовится в navigate() до размонтирования. */
+    node: HTMLElement;
+    scrollY: number;
+  }
+  | {
+    /** Живой экран, к которому вернёмся; ищется в момент жеста. */
+    live: () => HTMLElement | null;
+    /**
+     * Его `transform` на парковке (App, PARKED_SHIFT) — куда вернуть экран,
+     * если жест отменён. Берётся отсюда, а не со style в начале жеста: при
+     * быстром повторе там лежало бы наше же промежуточное значение.
+     */
+    parkedTransform: string;
+  };
+
+/** Живой экран под жестом и что вернуть ему после. */
+export type LiveLayer = {
+  el: HTMLElement;
+  dim: HTMLDivElement;
+  /** Куда вернуть экран при отмене (parkedTransform). */
+  parkedTransform: string;
 };
+
+/**
+ * Вывести живой экран из-под уходящего (preview.live). Он припаркован за
+ * краем `transform`ом (App, Shell) — на время жеста `transform` наш:
+ * параллакс, как у клона. Раскладка, прокрутка ленты и страниц, шапки,
+ * веб-панель — его собственные, с первого кадра.
+ *
+ * `prev` — слой прошлого жеста, если тот не успел вернуть экран на парковку
+ * (быстрый повтор): берём его же — второе затемнение осталось бы висеть
+ * навсегда. Вне компонента — ради проверки в браузере, где сам жест не
+ * включается (CLAUDE.md, грабли 14).
+ */
+export function openLiveLayer(
+  prev: LiveLayer | null,
+  el: HTMLElement,
+  parkedTransform: string,
+  width: number,
+): LiveLayer {
+  if (prev && prev.el !== el) closeLiveLayer(prev);
+  let layer = prev && prev.el === el ? prev : null;
+  if (!layer) {
+    const dim = document.createElement('div');
+    dim.setAttribute('aria-hidden', 'true');
+    // Затемнение — как у клона: 12 % в начале жеста, ноль у конца. Внутри
+    // экрана, над всем его содержимым: экран изолирован (`isolation`), и
+    // уровень выше его панелей (30–40).
+    dim.style.cssText = 'position:absolute;inset:0;z-index:1000;pointer-events:none;'
+      + 'background:rgba(0,0,0,0.12);';
+    el.appendChild(dim);
+    layer = { el, dim, parkedTransform };
+  }
+  el.style.willChange = 'transform';
+  paintUnderLayer(el, 0, width, false);
+  return layer;
+}
+
+/**
+ * Обрезка слоя под уходящим экраном — по левому краю уходящего.
+ *
+ * 🔴 Уходящий экран больше не делают непрозрачным (`var(--canvas)`, как было
+ * до 2026-10-05): на «Авроре 2» и «Космосе» небо — общий слой под всеми
+ * экранами (App), и непрозрачный лист закрывал его в первом же кадре жеста.
+ * Вместо этого то, что под ним, видно только левее его края — слева от
+ * пальца, — и сквозь прозрачный экран ничего не просвечивает.
+ *
+ * Слой сдвинут на (−P + p·P)·W, край уходящего экрана — на p·W; в
+ * координатах слоя край стоит на W·(P + p·(1 − P)), справа отрезаем
+ * остальное. Обрезка и сдвиг линейны по p, поэтому при доводе один и тот же
+ * переход ведёт их вместе, без щели на стыке.
+ */
+function underClip(progress: number, width: number): string {
+  return `inset(0 ${Math.max(0, width * (1 - PARALLAX) * (1 - progress))}px 0 0)`;
+}
+
+/** Переход сдвига и обрезки слоя под жестом. */
+function underTransition(settling: boolean): string {
+  return settling
+    ? `transform ${SETTLE_MS}ms ${SETTLE_EASING}, clip-path ${SETTLE_MS}ms ${SETTLE_EASING}`
+    : 'none';
+}
+
+/** Положение слоя под жестом на кадре (`progress` 0…1): сдвиг и обрезка. */
+export function paintUnderLayer(el: HTMLElement, progress: number, width: number, settling: boolean): void {
+  el.style.transform = `translate3d(${(-PARALLAX + progress * PARALLAX) * width}px, 0, 0)`;
+  el.style.clipPath = underClip(progress, width);
+  el.style.transition = underTransition(settling);
+}
+
+/** Положение живого экрана на кадре жеста (`progress` 0…1). */
+export function paintLiveLayer(layer: LiveLayer, progress: number, width: number, settling: boolean): void {
+  paintUnderLayer(layer.el, progress, width, settling);
+  layer.dim.style.opacity = String(1 - progress);
+  layer.dim.style.transition = settling ? `opacity ${SETTLE_MS}ms ${SETTLE_EASING}` : 'none';
+}
+
+/**
+ * Вернуть живой экран на парковку — жест отменён. Ровно как на парковке:
+ * сдвиг из App, без наших служебных свойств — иначе вкладки при каждой
+ * следующей парковке выезжали бы за 260 мс, а will-change держал бы слой
+ * постоянно.
+ */
+export function closeLiveLayer(layer: LiveLayer | null): void {
+  if (!layer) return;
+  layer.dim.remove();
+  layer.el.style.transform = layer.parkedTransform;
+  layer.el.style.clipPath = '';
+  layer.el.style.transition = '';
+  layer.el.style.willChange = '';
+}
 
 type Gesture = {
   startX: number;
@@ -67,8 +186,6 @@ export function IosEdgeBackGesture({
   const previewShellRef = useRef<HTMLDivElement>(null);
   const previewViewportRef = useRef<HTMLDivElement>(null);
   const previewDimRef = useRef<HTMLDivElement>(null);
-  /** Фон экрана до жеста: на время движения он подменяется непрозрачным. */
-  const previousBackgroundRef = useRef('');
   const onBackRef = useRef(onBack);
   const previewRef = useRef(preview);
   const gestureRef = useRef<Gesture | null>(null);
@@ -81,13 +198,20 @@ export function IosEdgeBackGesture({
   onBackRef.current = onBack;
   previewRef.current = preview;
 
+  /** Живой экран под жестом (preview.live), пока жест идёт. */
+  const liveRef = useRef<LiveLayer | null>(null);
+  /** Отменённый жест ещё доводит экран на место — слои не разобраны. */
+  const cancelPendingRef = useRef(false);
+  /** Подтверждённый жест доводит экран до конца — onBack строго один раз. */
+  const committingRef = useRef(false);
+
   // Клон уходящего экрана вставляем узлом, а не строкой: innerHTML заставлял
   // WebKit заново разбирать сотни килобайт разметки в первом кадре жеста.
   useLayoutEffect(() => {
     const viewport = previewViewportRef.current;
     const shell = previewShellRef.current;
     const captured = preview;
-    if (!armed || !viewport || !captured) return;
+    if (!armed || !viewport || !captured || !('node' in captured)) return;
     viewport.appendChild(captured.node);
     viewport.scrollTop = captured.scrollY;
     // Fixed-элементы (меню, мини-плеер, шапка) внутри transform+scroll
@@ -96,13 +220,11 @@ export function IosEdgeBackGesture({
     // Поднимаем их на shell: он равен экрану и не скроллится, параллакс
     // остаётся общим.
     //
-    // 🔴 Панели именно ОДАЛЖИВАЕМ, а не забираем: клон переиспользуется.
-    // `App` держит копию списка сур в `quranHomePreviewRef` и показывает её
-    // при каждом входе в суру. Если в очистке просто удалить
-    // поднятые узлы, они пропадут из клона навсегда — и уже второй жест
-    // (например, после отменённого свайпа, самый частый исход) покажет
-    // предпросмотр вообще без нижнего меню. Поэтому запоминаем, откуда узел
-    // взят, и в очистке возвращаем его на то же место.
+    // 🔴 Панели именно ОДАЛЖИВАЕМ, а не забираем: клон переиспользуется —
+    // один и тот же клон показывается на каждом жесте с этого экрана. Если
+    // в очистке просто удалить поднятые узлы, они пропадут из клона
+    // навсегда — и уже второй жест (например, после отменённого свайпа,
+    // самый частый исход) покажет предпросмотр без панелей.
     // Ищем по самому признаку — `position: fixed` в инлайновом стиле, — а не
     // по списку подписей. Прежний селектор перечислял `nav[aria-label=
     // "Разделы"]` и «Звучит сейчас»: переименование подписи молча выключило
@@ -118,10 +240,6 @@ export function IosEdgeBackGesture({
           '[style*="position: fixed"], [style*="position:fixed"], .screen-header',
         )
         .forEach(el => {
-          // Шапки вкладок живут в слое своей страницы, а не у окна
-          // (TabPager): в копии они уже стоят на месте, вторая копия на
-          // слое жеста легла бы поверх них дважды.
-          if (el.closest('[data-tab-pager]')) return;
           // 🔴 КОПИРУЕМ, а не переносим.
           //
           // Раньше узел переносился в `shell`, а в очистке возвращался на
@@ -150,7 +268,7 @@ export function IosEdgeBackGesture({
     // только активный жест, и читать её при рендере было бы нечисто.
     if (shell) {
       const width = gestureRef.current?.width ?? window.innerWidth;
-      shell.style.transform = `translate3d(${-PARALLAX * width}px, 0, 0)`;
+      paintUnderLayer(shell, 0, width, false);
     }
     return () => {
       // Снимаем именно копии — оригиналы в клоне мы не трогали.
@@ -162,6 +280,25 @@ export function IosEdgeBackGesture({
   useEffect(() => () => {
     if (settleTimerRef.current != null) window.clearTimeout(settleTimerRef.current);
     if (motionFrameRef.current != null) cancelAnimationFrame(motionFrameRef.current);
+    // Экран ушёл. Если это возврат к вкладкам — React уже снял их парковку:
+    // убираем только своё (затемнение, обрезку, служебные свойства),
+    // `transform` не трогаем — его выставил React. Если же вкладки всё ещё
+    // припаркованы (жест отменён, и посреди довода тапом ушли на другой
+    // экран «поверх»), возвращаем их на парковку целиком: иначе они так и
+    // стояли бы со сдвигом −28 % и просвечивали сквозь прозрачный экран на
+    // космических темах.
+    const layer = liveRef.current;
+    liveRef.current = null;
+    if (layer) {
+      if (layer.el.dataset.appScreen === 'parked') {
+        closeLiveLayer(layer);
+      } else {
+        layer.dim.remove();
+        layer.el.style.clipPath = '';
+        layer.el.style.transition = '';
+        layer.el.style.willChange = '';
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -180,10 +317,10 @@ export function IosEdgeBackGesture({
         screen.style.transform = `translate3d(${x}px, 0, 0)`;
         screen.style.transition = transition;
       }
-      if (shell) {
-        shell.style.transform = `translate3d(${(-PARALLAX + progress * PARALLAX) * width}px, 0, 0)`;
-        shell.style.transition = transition;
-      }
+      const layer = liveRef.current;
+      if (layer) paintLiveLayer(layer, progress, width, settling);
+      // Клон прежнего экрана — так же: сдвиг и обрезка по краю уходящего.
+      if (shell) paintUnderLayer(shell, progress, width, settling);
       if (dim) {
         dim.style.background = `rgba(0,0,0,${0.12 * (1 - progress)})`;
         dim.style.transition = settling ? `background ${SETTLE_MS}ms ${SETTLE_EASING}` : 'none';
@@ -196,31 +333,37 @@ export function IosEdgeBackGesture({
       if (!screen) return;
       screen.style.willChange = 'transform';
       screen.style.boxShadow = '-10px 0 28px rgba(0,0,0,0.16)';
-      // 🔴 На время жеста экран обязан быть НЕПРОЗРАЧНЫМ.
-      //
-      // На темах со своим фоновым слоем (бумага, аврора) у экрана
-      // `background: transparent` — фон рисует отдельный слой, а сквозь сам
-      // экран видно страницу под ним. Стоя на месте это незаметно, но когда
-      // экран уезжает вправо, через него просвечивает список сур: владелец
-      // так и описал — «страница суры становится прозрачной».
-      //
-      // На iOS уходящий экран не просвечивает: он едет как непрозрачный лист,
-      // а из-под него выходит предыдущий. Подкладываем цвет канвы — фоновый
-      // слой темы рисуется поверх и вид не меняется.
-      previousBackgroundRef.current = screen.style.background;
-      screen.style.background = 'var(--canvas)';
+      // На космических темах экран прозрачный — сквозь него видно общее
+      // небо. Прежде на время жеста он становился непрозрачным (иначе сквозь
+      // него просвечивал экран под ним: «страница суры становится
+      // прозрачной»), но тогда небо пропадало в первом кадре. Теперь то, что
+      // под ним, обрезано по его левому краю (underClip) — фон не нужен.
+    };
+
+    /** Живой экран — на свой слой под жестом (см. openLiveLayer). */
+    const openLive = (width: number): boolean => {
+      const captured = previewRef.current;
+      if (!captured || !('live' in captured)) return false;
+      const el = captured.live();
+      if (!el) return false;
+      liveRef.current = openLiveLayer(liveRef.current, el, captured.parkedTransform, width);
+      return true;
+    };
+
+    /** Вернуть живой экран на парковку — жест отменён. */
+    const closeLive = () => {
+      closeLiveLayer(liveRef.current);
+      liveRef.current = null;
     };
 
     const closeLayer = () => {
+      closeLive();
       const screen = currentScreenRef.current;
       if (!screen) return;
       screen.style.transform = '';
       screen.style.transition = '';
       screen.style.willChange = '';
       screen.style.boxShadow = '';
-      // Возвращаем ровно то, что было: на прозрачных темах — прозрачность.
-      screen.style.background = previousBackgroundRef.current;
-      previousBackgroundRef.current = '';
     };
 
     const cancelFrame = () => {
@@ -231,19 +374,26 @@ export function IosEdgeBackGesture({
     };
 
     const finishCancel = () => {
+      // Довод подтверждённого жеста не отменяется ничем: `touchcancel` от
+      // касания, которое onTouchStart пропустил, снял бы его страховочный
+      // таймер, и `committingRef` залип бы навсегда (ревью 2026-10-06).
+      if (committingRef.current) return;
       const gesture = gestureRef.current;
       const width = gesture?.width ?? window.innerWidth;
       const wasHorizontal = gesture?.mode === 'horizontal';
       gestureRef.current = null;
       cancelFrame();
-      if (settleTimerRef.current != null) window.clearTimeout(settleTimerRef.current);
       if (!wasHorizontal) {
         // Жест так и не стал горизонтальным: ничего не монтировали и не
-        // двигали, снимать нечего.
+        // двигали, снимать нечего. Таймер прошлого жеста не трогаем — он
+        // доведёт или разберёт его слой сам.
         return;
       }
+      if (settleTimerRef.current != null) window.clearTimeout(settleTimerRef.current);
       paint(0, width, true);
+      cancelPendingRef.current = true;
       settleTimerRef.current = window.setTimeout(() => {
+        cancelPendingRef.current = false;
         closeLayer();
         setArmed(false);
       }, SETTLE_MS);
@@ -251,7 +401,21 @@ export function IosEdgeBackGesture({
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) return;
+      // Подтверждённый жест доводит экран до конца: новые касания у края
+      // ждут. Иначе они сняли бы запасной таймер, а слушатель
+      // transitionend первого жеста остался бы — и отменённый второй жест
+      // всё равно увёл бы экран назад, а подтверждённый позвал бы onBack
+      // дважды (двойной history.back()).
+      if (committingRef.current) return;
       if (settleTimerRef.current != null) window.clearTimeout(settleTimerRef.current);
+      // Новое касание посреди возврата отменённого жеста: таймер, который
+      // разобрал бы слои, мы только что сняли — разбираем сейчас. Иначе
+      // экран и вкладки под ним остались бы с нашими стилями навсегда.
+      if (cancelPendingRef.current) {
+        cancelPendingRef.current = false;
+        closeLayer();
+        setArmed(false);
+      }
       const touch = event.touches[0];
       gestureRef.current = {
         startX: touch.clientX,
@@ -288,7 +452,8 @@ export function IosEdgeBackGesture({
             return;
           }
           openLayer();
-          setArmed(true);
+          // Живой экран — сразу на свой слой; клон — смонтировать.
+          if (!openLive(gesture.width)) setArmed(true);
         }
       }
       if (gesture.mode !== 'horizontal') return;
@@ -333,6 +498,7 @@ export function IosEdgeBackGesture({
 
       const screen = currentScreenRef.current;
       let committed = false;
+      committingRef.current = true;
       const commitBack = () => {
         if (committed) return;
         committed = true;
@@ -363,8 +529,11 @@ export function IosEdgeBackGesture({
         // Страховка на случай, если экран так и не сменился (например,
         // history.back() упёрся в начало истории): вернуть страницу на
         // место, иначе она останется висеть за правым краем. setTimeout, а
-        // не rAF — тот не тикает в свёрнутом WebView.
+        // не rAF — тот не тикает в свёрнутом WebView. Живой экран под ним
+        // при этом возвращается на парковку; если же возврат состоялся,
+        // этот компонент размонтирован вместе с экраном и таймер снят.
         settleTimerRef.current = window.setTimeout(() => {
+          committingRef.current = false;
           closeLayer();
           setArmed(false);
         }, 400);
@@ -405,7 +574,10 @@ export function IosEdgeBackGesture({
             zIndex: 0,
             overflow: 'hidden',
             pointerEvents: 'none',
-            background: 'var(--surface)',
+            // Без своего фона: у клона он свой (фон темы экрана), а на
+            // космических темах экраны прозрачны, и под клоном должно быть
+            // видно общее небо (App), а не заливка.
+            background: 'transparent',
             willChange: 'transform',
           }}
         >

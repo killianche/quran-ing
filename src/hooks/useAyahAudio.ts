@@ -764,7 +764,10 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       // включивший суру целиком, не услышал бы её начала. У Аляфаси и
       // Аш-Шатри граница равна нулю, поэтому там ничего не меняется.
       const atSurahStart = startedWholeSurah && playbackMode === 'surah' && ayah === 1;
-      seekAudio(audio, atSurahStart ? 0 : (startAtSeconds ?? range?.startSeconds ?? 0));
+      // Явная секунда старта сильнее «с начала суры»: продолжение после
+      // перезапуска приложения (lib/lastPlayback.ts) включает суру целиком,
+      // но с того места, где остановились.
+      seekAudio(audio, atSurahStart && startAtSeconds == null ? 0 : (startAtSeconds ?? range?.startSeconds ?? 0));
     }
 
     setActiveKey(k);
@@ -1191,6 +1194,8 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
    */
   const playFrom = useCallback((
     surah: number, requestedFrom: number, requestedLast: number, mode: PlaybackMode = 'ayah',
+    /** Секунда записи, с которой начать (продолжение с запомненного места). */
+    startAtSeconds?: number,
   ) => {
     if (отказНетСуры(surah, requestedFrom)) return;
     const { fromAyah, lastAyah } = timelineQueueBounds(
@@ -1205,7 +1210,7 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     playbackMode = hasSurahAudio(reciterRef.current) ? 'surah' : 'ayah';
     startedWholeSurah = mode === 'surah';
     queueRef.current = { surah, first: fromAyah, last: lastAyah, current: fromAyah };
-    playOne(surah, fromAyah);
+    playOne(surah, fromAyah, 'manual', startAtSeconds);
   }, [playOne, отказНетСуры]);
 
   // 60fps progress driver — rAF loop bound to active audio. The native

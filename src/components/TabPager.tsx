@@ -100,33 +100,6 @@ export function scrollTabToTop(id: TabId): void {
     ?.scrollTo({ top: 0, behavior: scrollBehavior() });
 }
 
-/**
- * Подготовить копию экрана вкладок для предпросмотра жеста «назад»
- * (IosEdgeBackGesture, App.navigate).
- *
- * Копия DOM не уносит положений прокрутки: в ней лента стояла бы на первой
- * вкладке, а страница — на самом верху. Поэтому в копии остаётся одна
- * видимая страница, лента перестаёт быть прокруткой, а содержимое страницы
- * сдвинуто на её настоящую прокрутку.
- */
-export function freezeTabsForPreview(live: HTMLElement, clone: HTMLElement): void {
-  const cloneRoot = clone.querySelector<HTMLElement>('[data-tab-pager]');
-  if (!cloneRoot) return;
-  cloneRoot.querySelectorAll('[data-tab-parked]').forEach(page => page.remove());
-  // Не fixed: жест поднимает закреплённые элементы копии на свой слой, и
-  // лента со всеми страницами скопировалась бы туда ещё раз.
-  cloneRoot.style.position = 'absolute';
-  cloneRoot.style.overflow = 'hidden';
-  const id = cloneRoot.querySelector<HTMLElement>('[data-tab-page]')?.dataset.tabPage;
-  if (!id) return;
-  const liveScroller = live.querySelector<HTMLElement>(`[data-tab-scroller="${id}"]`);
-  const cloneScroller = cloneRoot.querySelector<HTMLElement>(`[data-tab-scroller="${id}"]`);
-  if (!liveScroller || !cloneScroller) return;
-  cloneScroller.style.overflow = 'hidden';
-  const content = cloneScroller.firstElementChild;
-  if (content instanceof HTMLElement) content.style.marginTop = `${-liveScroller.scrollTop}px`;
-}
-
 export function TabPager({
   order,
   active,
@@ -174,8 +147,10 @@ export function TabPager({
    */
   const liveIndexRef = useRef<number | null>(null);
   const settleTimerRef = useRef(0);
-  /** Прокрутка страниц — вернуть её, если парковка под экраном «поверх» её
-   *  сбросила (на iOS до 18 парковка — `display: none`). */
+  /** Прокрутка страниц — вернуть её, если под экраном «поверх» её что-то
+   *  сбросило. Сейчас парковка — сдвиг за край (App, Shell) и прокрутку
+   *  хранит; страховка — на случай возврата к скрытию (`display: none`
+   *  сбрасывал её в 0, так было на iOS до 18 до 2026-10-05). */
   const savedTopRef = useRef<Partial<Record<TabId, number>>>({});
   /** С чем лента ставилась в прошлый раз — отличить тап от старта. */
   const placedRef = useRef<{ step: number; enabled: boolean } | null>(null);
@@ -371,9 +346,9 @@ export function TabPager({
       const el = event.target;
       if (!(el instanceof HTMLElement)) return;
       const id = el.dataset.tabScroller as TabId | undefined;
-      // Сброс в 0 при парковке `display: none` — тоже событие прокрутки, и
-      // может прийти, пока пейджер о парковке ещё не знает. У скрытого так
-      // элемента нет ни одного прямоугольника — такое не запоминаем.
+      // Сброс в 0 у скрытой (`display: none`) страницы — тоже событие
+      // прокрутки, и может прийти, пока пейджер о парковке ещё не знает. У
+      // скрытого так элемента нет ни одного прямоугольника — не запоминаем.
       if (!id || !live.current.enabled || el.getClientRects().length === 0) return;
       savedTopRef.current[id] = el.scrollTop;
     };
@@ -399,8 +374,8 @@ export function TabPager({
     const root = rootRef.current;
     if (!enabled) {
       // Экран «поверх» открылся — возможно, посреди свайпа. Подсветка — на
-      // принятую, а возврат поставит ленту сразу, без проезда через соседей
-      // (после парковки `display: none` лента стоит в начале).
+      // принятую, а возврат поставит ленту сразу, без проезда через соседей,
+      // если она вдруг не на месте.
       placedRef.current = null;
       programmaticRef.current = null;
       liveIndexRef.current = null;
@@ -435,8 +410,8 @@ export function TabPager({
     });
   }, [active, step, enabled, order]);
 
-  // Возврат из-под экрана «поверх»: если парковка сбросила прокрутку
-  // страниц (`display: none` на iOS до 18), вернуть её.
+  // Возврат из-под экрана «поверх»: если прокрутку страниц что-то сбросило
+  // (см. savedTopRef), вернуть её.
   useLayoutEffect(() => {
     if (!enabled) return;
     for (const id of order) {
@@ -470,8 +445,7 @@ export function TabPager({
             key={id}
             ref={el => { pageRefs.current[id] = el; }}
             data-tab-page={id}
-            // Признак скрытой вкладки: пауза анимаций плиток (index.css) и
-            // копия для жеста «назад» без неё (freezeTabsForPreview).
+            // Признак скрытой вкладки: пауза анимаций плиток (index.css).
             data-tab-parked={isActive ? undefined : ''}
             // aria-hidden и inert — по принятой вкладке; со страницы, ставшей
             // ближайшей, их снимает лента на ходу (openPage), остальным

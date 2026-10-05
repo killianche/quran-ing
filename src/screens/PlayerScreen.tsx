@@ -71,6 +71,7 @@ import {
 import { TOTAL_SURAHS } from '../lib/ayahNumbering';
 import { formatPlaybackTime } from '../lib/playbackTime';
 import { SURAH_BY_NUMBER } from '../content/surahs';
+import { readLastPlayback, type LastPlayback } from '../lib/lastPlayback';
 import type { Theme } from '../hooks/useTheme';
 import type { TabFrame } from '../components/TabPager';
 
@@ -110,22 +111,37 @@ export function PlayerScreen(props: Props) {
     setThemeOpen(false);
   }, [active]);
 
-  // 🔴 Последняя звучавшая сура, а не «первая по умолчанию».
+  // 🔴 Когда ничего не звучит — последнее прослушивание, а не пустота и не
+  // «первая сура по умолчанию».
   //
-  // Когда сура доиграна до конца, очередь обнуляется и `currentSurah`
-  // становится null. Прежнее `?? 1` подставляло Аль-Фатиху: экран показывал
-  // суру, которая не звучала, «Аят 1 из 7», и кнопка запускала именно её.
-  // Дослушав Ан-Нас, человек получал бы Аль-Фатиху без всякой причины.
-  const lastSurah = useRef<number | null>(null);
+  // Владелец 2026-10-05: «послушал суру, вышел из приложения, даже полностью
+  // закрыл — чтобы плеер помнил, на каком месте я остановился». Место пишет
+  // AudioProvider (lib/lastPlayback.ts); здесь оно читается заново каждый
+  // раз, когда звук обрывается, — в том числе после остановки крестиком.
+  //
+  // Прежде помнилась только сура текущего запуска, и любая остановка
+  // показывалась как «Сура дочитана» — даже крестиком посреди суры. Теперь
+  // «дочитана» — только если запись правда дослушана до конца (`done`).
+  // История: ещё раньше здесь было `?? 1`, и пустой плеер подставлял
+  // Аль-Фатиху, которая не звучала, — не возвращать.
+  const [remembered, setRemembered] = useState<LastPlayback | null>(readLastPlayback);
   useEffect(() => {
-    if (currentSurah) lastSurah.current = currentSurah;
+    if (currentSurah) return;
+    // Через задачу, а не сразу: итог («дочитана» или место остановки) пишет
+    // AudioProvider в своём эффекте, а эффекты родителя идут ПОСЛЕ эффектов
+    // потомков — прочитав сразу, экран получил бы запись предыдущего кадра.
+    const id = window.setTimeout(() => setRemembered(readLastPlayback()), 0);
+    return () => window.clearTimeout(id);
   }, [currentSurah]);
+  const restored = currentSurah ? null : remembered;
 
-  const surah = currentSurah ?? lastSurah.current;
+  const surah = currentSurah ?? restored?.surah ?? null;
   const meta = surah ? SURAH_BY_NUMBER[surah] : undefined;
   const total = meta?.ayahs ?? 1;
-  const ayah = currentAyah ?? 1;
-  const finished = !currentSurah && Boolean(surah);
+  const ayah = currentAyah ?? restored?.ayah ?? 1;
+  const finished = Boolean(restored?.done);
+  // Остановились посреди суры — продолжать есть с чего.
+  const paused = Boolean(restored && !restored.done);
   const playing = audioState === 'playing';
   const loading = audioState === 'loading';
   const timeline = usesTimelineSeek(reciter);
@@ -136,6 +152,11 @@ export function PlayerScreen(props: Props) {
   const status = loading ? 'Загрузка…'
     : missing ? 'У чтеца нет этой суры'
     : finished ? 'Сура дочитана'
+    // Время пишем словами, только если полосы с ним нет (старая запись без
+    // длины); иначе «3:12» стояло бы на экране дважды.
+    : paused && timeline && restored?.seconds != null && restored.reciter === reciter && !restored.duration
+      ? `Остановлено на ${formatPlaybackTime(restored.seconds)}`
+    : paused ? 'На паузе'
     : null;
 
   const playSurah = (n: number) => {
@@ -268,7 +289,12 @@ export function PlayerScreen(props: Props) {
             Позиция аятом, а не временем: человек, слушающий Коран,
             мыслит аятами, а не минутами записи. Кроме чтеца без
             границ аятов — у него ползунок времени. */}
-        {timeline ? (
+        {timeline && paused && restored?.seconds != null && restored.duration && restored.reciter === reciter ? (
+          // После перезапуска звука нет и ползунку не от чего брать позицию —
+          // показываем запомненное место неподвижной полосой, а не «0:00»
+          // рядом со словами «Остановлено на 3:12» (ревью 2026-10-05).
+          <RestoredTimeBar seconds={restored.seconds} duration={restored.duration} status={status} />
+        ) : timeline ? (
           <SeekBar
             // Своя сура — свой ползунок: незавершённое перетаскивание не
             // переезжает на следующую.
@@ -344,6 +370,25 @@ export function PlayerScreen(props: Props) {
               // Сура дочитана — начинаем её заново, а не продолжаем с
               // последнего аята: продолжать там уже нечего.
               else if (finished) audio.playSurah(surah, total);
+              // Звука нет, но место запомнено (в том числе с прошлого
+              // запуска) — продолжаем оттуда. У чтеца с границами аятов — с
+              // того же аята как «слушать суру целиком» (`playFrom` 'surah'):
+              // после неё, как обычно, пойдёт следующая; `handlePlay` эту
+              // цепочку сбрасывал. У чтеца без границ аятов — с той же секунды
+              // записи, если чтец тот же; иначе — с начала суры.
+              else if (paused && restored) {
+                if (timeline) {
+                  // Как «слушать суру целиком», но с запомненной секунды:
+                  // после суры пойдёт следующая (`handlePlay` эту цепочку
+                  // сбрасывал — ревью 2026-10-05).
+                  audio.playFrom(
+                    surah, 1, 1, 'surah',
+                    restored.reciter === reciter ? restored.seconds : undefined,
+                  );
+                } else {
+                  audio.playFrom(surah, restored.ayah, total, 'surah');
+                }
+              }
               // Продолжаем с места паузы, а не с начала аята.
               else audio.resume();
             }}
@@ -602,18 +647,26 @@ function ReciterTrigger({ reciter, open, onOpen }: {
  * бегунок расходился бы с заливкой.
  */
 function SeekBar({ status, live }: { status: string | null; live: boolean }) {
-  const { progress, duration } = useAudioTick();
-  // Скрытая вкладка «Плеер» смонтирована всегда (свайп по вкладкам), а тик
+  // Скрытая вкладка «Плеер» смонтирована всегда (листание вкладок), а тик
   // идёт каждый кадр — в том числе пока человек читает суру и подсвечивается
-  // слово. Видимой вкладке — позиция каждый кадр; скрытой — округлённая до
-  // секунды: эта обёртка вызывается на каждом тике (пустой вызов), а DOM
-  // полосы (`SeekBarView`, memo) обновляется раз в секунду. На перелистывании
-  // к плееру полоса отстаёт не больше чем на секунду, без прыжка (ревью
-  // 2026-10-05).
-  const shown = live || duration <= 0
-    ? progress
-    : Math.floor(progress * duration) / duration;
-  return <SeekBarView status={status} progress={shown} duration={duration} />;
+  // слово. Скрытому плееру тик не нужен вовсе: подписан на него только
+  // видимый (`LiveSeekBar`), скрытый показывает последнее увиденное значение.
+  // Раньше скрытый пересчитывал полосу раз в секунду, а без
+  // `content-visibility` у парковки это ещё и раскладка (ревью 2026-10-05).
+  const last = useRef({ progress: 0, duration: 0 });
+  return live
+    ? <LiveSeekBar status={status} last={last} />
+    : <SeekBarView status={status} progress={last.current.progress} duration={last.current.duration} />;
+}
+
+/** Ползунок видимой вкладки: подписан на тик и запоминает последнее. */
+function LiveSeekBar({ status, last }: {
+  status: string | null;
+  last: React.MutableRefObject<{ progress: number; duration: number }>;
+}) {
+  const { progress, duration } = useAudioTick();
+  last.current = { progress, duration };
+  return <SeekBarView status={status} progress={progress} duration={duration} />;
 }
 
 const SeekBarView = memo(function SeekBarView({ status, progress, duration }: {
@@ -709,3 +762,48 @@ const SeekBarView = memo(function SeekBarView({ status, progress, duration }: {
     </section>
   );
 });
+
+/**
+ * Запомненное место у чтеца без границ аятов — неподвижная полоса.
+ *
+ * Та же геометрия, что у ползунка (`SeekBar`), но без подписки на тик и без
+ * перетаскивания: звука ещё нет, перематывать нечего. Кнопка
+ * воспроизведения продолжит ровно с этой секунды.
+ */
+function RestoredTimeBar({ seconds, duration, status }: {
+  seconds: number;
+  duration: number;
+  status: string | null;
+}) {
+  const pct = Math.min(100, Math.max(0, (seconds / duration) * 100));
+  return (
+    <section style={{ display: 'grid', gap: 'var(--space-hair)' }}>
+      <div
+        role="progressbar"
+        aria-label="Запомненное место в записи суры"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(duration)}
+        aria-valuenow={Math.round(seconds)}
+        aria-valuetext={`${formatPlaybackTime(seconds)} из ${formatPlaybackTime(duration)}`}
+        style={{ height: '28px', display: 'flex', alignItems: 'center' }}
+      >
+        <div style={{
+          flex: 1, height: '4px', borderRadius: '2px',
+          background: `linear-gradient(to right, var(--ink) 0 ${pct}%, var(--hairline) ${pct}% 100%)`,
+        }} />
+      </div>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        gap: 'var(--space-tight)',
+        fontSize: 'var(--font-caption2)',
+        lineHeight: 'var(--leading-caption2)',
+        color: 'var(--text-tertiary)',
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        <span>{formatPlaybackTime(seconds)}</span>
+        {status && <span>{status}</span>}
+        <span>{`\u2212${formatPlaybackTime(duration - seconds)}`}</span>
+      </div>
+    </section>
+  );
+}

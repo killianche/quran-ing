@@ -67,6 +67,8 @@ export const LOCAL_DATA_KEYS: readonly string[] = [
   'mushaf.page', 'mushaf.font',
   // Как читаю Коран
   'theme', 'reciter', 'arabicFont', 'ruFont', 'arabicScale', 'ruScale',
+  // Что и где слушал (lib/lastPlayback.ts).
+  'player.last',
   'showArabic', 'showRu', 'fontScale', 'quran.feedMode',
   'showInh', 'inhFont', 'inhScale',
   // Азкары

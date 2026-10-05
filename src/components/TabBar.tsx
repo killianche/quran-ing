@@ -150,11 +150,14 @@ export function accessoryBottom(placement: AccessoryPlacement, gap: number): str
 /** Максимальная пауза между двумя тапами по активной вкладке. */
 const DOUBLE_TAP_MS = 420;
 
-export function TabBar({ active: accepted, onSelect, theme }: {
+export function TabBar({ active: accepted, onSelect, theme, parked = false }: {
   /** Принятая вкладка (App). */
   active: TabId;
   onSelect: (id: TabId) => void;
   theme: Theme;
+  /** Вкладки припаркованы под экраном «поверх»: веб-панель уезжает за край
+   *  вместе с ними (App), системная панель iOS 26 прячется. */
+  parked?: boolean;
 }) {
   const mode = useSyncExternalStore(subscribeTabBarMode, getTabBarMode, getTabBarMode);
   // Пока лента вкладок едет, подсвечена вкладка под пальцем (TabPager пишет
@@ -168,15 +171,18 @@ export function TabBar({ active: accepted, onSelect, theme }: {
   // «спрятать-показать» при смене вкладки, чтобы панель не мигала).
   const tapRef = useRef(handleTap);
   tapRef.current = handleTap;
+  // Под экраном «поверх» панель остаётся смонтированной (её веб-вариант
+  // жест «назад» показывает вместе с вкладками), но системную прячем: она
+  // лежит над веб-вью и закрыла бы экран «поверх».
   useEffect(() => {
-    if (mode !== 'native') return;
+    if (mode !== 'native' || parked) return;
     setNativeTabSelectHandler(id => tapRef.current(id));
     setNativeTabBarVisible(true);
     return () => {
       setNativeTabSelectHandler(null);
       setNativeTabBarVisible(false);
     };
-  }, [mode]);
+  }, [mode, parked]);
   useEffect(() => { if (mode === 'native') selectNativeTab(active); }, [mode, active]);
   useEffect(() => { if (mode === 'native') tintNativeTabBar(theme); }, [mode, theme]);
 

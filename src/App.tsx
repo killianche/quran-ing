@@ -17,7 +17,7 @@ import {
 } from './components/IosEdgeBackGesture';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar, TAB_ORDER, type TabId } from './components/TabBar';
-import { TabPager, freezeTabsForPreview, scrollTabToTop } from './components/TabPager';
+import { TabPager, scrollTabToTop } from './components/TabPager';
 import { setLiveTab } from './lib/tabLive';
 import { applyHighlightVars } from './lib/audioPrefs';
 import { applyPaletteToDocument } from './lib/tajweedPalette';
@@ -105,6 +105,15 @@ function ScreenFallback() {
 
 const INITIAL_SCREEN: Screen = { name: 'tabs', tab: 'quran' };
 
+/** Припаркованные вкладки — живой экран под жестом «назад» (см. navigate). */
+const liveTabsScreen = () => document.querySelector<HTMLElement>('[data-app-screen="parked"]');
+
+/**
+ * Где стоят вкладки под экраном «поверх»: за левым краем, на две ширины.
+ * Сдвиг, а не `content-visibility`/`visibility` — см. комментарий у Shell.
+ */
+const PARKED_SHIFT = 'translateX(-200%)';
+
 export default function App() {
   const { theme, setTheme } = useTheme();
   /**
@@ -159,7 +168,6 @@ export default function App() {
    * заново.
    */
   const [animateEnter, setAnimateEnter] = useState(false);
-  const quranHomePreviewRef = useRef<IosBackPreview | null>(null);
   const isCosmic = themeMode(theme) === 'cosmic';
   const cosmicVariant = theme === 'cosmos'
     ? 'cosmos' as const
@@ -209,11 +217,25 @@ export default function App() {
     const focused = document.activeElement;
     if (focused instanceof HTMLElement && focused !== document.body) focused.blur();
 
-    const needsPreview = next.name !== 'tabs';
+    // 🔴 Возврат к вкладкам показывает под жестом ЖИВЫЕ вкладки, а не клон
+    // (владелец, iPhone, 2026-10-05: «Азкары → Вечерние, свайп назад — под
+    // экраном полностью тёмный экран, и только потом появляются заголовок и
+    // плитки»). Клон вкладок не уносил положений прокрутки, лента в нём
+    // теряла опору и схлопывалась в ноль — под жестом был голый фон темы.
+    // А после отпускания вкладки проявлялись с задержкой: парковка была
+    // `content-visibility: hidden`, и WebKit рисовал их заново. Теперь
+    // вкладки паркуются за краем экрана (Shell ниже) и на время жеста
+    // выезжают из-под уходящего экрана сами — со своей прокруткой, шапкой и
+    // меню. Сура всегда возвращает к вкладкам (goQuranHome), поэтому и ей —
+    // живые вкладки, даже если под ней лежат закладки.
+    const returnsToTabs = screen.name === 'tabs' || next.name === 'surah';
+    const needsPreview = next.name !== 'tabs' && !returnsToTabs;
     const node = needsPreview
       ? document.querySelector<HTMLElement>('[data-app-screen="current"]')
       : null;
-    let captured: IosBackPreview | null = null;
+    let captured: IosBackPreview | null = next.name !== 'tabs' && returnsToTabs
+      ? { live: liveTabsScreen, parkedTransform: PARKED_SHIFT }
+      : null;
     if (node) {
       const clone = node.cloneNode(true) as HTMLElement;
       clone.removeAttribute('data-app-screen');
@@ -222,20 +244,9 @@ export default function App() {
       // пальцем гас до 72% и проявлялся. Тот самый дефект, от которого
       // избавились на самом экране, переезжал в его копию.
       clone.classList.remove('app-screen-enter');
-      // Копия вкладок не уносит положений прокрутки ленты и страниц —
-      // TabPager оставляет в ней одну видимую страницу на её прокрутке.
-      freezeTabsForPreview(node, clone);
       captured = { node: clone, scrollY: window.scrollY };
     }
-    if (screen.name === 'tabs' && screen.tab === 'quran' && captured) {
-      quranHomePreviewRef.current = captured;
-    }
-    const returnsToQuran = next.name === 'surah';
-    setBackPreview(
-      returnsToQuran
-        ? (quranHomePreviewRef.current ?? captured)
-        : captured,
-    );
+    setBackPreview(captured);
 
     edgeBackRef.current = false;
     const current = stackRef.current;
@@ -453,7 +464,7 @@ export default function App() {
   let overlay: ReactNode = null;
   if (screen.name === 'surah') {
     overlay = (
-      <Shell key="surah" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeQuranHome} edgeBackPreview={backPreview}>
+      <Shell key="surah" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeQuranHome} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="SurahScreen" onReset={goQuranHome}>
           <SurahScreen
@@ -476,7 +487,7 @@ export default function App() {
 
   if (screen.name === 'qibla') {
     overlay = (
-      <Shell key="qibla" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
+      <Shell key="qibla" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="QiblaScreen" onReset={goBack}>
           <QiblaScreen theme={theme} setTheme={setTheme} onBack={goBack} />
@@ -488,7 +499,7 @@ export default function App() {
 
   if (screen.name === 'player') {
     overlay = (
-      <Shell key="player" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
+      <Shell key="player" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PlayerScreen" onReset={goBack}>
           <PlayerScreen onBack={goBack} />
@@ -500,7 +511,7 @@ export default function App() {
 
   if (screen.name === 'document') {
     overlay = (
-      <Shell key="document" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
+      <Shell key="document" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="DocumentScreen" onReset={goBack}>
           <DocumentScreen doc={screen.doc} onBack={goBack} />
@@ -514,7 +525,7 @@ export default function App() {
   // в нижней панели ему не по чину. Открывается кнопкой в шапке главной.
   if (screen.name === 'account') {
     overlay = (
-      <Shell key="account" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
+      <Shell key="account" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AccountScreen" onReset={goBack}>
           <AccountScreen
@@ -531,7 +542,7 @@ export default function App() {
 
   if (screen.name === 'prayer') {
     overlay = (
-      <Shell key="prayer" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
+      <Shell key="prayer" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="PrayerTimesScreen" onReset={goBack}>
           <PrayerTimesScreen
@@ -554,7 +565,7 @@ export default function App() {
 
   if (screen.name === 'bookmarks') {
     overlay = (
-      <Shell key="bookmarks" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
+      <Shell key="bookmarks" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="BookmarksScreen" onReset={goBack}>
           <BookmarksScreen
@@ -571,7 +582,7 @@ export default function App() {
 
   if (screen.name === 'azkar-category') {
     overlay = (
-      <Shell key="azkar-category" isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
+      <Shell key="azkar-category" isCosmic={isCosmic} isDotted={isDotted} animateEnter={animateEnter} onEdgeBack={edgeBack} edgeBackPreview={backPreview}>
         <Suspense fallback={<ScreenFallback />}>
         <ErrorBoundary name="AzkarCategoryScreen" onReset={goBack}>
           <AzkarCategoryScreen
@@ -593,17 +604,20 @@ export default function App() {
   //
   // Замер: закрытие суры упиралось в перерисовку главной — смонтировать 114
   // строк, разложить их с арабским шрифтом заново (~100 мс без замедления
-  // процессора, ×4 — 330). Теперь вкладка остаётся в DOM под классом
-  // `.app-screen-parked` (content-visibility: hidden): браузер её не
-  // рисует, но хранит раскладку, и возврат — это снять класс и вернуть
-  // прокрутку. Заодно сохраняются запрос в поиске и лента недавних (они
-  // обновляются при возврате).
+  // процессора, ×4 — 330). Теперь вкладка остаётся в DOM и паркуется за
+  // краем экрана (Shell, PARKED_SHIFT; до 2026-10-05 — `content-visibility:
+  // hidden`, почему ушли от него — там же): браузер её не рисует, но хранит
+  // раскладку, и возврат — это снять сдвиг. Заодно сохраняются запрос в
+  // поиске и лента недавних (они обновляются при возврате).
   //
-  // Что припаркованная вкладка НЕ держит: нижнюю панель (системная
-  // панель iOS спряталась бы только с её размонтированием), мини-плеер и
-  // плашку звука (у экранов «поверх» свои), слой космической темы (его
-  // анимация крутилась бы впустую). Атрибут `data-app-screen` у неё
-  // `parked`: клон для жеста «назад» снимается только с видимого экрана.
+  // Что припаркованная вкладка НЕ держит: мини-плеер и плашку звука (у
+  // экранов «поверх» свои). Слой космической темы у неё и не свой — он
+  // один на приложение (ниже). Нижняя веб-панель остаётся: жест «назад»
+  // показывает её вместе с вкладками. Системную панель iOS 26 TabBar при
+  // парковке прячет, и под жестом её нет: она лежит над веб-вью и ехать
+  // вместе со страницей не может — появляется после возврата. Атрибут
+  // `data-app-screen` у неё `parked`: по нему жест «назад» находит живые
+  // вкладки (liveTabsScreen).
   //
   // Сами вкладки — в TabPager: все три живут в DOM лентой нативной
   // горизонтальной прокрутки, и между ними листает сам iOS. Поэтому у Shell
@@ -624,7 +638,24 @@ export default function App() {
   };
   return (
     <>
-    <Shell key="tabs" parked={parked} isCosmic={isCosmic} isDotted={isDotted} cosmicVariant={cosmicVariant} animateEnter={false}>
+    {/* Слой космической темы — один на всё приложение, под всеми экранами.
+        Раньше он был у каждого экрана свой и у припаркованных вкладок
+        выключался: под жестом «назад» вкладки стояли без неба, а после
+        отпускания слой монтировался рывком, и звёзды стартовали заново
+        (ревью 2026-10-05). Экраны на космических темах прозрачны и видят
+        его сквозь себя; уезжающий под жестом экран на это время
+        непрозрачен (IosEdgeBackGesture). Работы на кадр не прибавилось:
+        слой и раньше крутился ровно один — у видимого экрана. */}
+    {isCosmic && (
+      // Своя изоляция и уровень ниже экранов: внутренние уровни слоя (у
+      // первой «Авроры» плёнка 900) не выходят за него и не накрывают
+      // экраны и порталы — шторки, меню, листы (39–60). Раньше эту границу
+      // давал изолированный Shell, в котором слой жил.
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 0, isolation: 'isolate', pointerEvents: 'none' }}>
+        <CosmicLayer variant={cosmicVariant} />
+      </div>
+    )}
+    <Shell key="tabs" parked={parked} isCosmic={isCosmic} isDotted={isDotted} animateEnter={false}>
       {/* TabBar снаружи пейджера: иначе панель вкладок пропадала бы на
           время подгрузки чанка экрана. */}
       <TabPager
@@ -691,15 +722,20 @@ export default function App() {
           {/* Отказ звука говорит словами: чтение идёт из сети, и молчаливая
               остановка читается как поломка приложения. */}
           <AudioErrorPlate />
-          {/* Принятая вкладка; подсветку на ходу ленты панель берёт сама
-              из lib/tabLive.ts — App при этом не перерисовывается. */}
-          <TabBar
-            active={tab}
-            theme={theme}
-            onSelect={selectTab}
-          />
         </>
       )}
+      {/* Принятая вкладка; подсветку на ходу ленты панель берёт сама из
+          lib/tabLive.ts — App при этом не перерисовывается. Панель есть и у
+          припаркованных вкладок: жест «назад» выводит их из-под экрана
+          «поверх» вместе с веб-панелью. Системную панель iOS 26 при
+          парковке она прячет (`parked`), и под жестом той нет — она над
+          веб-вью; появляется после возврата. */}
+      <TabBar
+        active={tab}
+        theme={theme}
+        onSelect={selectTab}
+        parked={parked}
+      />
     </Shell>
     {overlay}
     </>
@@ -713,18 +749,27 @@ export default function App() {
 function Shell({
   isCosmic,
   isDotted,
-  cosmicVariant,
   onEdgeBack,
   edgeBackPreview,
   animateEnter,
   parked = false,
   children,
 }: {
-  /** Вкладка под экраном «поверх»: в DOM, но не рисуется (см. App). */
+  /**
+   * Вкладка под экраном «поверх»: в DOM, за краем экрана.
+   *
+   * 🔴 Сдвигом, а не `content-visibility: hidden` и не `visibility`, как
+   * было до 2026-10-05. Скрытую так вкладку нельзя показать под жестом
+   * «назад», а после возврата WebKit рисовал её заново с задержкой — под
+   * уезжающим экраном был голый фон темы, потом проявлялись шапка и плитки
+   * (владелец, iPhone). `visibility` вдобавок наследуется, и Blink терял его
+   * смену у анимируемых потомков (TabPager, 2026-10-05). За кадром браузер
+   * вкладку не рисует; раскладка при этом живая, поэтому возврат — снять
+   * сдвиг, без раскладки 114 строк заново.
+   */
   parked?: boolean;
   isCosmic: boolean;
   isDotted: boolean;
-  cosmicVariant: 'aurora' | 'aurora2' | 'cosmos';
   onEdgeBack?: () => void;
   edgeBackPreview?: IosBackPreview | null;
   /** Проигрывать короткое появление. Только на переходах вперёд. */
@@ -746,16 +791,20 @@ function Shell({
         // строка значит false, и парковка молча перестанет блокировать.
         {...(parked ? { inert: '' } : {})}
         style={{
-          position: 'relative',
+          // Парковка — экран во весь вьюпорт за левым краем (PARKED_SHIFT):
+          // вне потока документа, не рисуется (за кадром), но раскладка,
+          // прокрутка ленты и страниц — живые. Жест «назад» выводит его
+          // из-под уходящего экрана, сдвигая `transform` (IosEdgeBackGesture).
+          ...(parked
+            ? { position: 'fixed' as const, inset: 0, overflow: 'hidden', transform: PARKED_SHIFT }
+            : { position: 'relative' as const, minHeight: '100dvh' }),
           zIndex: 1,
-          minHeight: parked ? 0 : '100dvh',
           isolation: 'isolate',
           background: isDotted
             ? 'radial-gradient(circle, rgba(116, 106, 92, 0.16) 1.45px, transparent 1.7px) 18px 9px / 60px 60px, var(--surface)'
             : (isCosmic ? 'transparent' : 'var(--surface)'),
         }}
       >
-        {isCosmic && !parked && <CosmicLayer variant={cosmicVariant} />}
         <div style={{ position: 'relative', zIndex: 1 }}>
           {children}
         </div>

@@ -49,6 +49,7 @@ import {
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { bindMediaSessionHandlers } from '../lib/mediaSession';
 import { readPref } from '../lib/typography';
+import { writeLastPlayback } from '../lib/lastPlayback';
 
 const RECITER_IDS = RECITERS.map(r => r.id);
 
@@ -78,7 +79,7 @@ export type AudioActions = {
   /** `startAtSeconds` — продолжить с секунды записи (повтор после сбоя у
    *  чтеца без границ аятов). */
   handlePlay: (surah: number, ayah: number, lastAyah?: number, startAtSeconds?: number) => void;
-  playFrom: (surah: number, fromAyah: number, lastAyah: number, mode?: PlaybackMode) => void;
+  playFrom: (surah: number, fromAyah: number, lastAyah: number, mode?: PlaybackMode, startAtSeconds?: number) => void;
   /** Включить суру целиком с начала — непрерывной записью, без швов. */
   playSurah: (surah: number, ayahCount: number) => void;
   /** Следующий аят; у чтеца без границ аятов — вперёд на 10 с. */
@@ -108,6 +109,62 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     () => readPref<ReciterId>('reciter', DEFAULT_RECITER, RECITER_IDS),
   );
   const audio = useAyahAudio(reciter);
+
+  // ── Последнее прослушивание (lib/lastPlayback.ts) ──────────────────────
+  // Пишем сразу — на смене суры, аята, чтеца и на паузе; у чтеца без границ
+  // аятов секунду записи ещё и по ходу, но не чаще раза в 5 с: тик идёт
+  // каждый кадр, а запись в хранилище на каждом кадре — лишняя работа ровно
+  // во время звука.
+  //
+  // «Дочитана» — по ПЕРЕХОДУ, а не по тику (ревью 2026-10-05): ядро ставит
+  // progress=1 и обнуляет очередь в одном обработчике, и кадр «последний аят
+  // дослушан» не рендерится вовсе. Поэтому помним последний живой кадр, и
+  // когда звук пропал без ошибки, а звучал последний аят (у чтеца без
+  // границ аятов — последние 3 % записи), сура дочитана. Остановка
+  // крестиком посреди суры — не «дочитана», а место, с которого продолжить.
+  const lastWriteAt = useRef(0);
+  const lastKey = useRef('');
+  const liveRec = useRef<{ surah: number; ayah: number; reciter: ReciterId; seconds?: number; duration?: number; progress: number } | null>(null);
+  // Секунды сразу после смены чтеца — ещё от старой записи: их не пишем.
+  const secondsMutedUntil = useRef(0);
+  const recordedReciter = useRef(reciter);
+  useEffect(() => {
+    const now = Date.now();
+    if (recordedReciter.current !== reciter) {
+      recordedReciter.current = reciter;
+      secondsMutedUntil.current = now + 1500;
+    }
+    const surah = audio.currentSurah;
+    if (!surah) {
+      const prev = liveRec.current;
+      if (!prev) return;
+      liveRec.current = null;
+      lastKey.current = '';
+      const total = SURAH_BY_NUMBER[prev.surah]?.ayahs ?? 0;
+      const done = !audio.failure && (usesTimelineSeek(prev.reciter)
+        ? prev.progress >= 0.97
+        : total > 0 && prev.ayah >= total);
+      writeLastPlayback({ surah: prev.surah, ayah: prev.ayah, reciter: prev.reciter, seconds: prev.seconds, duration: prev.duration, done });
+      return;
+    }
+    const timeline = usesTimelineSeek(reciter);
+    const ayah = audio.currentAyah ?? 1;
+    const secondsValid = timeline && audio.duration > 0 && now >= secondsMutedUntil.current;
+    const seconds = secondsValid ? audio.progress * audio.duration : undefined;
+    liveRec.current = {
+      surah, ayah, reciter,
+      seconds: seconds ?? (liveRec.current?.reciter === reciter && liveRec.current.surah === surah ? liveRec.current.seconds : undefined),
+      duration: secondsValid ? audio.duration : (liveRec.current?.reciter === reciter && liveRec.current.surah === surah ? liveRec.current.duration : undefined),
+      progress: audio.progress,
+    };
+    const key = `${reciter}:${surah}:${ayah}:${audio.audioState === 'paused' ? 'p' : 'r'}`;
+    const boundary = lastKey.current !== key;
+    if (!boundary && now - lastWriteAt.current < 5000) return;
+    lastKey.current = key;
+    lastWriteAt.current = now;
+    const rec = liveRec.current;
+    writeLastPlayback({ surah: rec.surah, ayah: rec.ayah, reciter: rec.reciter, seconds: rec.seconds, duration: rec.duration, done: false });
+  }, [audio.currentSurah, audio.currentAyah, audio.progress, audio.duration, audio.audioState, audio.failure, reciter]);
 
   // Свежий хук под стабильными действиями: сами функции `useAyahAudio`
   // меняют ссылку при каждом обновлении состояния, и без этого объект
@@ -203,7 +260,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const actions = useMemo<AudioActions>(() => ({
     handlePlay: (surah, ayah, lastAyah, startAt) => live.current.handlePlay(surah, ayah, lastAyah, startAt),
-    playFrom: (surah, from, last, mode) => live.current.playFrom(surah, from, last, mode),
+    playFrom: (surah, from, last, mode, startAt) => live.current.playFrom(surah, from, last, mode, startAt),
     playSurah: (surah, ayahCount) => live.current.playFrom(surah, 1, ayahCount, 'surah'),
     next: () => live.current.next(),
     prev: () => live.current.prev(),
