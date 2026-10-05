@@ -70,6 +70,20 @@ function azkarWord(n: number): string {
  *  идёт день. */
 const TILE_ORDER: AzkarCategoryId[] = ['morning', 'evening'];
 
+/**
+ * Высота плиток — постоянная, от высоты экрана, а не «всё свободное место».
+ *
+ * Раньше сетка была `flex: 1` и делила высоту до панели вкладок: когда
+ * панель или мини-плеер на миг пропадали (свайп, переход), плитки
+ * растягивались до самого низа и сжимались обратно — владелец 2026-10-05:
+ * «кнопки дергаются… чтобы не растягивались, не сокращались». `svh` — малая
+ * высота окна: она не зависит ни от наших панелей, ни от адресной строки.
+ * 330 px — шапка с крупным заголовком сверху плюс панель вкладок и
+ * мини-плеер снизу на iPhone (390×844 → плитки 514 px и кончаются над
+ * мини-плеером); границы 300–560 — маленький экран и планшет.
+ */
+const TILE_HEIGHT = 'clamp(300px, calc(100svh - 330px), 560px)';
+
 export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: Props) {
   const [data, setData] = useState<AzkarData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -143,11 +157,11 @@ export function AzkarScreen({ theme, setTheme, onOpenCategory, active = true }: 
         <div
           role="list"
           style={{
-            flex: 1,
+            height: TILE_HEIGHT,
+            flexShrink: 0,
             display: 'grid',
             gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))`,
             gap: '12px',
-            minHeight: '300px',
           }}
         >
           {tiles.map(cat => (
@@ -480,9 +494,8 @@ function CategoryRow({
 function TilesSkeleton() {
   return (
     <div aria-hidden style={{
-      flex: 1,
+      height: TILE_HEIGHT, flexShrink: 0,
       display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px',
-      minHeight: '300px',
     }}>
       <div className="skeleton" style={{ borderRadius: '32px' }} />
       <div className="skeleton" style={{ borderRadius: '32px' }} />
