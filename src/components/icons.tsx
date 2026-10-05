@@ -400,6 +400,39 @@ export const Check = ({ size = ICON_SIZE.md, className, style }: Props) => (
   </svg>
 );
 
+/**
+ * Вкладка «Плеер» — треугольник «слушать» в круге, как SF Symbols
+ * `play.circle` / `play.circle.fill` (тот же символ у системной панели
+ * iOS 26, lib/nativeTabBar.ts).
+ *
+ * Круг того же радиуса, что у часов (TabPrayer, 8.4): значки панели должны
+ * весить одинаково. Треугольник смещён вправо от центра — оптически он
+ * тяжелее слева, и строго по центру выглядел бы съехавшим влево.
+ *
+ * В контуре треугольник залит, как у системного символа: обведённый
+ * треугольник внутри обведённого круга на 25 px сливается в кольцо. В
+ * залитом виде он ВЫРЕЗАЕТСЯ маской (см. useCutId), а не рисуется цветом
+ * фона.
+ */
+export const TabPlayer = ({ size = ICON_SIZE.md, isFilled = false, className, style }: SelectableProps) => {
+  const cut = useCutId();
+  const triangle = 'M10.4 8.7 15.5 12l-5.1 3.3Z';
+  return (
+    <svg {...stroke(size, className, style)}>
+      {isFilled && (
+        <mask id={cut} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+          <rect x="0" y="0" width="24" height="24" fill="white" />
+          <path d={triangle} fill="black"
+            stroke="black" strokeWidth={STROKE} strokeLinejoin="round" />
+        </mask>
+      )}
+      <circle cx="12" cy="12" r="8.4" fill={isFilled ? 'currentColor' : 'none'}
+        mask={isFilled ? `url(#${cut})` : undefined} />
+      {!isFilled && <path d={triangle} fill="currentColor" />}
+    </svg>
+  );
+};
+
 export const TabQuran = ({ size = ICON_SIZE.md, isFilled = false, className, style }: SelectableProps) => (
   <svg {...stroke(size, className, style)}>
     {/* 🔴 Раскрытая книга, а не закрытая обложка.

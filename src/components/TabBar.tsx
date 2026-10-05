@@ -24,7 +24,7 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { TabQuran, TabAzkar } from './icons';
+import { TabPlayer, TabQuran, TabAzkar } from './icons';
 import { GLASS_BLUR } from '../lib/glass';
 import type { Theme } from '../hooks/useTheme';
 import {
@@ -52,8 +52,14 @@ import {
  * «Азкары». «Намаз» — кнопкой в шапке главной (экран `prayer` с «назад»),
  * раздела «Дуа» нет вовсе. (У an-Nur намаз возвращали вниз 08.09.2026 —
  * это история другого приложения, не повод возвращать вкладку здесь.)
+ *
+ * «Плеер» — первой, самой левой (владелец 2026-10-05: «добавь первой
+ * кнопкой плеер, чтобы можно было нажать и плеер показывался, и чтобы
+ * нижнее меню было видно всегда»). Это вкладка, а не экран поверх: панель
+ * на ней видна, и переключиться можно одним тапом. При запуске
+ * по-прежнему открывается «Коран» (App, INITIAL_SCREEN).
  */
-export type TabId = 'quran' | 'azkar';
+export type TabId = 'player' | 'quran' | 'azkar';
 
 /** Размер глифа вкладки — ступень `--icon-tab` из общей шкалы.  В JSX
  *  он приходит числом (иконки принимают `size`), поэтому значение здесь
@@ -65,6 +71,7 @@ export type TabId = 'quran' | 'azkar';
 const TAB_ICON = 25;
 
 const TABS: { id: TabId; label: string; icon: (selected: boolean) => ReactNode }[] = [
+  { id: 'player', label: 'Плеер', icon: selected => <TabPlayer size={TAB_ICON} isFilled={selected} /> },
   { id: 'quran', label: 'Коран', icon: selected => <TabQuran size={TAB_ICON} isFilled={selected} /> },
   { id: 'azkar', label: 'Азкары', icon: selected => <TabAzkar size={TAB_ICON} isFilled={selected} /> },
 ];

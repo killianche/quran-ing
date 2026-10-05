@@ -3,8 +3,8 @@
  *
  * ── Что делает ────────────────────────────────────────────────────────
  *
- * Владелец 2026-10-04: листать «Коран» ⇄ «Азкары» свайпом, как страницы в
- * iOS. Палец ведёт страницу один к одному, соседняя выезжает рядом;
+ * Владелец 2026-10-04: листать вкладки свайпом, как страницы в iOS (с
+ * 2026-10-05 их три: «Плеер» | «Коран» | «Азкары», листаются по порядку). Палец ведёт страницу один к одному, соседняя выезжает рядом;
  * отпускание доводит до ближайшей вкладки (дальше 35 % ширины или быстрым
  * взмахом — перелистнуть, иначе вернуть). За крайней вкладкой — резинка.
  * Перелистывание идёт тем же путём, что тап по вкладке (`onSwipe` = тот же
@@ -13,29 +13,27 @@
  * При «Уменьшении движения» страница за пальцем не едет: жест только
  * меняет вкладку.
  *
- * ── Обе вкладки живут в DOM ──────────────────────────────────────────
+ * ── Все вкладки живут в DOM ──────────────────────────────────────────
  *
  * Чтобы соседняя страница появлялась под пальцем мгновенно, её нельзя
  * монтировать в начале жеста: список из 114 сур раскладывается ~100 мс, и
  * свайп начинался бы с рывка. Поэтому неактивная вкладка не
- * размонтируется, а лежит отдельным слоем во весь экран
- * (`position: fixed`, скрыта, без касаний, `inert`). Её раскладка
- * поддерживается в актуальном виде, и на свайпе остаётся только сделать
- * слой видимым и сдвинуть. Заодно возврат на вкладку тапом стал без
+ * размонтируется, а в покое лежит отдельным слоем во весь экран
+ * (`position: fixed`, скрыта, без касаний, `inert`) — так она не тянет
+ * высоту документа. Её раскладка поддерживается в актуальном виде, и на
+ * свайпе остаётся сделать её видимым листом рядом с текущей и сдвинуть
+ * (листы на время жеста — gesturePageStyle). Заодно возврат на вкладку тапом стал без
  * повторного монтирования. Вкладку, где человек ещё не был, монтируем
  * через `PREMOUNT_MS` после старта — к первому свайпу она готова.
  *
- * ── Почему сдвиг через `left`, а не transform ─────────────────────────
+ * ── Как едут страницы ─────────────────────────────────────────────────
  *
- * Экраны прокручивают само окно, а шапка каждой вкладки —
- * `position: fixed` внутри неё. Transform (и `will-change: transform`) на
- * странице сделал бы её опорой для fixed-потомков: на прокрученном списке
- * шапка улетела бы к началу документа (та же причина, по которой
- * navTransition.ts анимирует снимками). `left` у относительно
- * позиционированной страницы опорой не становится: содержимое едет, а
- * шапки обеих вкладок стоят на месте и перетекают одна в другую по
- * прозрачности. Мини-плеер и нижняя панель лежат вне страниц и не
- * двигаются вовсе.
+ * На время жеста страницы — листы размером с окно, сдвигаемые transform
+ * (подробно и с историей попыток — у gesturePageStyle). Шапка каждой
+ * вкладки едет вместе со своим листом. Мини-плеер, нижняя панель и
+ * размытие под ней лежат вне страниц и стоят на месте; мини-плеер, которого
+ * нет на вкладке «Плеер», плавно гаснет или проявляется по ходу жеста
+ * (`data-tab-chrome`).
  *
  * ── Чего жест не трогает ──────────────────────────────────────────────
  *
@@ -57,7 +55,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -89,9 +86,19 @@ const SWALLOW_CLICK_MS = 400;
 /** Активная вкладка — в потоке документа: окно прокручивает её. */
 const ACTIVE_STYLE = { position: 'relative' } as const;
 /**
- * Неактивная — слой во весь экран, скрытый и без касаний. `visibility`, а
- * не `display: none`: раскладка сохраняется, и показать слой на свайпе —
- * это перерисовка, а не раскладка 114 строк заново.
+ * Неактивная — слой во весь экран, унесённый за левый край (`transform`), и
+ * `inert` (App ставит его в разметке). Не `display: none`: раскладка
+ * сохраняется, и показать слой на свайпе — это перерисовка, а не раскладка
+ * 114 строк заново. За кадром браузер его не рисует, и касаний он не ловит.
+ *
+ * 🔴 Не `visibility: hidden` + `pointer-events: none`, как было до
+ * 2026-10-05. Оба свойства наследуемые, и Blink переносит их смену на
+ * потомков упрощённым путём; после серии жестов и тапов (тап по вкладке
+ * посреди довода, потом обратно) у части потомков застревало старое
+ * значение: страница «Азкаров» видна, а плитки внутри — `hidden`, тап по
+ * ним не открывал категорию (воспроизводилось в headless Chromium через раз).
+ * `transform` не наследуется — застревать нечему, а смена не пересчитывает
+ * стили тысяч узлов страницы.
  *
  * Значения строками (`'0px'`, а не 0): этот же объект жест пишет в style
  * руками, возвращая страницу в покой, и значения обязаны совпасть с теми,
@@ -104,8 +111,7 @@ const PARKED_STYLE = {
   width: '100%',
   height: '100%',
   overflow: 'hidden',
-  visibility: 'hidden',
-  pointerEvents: 'none',
+  transform: 'translateX(-200%)',
 } as const;
 type PageStyleKey = keyof typeof PARKED_STYLE;
 const PAGE_STYLE_KEYS = Object.keys(PARKED_STYLE) as PageStyleKey[];
@@ -126,11 +132,53 @@ function restPage(el: HTMLElement, isActive: boolean): void {
     values[key] = isActive ? ((ACTIVE_STYLE as Partial<Record<PageStyleKey, string>>)[key] ?? '') : PARKED_STYLE[key];
   }
   writePageStyle(el, values);
+  el.style.willChange = '';
   el.style.transition = '';
 }
 
-/** Внутренний слой страницы: ему на свайпе ставится сдвиг прокрутки. */
-const BODY_STYLE: CSSProperties = { position: 'relative' };
+/**
+ * Страница на время жеста — лист размером с окно в координатах документа
+ * (`position: absolute` ровно там, где сейчас окно, `overflow: hidden`),
+ * который двигается `transform`. Содержимое внутри листа сдвинуто на
+ * прокрутку этой вкладки (`PAGE_BODY`), поэтому в листе видно ровно то, что
+ * человек видел в окне.
+ *
+ * 🔴 Почему так, а не иначе (владелец 2026-10-05, скриншоты с iPhone: на
+ * свайпе «Азкары появляются поверх, дёргается, размытие снизу появляется
+ * только потом, капсула шапки срезана краем страницы»). Перепробовано:
+ *  • fixed-слой во весь экран, сдвиг `left` (до 2026-10-05). WebKit
+ *    обрезает закреплённую шапку краем закреплённого родителя с
+ *    `overflow: hidden` — капсулу «Корана» срезало краем уезжающей
+ *    страницы; страницы-слои жили вне прокручиваемого документа, и нижняя
+ *    кромка под панелью (`.tabbar-edge`, размытие фона) на iPhone их не
+ *    размывала, пока страница не возвращалась в поток;
+ *  • абсолютная страница во всю высоту, сдвиг `left` — Chromium
+ *    перерисовывает весь её текст на каждом кадре (замер ×4 CPU: задачи по
+ *    50–70 мс всё время свайпа).
+ * Transform у листа — сдвиг готового слоя на композиторе, без перерисовки, в
+ * любом движке; лист — часть документа, как страница в покое.
+ *
+ * Цена: transform делает лист опорой для закреплённой шапки вкладки, и
+ * шапка едет вместе со своей страницей, а не стоит на месте. Это и есть
+ * лист целиком, как экран в навигации iOS: у каждой вкладки свой заголовок
+ * и свои кнопки, и они уходят вместе с ней — без перетекания одной шапки в
+ * другую, на котором и были вспышки размытия.
+ */
+function gesturePageStyle(top: number, height: number): Partial<Record<PageStyleKey, string>> {
+  return {
+    position: 'absolute',
+    top: `${top}px`,
+    left: '0px',
+    width: '100%',
+    height: `${height}px`,
+    overflow: 'hidden',
+  };
+}
+
+/** Внутренний слой страницы: на время жеста ему ставится сдвиг прокрутки. */
+const PAGE_BODY = { position: 'relative' } as const;
+
+type Fadable = HTMLElement | SVGElement;
 
 /** Цели, с которых жест не начинается: там палец занят своим делом. */
 const BLOCKED_TARGET = 'input, textarea, select, [contenteditable=""], [contenteditable="true"]';
@@ -152,8 +200,33 @@ type Drag = {
   layered: boolean;
 };
 
-/** Что сохранить у шапки, чтобы вернуть её как было. */
-type SavedHeader = { el: HTMLElement; opacity: string; transition: string };
+/**
+ * Гаснущая часть шапки или панели: что вернуть после жеста (`opacity`,
+ * `transition` из инлайна) и собственная прозрачность в покое (`base`) — у
+ * компактного заголовка и кромки она своя, по прокрутке.
+ */
+type Faded = { el: Fadable; opacity: string; transition: string; base: number };
+
+function rememberFade(el: Fadable): Faded {
+  const base = parseFloat(getComputedStyle(el).opacity);
+  return { el, opacity: el.style.opacity, transition: el.style.transition, base: Number.isFinite(base) ? base : 1 };
+}
+
+/**
+ * Панель, видимая не на всех вкладках (мини-плеер скрыт на вкладке
+ * «Плеер»). Обёртка с `data-tab-chrome="id id"` — список вкладок, где она
+ * видна; на остальных App ставит обёртке `data-chrome-off`, и правило в
+ * index.css гасит её детей (прозрачность и касания — у самой панели: не
+ * `visibility` у обёртки, см. PARKED_STYLE про наследуемые свойства). На
+ * свайпе между
+ * вкладкой «с ней» и «без неё» панель не мелькает в момент смены, а гаснет
+ * или проявляется вместе с перелистыванием.
+ */
+type Chrome = {
+  wrapper: HTMLElement;
+  shownOn: readonly string[];
+  kids: Faded[];
+};
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -173,7 +246,6 @@ export function TabPager({
   order,
   active,
   enabled,
-  fadeIn,
   scrollOf,
   onSwipe,
   renderTab,
@@ -184,8 +256,6 @@ export function TabPager({
   active: TabId;
   /** false — вкладки под экраном «поверх»: жест выключен. */
   enabled: boolean;
-  /** Проиграть короткое проявление, если вкладку сменили не свайпом. */
-  fadeIn: boolean;
   /** Сохранённая прокрутка вкладки (App, tabScrollRef). */
   scrollOf: (id: TabId) => number;
   /** Перелистнули свайпом — тот же путь, что тап по вкладке. */
@@ -208,9 +278,6 @@ export function TabPager({
   const dragRef = useRef<Drag | null>(null);
   /** Довод после отпускания или ожидание смены вкладки — новый жест ждёт. */
   const busyRef = useRef<'idle' | 'settling' | 'committing'>('idle');
-  /** Вкладка, на которую перелистнули свайпом: ей проявление не нужно. */
-  const swipedToRef = useRef<TabId | null>(null);
-  const savedHeadersRef = useRef<SavedHeader[]>([]);
   const timerRef = useRef(0);
   const frameRef = useRef(0);
   // Остановка жеста нужна и эффекту касаний, и эффекту смены вкладки —
@@ -237,7 +304,8 @@ export function TabPager({
 
     const page = (id: TabId | undefined) => (id ? pageRefs.current[id] ?? null : null);
     const body = (id: TabId | undefined) => (id ? bodyRefs.current[id] ?? null : null);
-    const header = (el: HTMLElement | null) => el?.querySelector<HTMLElement>('.screen-header') ?? null;
+    /** Панели с `data-tab-chrome` на время жеста (см. тип Chrome). */
+    let chrome: Chrome[] = [];
 
     const clearTimer = () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -247,7 +315,7 @@ export function TabPager({
     /**
      * Снять незавершённый довод: слушатель `transitionend` и его колбэк.
      * Без этого довод, перебитый тапом по вкладке или выключением пейджера,
-     * оставался бы подписан на страницу, и следующий же переход `left` на
+     * оставался бы подписан на страницу, и следующий же переход `transform` на
      * ней (короткий свайп с возвратом) вызвал бы старый колбэк — например,
      * перелистывание, которого никто уже не просил.
      */
@@ -281,14 +349,16 @@ export function TabPager({
 
     /**
      * Состояние пейджера. Пока страницы доводятся и вкладка меняется,
-     * касания по ним не принимаются (тап по уезжающей строке открыл бы суру
-     * с чужой вкладки) и окно не прокручивается.
+     * клики по ним не принимаются (тап по уезжающей строке открыл бы суру
+     * с чужой вкладки — гасит onClickCapture) и окно не прокручивается.
+     *
+     * Не `pointer-events: none` на корне, как было: свойство наследуемое, и
+     * его смена пересчитывала стили всех тысяч узлов обеих страниц ровно в
+     * кадре отпускания (замер Chromium ×4: задача ~150 мс в начале довода).
      */
     const setBusy = (next: 'idle' | 'settling' | 'committing') => {
       busyRef.current = next;
-      const busy = next !== 'idle';
-      root.style.pointerEvents = busy ? 'none' : '';
-      lockScroll(busy);
+      lockScroll(next !== 'idle');
     };
 
     /**
@@ -306,8 +376,9 @@ export function TabPager({
       swallowTimer = window.setTimeout(() => { swallowClick = false; swallowTimer = 0; }, SWALLOW_CLICK_MS);
     };
     const onClickCapture = (event: MouseEvent) => {
-      if (!swallowClick) return;
-      swallowClick = false;
+      const busy = busyRef.current !== 'idle';
+      if (!swallowClick && !busy) return;
+      if (swallowClick) swallowClick = false;
       event.preventDefault();
       event.stopPropagation();
     };
@@ -323,80 +394,90 @@ export function TabPager({
     };
 
     /**
-     * Подготовить слои один раз за жест.
-     *
-     * На время жеста обе страницы — слои во весь экран, и движет их `left`.
-     * Текущую страницу тоже переводим в такой слой, а не двигаем в потоке:
-     * сдвиг элемента в потоке перерисовывает весь его текст на каждом кадре
-     * (замер в Chromium ×4: задачи по 60–90 мс посреди свайпа), а у
-     * закреплённого слоя меняется только его положение. Прокрутку окна при
-     * этом сохраняем: корню даём прежнюю высоту документа, а содержимое
-     * слоя сдвигаем на `scrollY` — кадр не меняется, и окно не съезжает.
+     * Подготовить слои один раз за жест: текущую и соседние страницы — в
+     * листы размером с окно (см. gesturePageStyle). Корню остаётся прежняя
+     * высота документа, поэтому окно не съезжает, а кадр не меняется: лист
+     * текущей страницы стоит там же, где окно, и показывает то же место.
      */
     const openLayers = (drag: Drag) => {
       const { order: tabs, scrollOf: scrollOfTab } = live.current;
       const currentId = tabs[drag.index];
       const current = page(currentId);
       if (!current) return;
-      const scrollY = window.scrollY;
+      const rootTop = root.getBoundingClientRect().top + window.scrollY;
+      // Верх окна в координатах корня — туда встают все листы.
+      const viewportTop = window.scrollY - rootTop;
+      const height = window.innerHeight;
       root.style.minHeight = `${current.offsetHeight}px`;
-      writePageStyle(current, { ...PARKED_STYLE, visibility: 'visible', pointerEvents: '' });
-      const currentBody = body(currentId);
-      if (currentBody) currentBody.style.top = `${-scrollY}px`;
-      const { prev, next } = neighbours(drag.index);
-      const saved: SavedHeader[] = [];
-      const remember = (el: HTMLElement | null) => {
-        const h = header(el);
-        if (h) saved.push({ el: h, opacity: h.style.opacity, transition: h.style.transition });
+      const sheet = (id: TabId, el: HTMLElement, scroll: number) => {
+        writePageStyle(el, gesturePageStyle(viewportTop, height));
+        el.style.willChange = 'transform';
+        const inner = body(id);
+        if (inner) inner.style.top = `${-scroll}px`;
       };
-      remember(current);
+      sheet(currentId, current, viewportTop);
+      const { prev, next } = neighbours(drag.index);
       for (const id of [prev, next]) {
         const el = page(id);
-        const inner = body(id);
-        if (!id || !el) continue;
-        writePageStyle(el, { visibility: 'visible' });
         // Соседняя страница показывается там, где человек её оставил.
-        if (inner) inner.style.top = `${-scrollOfTab(id)}px`;
-        remember(el);
+        if (id && el) sheet(id, el, scrollOfTab(id) - rootTop);
       }
-      savedHeadersRef.current = saved;
+      // Панели вне страниц, видимые не на всех вкладках, — рядом с корнем
+      // пейджера (App кладёт их в тот же экран).
+      const scope = root.parentElement ?? document.body;
+      chrome = Array.from(scope.querySelectorAll<HTMLElement>('[data-tab-chrome]')).map(wrapper => {
+        const shownOn = (wrapper.dataset.tabChrome ?? '').split(/\s+/).filter(Boolean);
+        // Погашенная правилом панель (`data-chrome-off`) своей прозрачности
+        // не показывает — в видимом виде она непрозрачна.
+        const off = wrapper.hasAttribute('data-chrome-off');
+        const kids = Array.from(wrapper.children)
+          .filter((el): el is HTMLElement => el instanceof HTMLElement)
+          .map(el => (off ? { ...rememberFade(el), base: 1 } : rememberFade(el)));
+        return { wrapper, shownOn, kids };
+      });
       drag.layered = true;
+      // Первый кадр — сразу, а не в следующем rAF: иначе в кадре между
+      // «сосед стал видимым» и первым сдвигом он стоял бы поверх текущей
+      // (замер до 2026-10-05: один кадр с обеими шапками целиком).
+      paint(drag, 0);
     };
 
-    /** Положение кадра: только left страниц и прозрачность шапок. */
+    /** Положение кадра: только transform листов и прозрачность панелей. */
     const paint = (drag: Drag, offset: number) => {
       const { order: tabs } = live.current;
       const { prev, next } = neighbours(drag.index);
       const w = drag.width;
-      const current = page(tabs[drag.index]);
+      const move = (el: HTMLElement | null, x: number) => {
+        if (el) el.style.transform = `translate3d(${x}px, 0, 0)`;
+      };
       const prevEl = page(prev);
       const nextEl = page(next);
-      if (current) current.style.left = `${offset}px`;
-      if (prevEl) prevEl.style.left = `${offset - w}px`;
-      if (nextEl) nextEl.style.left = `${offset + w}px`;
-      // Шапки перетекают только в сторону, где есть сосед; на резинке
-      // своя шапка остаётся как есть.
+      move(page(tabs[drag.index]), offset);
+      move(prevEl, offset - w);
+      move(nextEl, offset + w);
+      // Панели «не на всех вкладках» перетекают в сторону, где есть сосед.
       const progress = Math.min(1, Math.abs(offset) / Math.max(1, w));
-      const toward = offset < 0 ? nextEl : offset > 0 ? prevEl : null;
-      const currentHeader = header(current);
-      if (currentHeader) currentHeader.style.opacity = String(toward ? 1 - progress : 1);
-      const prevHeader = header(prevEl);
-      if (prevHeader) prevHeader.style.opacity = String(offset > 0 ? progress : 0);
-      const nextHeader = header(nextEl);
-      if (nextHeader) nextHeader.style.opacity = String(offset < 0 ? progress : 0);
+      const towardId = offset < 0 && nextEl ? next : offset > 0 && prevEl ? prev : undefined;
+      const currentId = tabs[drag.index];
+      for (const { shownOn, kids } of chrome) {
+        const from = shownOn.includes(currentId) ? 1 : 0;
+        const to = towardId ? (shownOn.includes(towardId) ? 1 : 0) : from;
+        const factor = from + (to - from) * progress;
+        for (const { el, base } of kids) el.style.opacity = String(base * factor);
+      }
     };
 
     const setTransition = (drag: Drag, on: boolean) => {
       const { order: tabs } = live.current;
       const { prev, next } = neighbours(drag.index);
-      const move = on ? `left ${SWIPE_SETTLE_MS}ms ${SWIPE_EASING}` : 'none';
+      const move = on ? `transform ${SWIPE_SETTLE_MS}ms ${SWIPE_EASING}` : 'none';
       const fade = on ? `opacity ${SWIPE_SETTLE_MS}ms ${SWIPE_EASING}` : 'none';
       for (const id of [tabs[drag.index], prev, next]) {
         const el = page(id);
-        if (!el) continue;
-        el.style.transition = move;
-        const h = header(el);
-        if (h) h.style.transition = fade;
+        if (el) el.style.transition = move;
+      }
+      for (const { kids } of chrome) {
+        for (const { el } of kids) el.style.transition = fade;
       }
     };
 
@@ -420,11 +501,14 @@ export function TabPager({
       // ставит App (восстановление позиции вкладки) — после этого сброса,
       // в том же кадре.
       root.style.minHeight = '';
-      for (const { el, opacity, transition } of savedHeadersRef.current) {
-        el.style.opacity = opacity;
-        el.style.transition = transition;
+      // Инлайн долой — видимостью снова правит `data-chrome-off` от React.
+      for (const { kids } of chrome) {
+        for (const { el, opacity, transition } of kids) {
+          el.style.opacity = opacity;
+          el.style.transition = transition;
+        }
       }
-      savedHeadersRef.current = [];
+      chrome = [];
     };
 
     /** Остановить всё: довод, страховку, жест — и вернуть страницы в покой. */
@@ -456,7 +540,7 @@ export function TabPager({
         done();
       };
       const onEnd = (event: TransitionEvent) => {
-        if (event.target === current && event.propertyName === 'left') finish();
+        if (event.target === current && event.propertyName === 'transform') finish();
       };
       current?.addEventListener('transitionend', onEnd);
       cancelSettle = detach;
@@ -476,7 +560,6 @@ export function TabPager({
 
     /** Перелистнули: сменить вкладку тем же путём, что тап. */
     const commit = (id: TabId) => {
-      swipedToRef.current = id;
       setBusy('committing');
       live.current.onSwipe(id);
       // Если вкладка не сменилась (переход отклонён), страницы не должны
@@ -484,7 +567,6 @@ export function TabPager({
       clearTimer();
       timerRef.current = window.setTimeout(() => {
         if (busyRef.current !== 'committing') return;
-        swipedToRef.current = null;
         stopAll();
       }, COMMIT_GUARD_MS);
     };
@@ -637,31 +719,28 @@ export function TabPager({
       if (swallowTimer) window.clearTimeout(swallowTimer);
       // Пейджер выключили посреди жеста (открылся экран «поверх»): страницы
       // в покой, иначе соседняя осталась бы видимым слоем.
-      swipedToRef.current = null;
       stopAll();
     };
   }, [enabled]);
 
   // Смена вкладки. После свайпа — снять слои в том же кадре, где React
   // переставил страницы (до отрисовки), иначе мелькнёт промежуточное
-  // положение. После тапа — короткое проявление, как прежде у всего экрана.
+  // положение.
+  //
+  // 🔴 После тапа страница сменяется мгновенно, без проявления — как
+  // вкладки в iOS (lib/navTransition.ts: «смена вкладки мгновенная»). До
+  // 2026-10-05 здесь было проявление 150 мс (Web Animations на частях
+  // страницы), и его пришлось снять: если вкладку меняли, пока оно шло
+  // (тап, через 150 мс другой тап), Blink у анимируемых элементов терял
+  // наследуемое изменение `inert`, и плитки «Азкаров» переставали
+  // нажиматься (headless Chromium: 3–4 прогона из 8 с проявлением, даже с
+  // его отменой; 0 из 6 без него).
   const lastActiveRef = useRef(active);
   useLayoutEffect(() => {
     if (lastActiveRef.current === active) return;
     lastActiveRef.current = active;
-    const swiped = swipedToRef.current === active;
-    swipedToRef.current = null;
     if (busyRef.current !== 'idle' || dragRef.current) stopRef.current();
-    if (swiped || !fadeIn || prefersReducedMotion()) return;
-    const el = pageRefs.current[active];
-    // Те же 150 мс и кривая, что у `.app-screen-enter` (index.css): прежде
-    // при смене вкладки проявлялся весь экран, теперь — только страница,
-    // панели остаются на месте.
-    el?.animate?.(
-      [{ opacity: 0.72 }, { opacity: 1 }],
-      { duration: 150, easing: 'cubic-bezier(.22, 1, .36, 1)' },
-    );
-  }, [active, fadeIn]);
+  }, [active]);
 
   return (
     <div
@@ -692,7 +771,7 @@ export function TabPager({
             {...(isActive ? {} : { inert: '' })}
             style={isActive ? ACTIVE_STYLE : PARKED_STYLE}
           >
-            <div ref={el => { bodyRefs.current[id] = el; }} style={BODY_STYLE}>
+            <div ref={el => { bodyRefs.current[id] = el; }} style={PAGE_BODY}>
               {(isActive || mounted.has(id)) && (
                 // Своя граница на каждую вкладку: подгрузка чанка скрытой
                 // вкладки не должна подменять заглушкой видимую.

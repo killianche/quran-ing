@@ -64,6 +64,9 @@ const TabBarOffset = registerPlugin<{ apply(o: { y: number }): Promise<void> }>(
  * (HIG, Tab bars). Подписи — те же, что у веб-панели.
  */
 const NATIVE_TABS: { id: TabId; title: string; systemImage: string }[] = [
+  // Порядок — как у веб-панели (TabBar, TABS): плеер слева. У плагина один
+  // символ на вкладку, без отдельного для выбранной, поэтому залитый.
+  { id: 'player', title: 'Плеер', systemImage: 'play.circle.fill' },
   { id: 'quran', title: 'Коран', systemImage: 'book.fill' },
   { id: 'azkar', title: 'Азкары', systemImage: 'moon.fill' },
 ];

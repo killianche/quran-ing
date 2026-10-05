@@ -63,8 +63,9 @@ const DocumentScreen = lazy(() => import('./screens/DocumentScreen').then(m => (
  * В прежнем QuranIng разделов было два и они жили горизонтальной слайд-парой:
  * контейнер шириной 200% с translateX, оба экрана всегда смонтированы.
  * С четырьмя разделами приём не масштабировался, и активный раздел стал
- * ровно один. Теперь разделов снова два (решение владельца 2026-10-04), и
- * ради свайпа между ними обе вкладки снова живут в DOM — но не слайд-парой:
+ * ровно один. Теперь разделов три — «Плеер», «Коран», «Азкары» (решения
+ * владельца 2026-10-04 и 2026-10-05), и ради свайпа между ними все вкладки
+ * снова живут в DOM — но не слайд-парой:
  * скрытая лежит отдельным слоем (components/TabPager.tsx), потому что
  * transform на контейнере ломал fixed-шапки. Окно по-прежнему прокручивает
  * только видимую вкладку, поэтому позиция каждой хранится вручную
@@ -636,10 +637,10 @@ export default function App() {
   // анимация крутилась бы впустую). Атрибут `data-app-screen` у неё
   // `parked`: клон для жеста «назад» снимается только с видимого экрана.
   //
-  // Сами вкладки — в TabPager: обе живут в DOM, скрытая отдельным слоем,
+  // Сами вкладки — в TabPager: все три живут в DOM, скрытые — листами за краем экрана,
   // и между ними листают свайпом. Поэтому у Shell постоянный key: смена
-  // вкладки больше не пересоздаёт экран вместе с панелями, а проявление
-  // при тапе по вкладке пейджер проигрывает только на странице.
+  // вкладки больше не пересоздаёт экран вместе с панелями. Смена вкладки
+  // тапом мгновенная, как в iOS (почему без проявления — TabPager).
   const baseTabEntry = [...stack].reverse().find(s => s.name === 'tabs');
   const tab: TabId = baseTabEntry && baseTabEntry.name === 'tabs' ? baseTabEntry.tab : 'quran';
   const parked = overlay != null;
@@ -662,11 +663,21 @@ export default function App() {
         order={TAB_ORDER}
         active={tab}
         enabled={!parked}
-        fadeIn={animateEnter}
         scrollOf={id => tabScrollRef.current[id] ?? 0}
         onSwipe={selectTab}
         fallback={<ScreenFallback />}
-        renderTab={(id, isActive) => (id === 'quran'
+        renderTab={(id, isActive) => (id === 'player'
+          ? (
+            <ErrorBoundary name="PlayerScreen">
+              <PlayerScreen
+                placement="tab"
+                active={isActive && !parked}
+                theme={theme}
+                setTheme={setTheme}
+              />
+            </ErrorBoundary>
+          )
+          : id === 'quran'
           ? (
             <ErrorBoundary name="SurahPicker">
               <SurahPicker
@@ -694,8 +705,19 @@ export default function App() {
       {!parked && (
         <>
           {/* Полоска звучащей суры. Только на вкладках: в ленте и мусхафе свой
-              плеер, и две панели разом были бы лишними. */}
-          <MiniPlayer onOpen={() => navigate({ name: 'player' })} />
+              плеер, и две панели разом были бы лишними. Тап по ней —
+              вкладка «Плеер», а не экран поверх: панель вкладок остаётся.
+              На самой вкладке «Плеер» полоска скрыта — она повторяла бы
+              экран. Скрыта, а не размонтирована: на свайпе к плееру и
+              обратно TabPager плавно гасит и проявляет её по
+              `data-tab-chrome` (список вкладок, где она видна). */}
+          <div
+            data-tab-chrome="quran azkar"
+            data-chrome-off={tab === 'player' ? '' : undefined}
+            style={{ display: 'contents' }}
+          >
+            <MiniPlayer onOpen={() => selectTab('player')} hidden={tab === 'player'} />
+          </div>
           {/* Отказ звука говорит словами: чтение идёт из сети, и молчаливая
               остановка читается как поломка приложения. */}
           <AudioErrorPlate />

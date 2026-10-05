@@ -61,7 +61,7 @@ async function fresh(setup) {
   return import(`${MODULE}?case=${instance}`);
 }
 
-const TABS_CALL = 'setTabs:"quran=book.fill,azkar=moon.fill"';
+const TABS_CALL = 'setTabs:"player=play.circle.fill,quran=book.fill,azkar=moon.fill"';
 
 // 1. iOS 26: системная панель, показ только после заставки.
 {

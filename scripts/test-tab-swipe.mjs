@@ -90,6 +90,16 @@ same('вправо к предыдущей', release(0.5 * W, 0, true, false), -
 same('флик вправо к предыдущей', release(50, 0.7, true, false), -1);
 same('нулевой сдвиг — на месте', release(0, -3), 0);
 
+// 5. Средняя вкладка (с 2026-10-05 их три: Плеер | Коран | Азкары) —
+// соседи с обеих сторон, резинки нет ни там, ни там.
+same('середина: влево один к одному', m.dragOffset(-150, W, true, true), -150);
+same('середина: вправо один к одному', m.dragOffset(150, W, true, true), 150);
+same('середина: вправо не дальше ширины', m.dragOffset(900, W, true, true), W);
+same('середина: дальше 35 % влево — следующая', release(-0.5 * W, 0, true, true), 1);
+same('середина: дальше 35 % вправо — предыдущая', release(0.5 * W, 0, true, true), -1);
+same('середина: флик вправо — предыдущая', release(40, 0.9, true, true), -1);
+same('середина: недотянули — на месте', release(0.2 * W, 0.1, true, true), 0);
+
 if (failures) {
   console.error(`\ntest-tab-swipe: ${failures} провал(ов), ${passed} прошло`);
   process.exit(1);

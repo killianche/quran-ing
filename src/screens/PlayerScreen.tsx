@@ -11,6 +11,16 @@
  * поэтому системная «назад» и жест от края возвращают туда, откуда пришли,
  * без отдельной обработки.
  *
+ * ── Два места: вкладка и экран поверх ────────────────────────────────
+ *
+ * С 2026-10-05 плеер — ещё и первая вкладка нижнего меню (владелец: «чтобы
+ * можно было нажать и плеер показывался, и чтобы нижнее меню было видно
+ * всегда»). Там (`placement="tab"`) у него крупный заголовок, как у «Корана»
+ * и «Азкаров», кнопка оформления вместо «назад» и нижний отступ под панель
+ * вкладок. Экраном поверх (`placement="screen"`, по умолчанию) он остаётся
+ * для открытой суры: капсула звука там ведёт сюда, а «назад» — обратно в
+ * суру. Содержимое у обоих одно.
+ *
  * ── Раскладка (владелец 2026-10-04, стиль iOS 26) ─────────────────────
  *
  * Как экран «Исполняется» в Музыке и Подкастах: сверху — что звучит,
@@ -43,13 +53,15 @@
  * бы сделать второй, худший читатель.
  */
 
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
+import { memo, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { LargeTitleHeader, ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
+import { ThemeSettings } from '../components/ReadingSettings';
+import { TAB_BAR_SPACE } from '../components/TabBar';
 import { PullDownMenu } from '../components/PullDownMenu';
 import { SurahPickerSheet } from '../components/SurahPickerSheet';
 import {
   Play, Pause, SkipBack, SkipForward, SeekBack10, SeekForward10,
-  ChevronDown, ListBullet, ICON_SIZE,
+  ChevronDown, ListBullet, Appearance, ICON_SIZE,
 } from '../components/icons';
 import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
 import {
@@ -59,12 +71,41 @@ import {
 import { TOTAL_SURAHS } from '../lib/ayahNumbering';
 import { formatPlaybackTime } from '../lib/playbackTime';
 import { SURAH_BY_NUMBER } from '../content/surahs';
+import type { Theme } from '../hooks/useTheme';
 
-export function PlayerScreen({ onBack }: { onBack: () => void }) {
+type Props =
+  | {
+    /** Экран поверх (из открытой суры): своя шапка с «назад». */
+    placement?: 'screen';
+    onBack: () => void;
+  }
+  | {
+    /** Вкладка нижнего меню: крупный заголовок, отступ под панель. */
+    placement: 'tab';
+    /** false — вкладка скрыта или под экраном поверх (App, TabPager). */
+    active: boolean;
+    theme: Theme;
+    setTheme: (t: Theme) => void;
+  };
+
+export function PlayerScreen(props: Props) {
+  const isTab = props.placement === 'tab';
+  const active = props.placement === 'tab' ? props.active : true;
   const { currentSurah, currentAyah, audioState, playbackRate, reciter } = useAudioState();
   const audio = useAudioActions();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [reciterAnchor, setReciterAnchor] = useState<HTMLElement | null>(null);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const themeBtnRef = useRef<HTMLButtonElement>(null);
+  // Шторка, меню и оформление — порталы в body: у скрытой вкладки они
+  // висели бы над соседней или над сурой. Закрываем, как только вкладка
+  // перестала быть видимой.
+  useEffect(() => {
+    if (active) return;
+    setPickerOpen(false);
+    setReciterAnchor(null);
+    setThemeOpen(false);
+  }, [active]);
 
   // 🔴 Последняя звучавшая сура, а не «первая по умолчанию».
   //
@@ -107,25 +148,7 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
     />
   );
 
-  return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <ScreenHeader
-        visible
-        title="Слушать"
-        onBack={onBack}
-        actions={[]}
-      />
-
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        padding: `${screenHeaderOffset(16)} var(--space-margin) calc(env(safe-area-inset-bottom) + var(--space-section))`,
-        maxWidth: '560px',
-        width: '100%',
-        margin: '0 auto',
-        boxSizing: 'border-box',
-      }}>
+  const content: ReactNode = (<>
         {!surah && (
           <div style={{
             flex: 1,
@@ -248,6 +271,7 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
             // переезжает на следующую.
             key={surah}
             status={status}
+            live={active}
           />
         ) : (
         <section style={{ display: 'grid', gap: 'var(--space-hair)' }}>
@@ -399,7 +423,70 @@ export function PlayerScreen({ onBack }: { onBack: () => void }) {
           </button>
         </section>
         </>)}
-      </div>
+  </>);
+
+  // Колонка содержимого: управление внизу, «что звучит» — в оставшемся
+  // месте. Ширина та же, что была у экрана поверх.
+  const column: CSSProperties = {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    maxWidth: '560px',
+    width: '100%',
+    margin: '0 auto',
+    boxSizing: 'border-box',
+  };
+
+  return (
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+      {isTab ? (
+        // Как у «Корана» и «Азкаров»: крупный заголовок в колонке 720 и
+        // нижний отступ под панель вкладок. Капсулы звука на этой вкладке
+        // нет (App прячет её — она повторяла бы экран), поэтому её места
+        // в отступе тоже нет.
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          maxWidth: 'min(100%, 720px)',
+          width: '100%',
+          margin: '0 auto',
+          padding: `0 var(--space-margin) calc(${TAB_BAR_SPACE} + var(--space-section) + env(safe-area-inset-bottom))`,
+          boxSizing: 'border-box',
+        }}>
+          {themeOpen && (
+            <ThemeSettings
+              theme={props.theme}
+              setTheme={props.setTheme}
+              onClose={() => setThemeOpen(false)}
+              anchorEl={themeBtnRef.current}
+            />
+          )}
+          <LargeTitleHeader
+            active={active}
+            title="Слушать"
+            actions={[{
+              key: 'theme', label: 'Оформление', ref: themeBtnRef, active: themeOpen,
+              icon: <Appearance size={ICON_SIZE.md} />,
+              onClick: () => setThemeOpen(v => !v),
+            }]}
+          />
+          <div style={column}>{content}</div>
+        </div>
+      ) : (<>
+        <ScreenHeader
+          visible
+          title="Слушать"
+          onBack={props.onBack}
+          actions={[]}
+        />
+        <div style={{
+          ...column,
+          padding: `${screenHeaderOffset(16)} var(--space-margin) calc(env(safe-area-inset-bottom) + var(--space-section))`,
+        }}>
+          {content}
+        </div>
+      </>)}
 
       {pickerOpen && (
         <SurahPickerSheet
@@ -507,8 +594,26 @@ function ReciterTrigger({ reciter, open, onOpen }: {
  * поля — `any`, иначе браузер округлял бы позицию до целых секунд, и
  * бегунок расходился бы с заливкой.
  */
-function SeekBar({ status }: { status: string | null }) {
+function SeekBar({ status, live }: { status: string | null; live: boolean }) {
   const { progress, duration } = useAudioTick();
+  // Скрытая вкладка «Плеер» смонтирована всегда (свайп по вкладкам), а тик
+  // идёт каждый кадр — в том числе пока человек читает суру и подсвечивается
+  // слово. Видимой вкладке — позиция каждый кадр; скрытой — округлённая до
+  // секунды: эта обёртка вызывается на каждом тике (пустой вызов), а DOM
+  // полосы (`SeekBarView`, memo) обновляется раз в секунду. На перелистывании
+  // к плееру полоса отстаёт не больше чем на секунду, без прыжка (ревью
+  // 2026-10-05).
+  const shown = live || duration <= 0
+    ? progress
+    : Math.floor(progress * duration) / duration;
+  return <SeekBarView status={status} progress={shown} duration={duration} />;
+}
+
+const SeekBarView = memo(function SeekBarView({ status, progress, duration }: {
+  status: string | null;
+  progress: number;
+  duration: number;
+}) {
   const audio = useAudioActions();
   const [drag, setDrag] = useState<number | null>(null);
   // Копия для нативных обработчиков: они вешаются один раз и не видят
@@ -596,4 +701,4 @@ function SeekBar({ status }: { status: string | null }) {
       </div>
     </section>
   );
-}
+});

@@ -50,10 +50,14 @@ const GAP = 8;
 /** Насколько провести капсулу вверх, чтобы открылся полный плеер. */
 const SWIPE_OPEN = 28;
 
-export function MiniPlayer({ onOpen, placement = 'tabs' }: {
+export function MiniPlayer({ onOpen, placement = 'tabs', hidden = false }: {
   onOpen: () => void;
   /** 'tabs' — над панелью вкладок; 'screen' — экран без панели (сура, намаз). */
   placement?: AccessoryPlacement;
+  /** Капсула видимо скрыта снаружи (на вкладке «Плеер» её гасит App): тогда
+   *  она и для фокуса, VoiceOver и Switch Control не существует. Иначе
+   *  невидимая кнопка «Открыть плеер» ловила бы фокус (ревью 2026-10-05). */
+  hidden?: boolean;
 }) {
   const { currentSurah, currentAyah, audioState, reciter } = useAudioState();
   const audio = useAudioActions();
@@ -99,6 +103,9 @@ export function MiniPlayer({ onOpen, placement = 'tabs' }: {
     <div
       role="region"
       aria-label="Звучит сейчас"
+      aria-hidden={hidden || undefined}
+      // React 18 не знает атрибута inert — пустой строкой, как в TabPager.
+      {...(hidden ? { inert: '' } : {})}
       className="liquid-glass mini-player"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
