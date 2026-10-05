@@ -134,7 +134,25 @@ Quran Ing — приложение для чтения Корана с пере�
 (переводчик, разрешение), письменное разрешение Хьусейна Мержоева на записи.
 Google при жалобе правообладателя снимает приложение.
 
-## Автоматическая выгрузка (по решению владельца)
+## Автоматическая выгрузка — настроена 2026-10-05
+
+Сервисный аккаунт `quran-ing-publisher@xtrud-play.iam.gserviceaccount.com`
+(проект Google Cloud `xtrud-play` владельца), в Play Console — доступ только
+к Quran Ing. Ключ — `secrets/xtrud-play-723337e56c46.json`, путь —
+`secrets/play.env`. Проверено: API видит `ing.quran.app` (язык ru-RU, треки
+пусты).
+
+```
+. secrets/play.env
+node scripts/play/play-publish.mjs --aab app-release.aab [--track production] [--status draft]
+node scripts/play/play-publish.mjs --listing-only
+```
+
+Тексты страницы для скрипта — `play-store/listing-ru.json` (источник
+правды; таблица выше — для чтения). Пока приложение не опубликовано —
+только `draft`, на проверку отправляет владелец в консоли.
+
+## Прежняя заметка: как настраивался доступ
 
 Google Cloud → сервисный аккаунт с ключом JSON → Play Console → «Пользователи
 и разрешения» → пригласить его почту с правами на Quran Ing (выпуски) →
