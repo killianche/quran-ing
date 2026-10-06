@@ -80,17 +80,29 @@ export function surahOffline(reciter: ReciterId, surah: number): SurahOffline {
   return { kind: 'none' };
 }
 
-/** Кольцо прогресса — без своего тика, доля приходит снаружи. */
+/**
+ * Кольцо прогресса — без своего тика, доля приходит снаружи.
+ *
+ * Пока не пришло ни байта (запрос размера, первый кусок), доли нет, и
+ * неподвижное «0 %» читалось как зависание (владелец 2026-10-06: «0 % стоит
+ * и не меняется»). Тогда кольцо крутится короткой дугой — как системный
+ * индикатор ожидания; при «Уменьшении движения» стоит (`.offline-ring-spin`).
+ */
 function Ring({ fraction, size = 16 }: { fraction: number; size?: number }) {
   const r = (size - 3) / 2;
   const c = 2 * Math.PI * r;
+  const waiting = fraction <= 0.001;
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
+    <svg
+      width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden
+      className={waiting ? 'offline-ring-spin' : undefined}
+      style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}
+    >
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity={0.22} strokeWidth={2} />
       <circle
         cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={2}
         strokeLinecap="round"
-        strokeDasharray={`${Math.max(0.02, fraction) * c} ${c}`}
+        strokeDasharray={`${(waiting ? 0.25 : Math.max(0.02, fraction)) * c} ${c}`}
         style={{ transition: 'stroke-dasharray 300ms linear' }}
       />
     </svg>
@@ -146,7 +158,7 @@ export function OfflinePill({ reciter, surah }: { reciter: ReciterId; surah: num
         style={{ ...pillBase, background: 'transparent', color: 'var(--text-secondary)' }}
       >
         <span style={{ display: 'inline-flex', color: 'var(--brand)' }}><Ring fraction={s.fraction} size={18} /></span>
-        {pct}&nbsp;%
+        {s.fraction <= 0.001 ? '…' : <>{pct}&nbsp;%</>}
       </span>
     );
   }
@@ -161,7 +173,7 @@ export function OfflinePill({ reciter, surah }: { reciter: ReciterId; surah: num
         style={{ ...pillBase, cursor: 'pointer' }}
       >
         <span style={{ display: 'inline-flex', color: 'var(--brand)' }}><Ring fraction={s.fraction} size={18} /></span>
-        {pct}&nbsp;%
+        {s.fraction <= 0.001 ? '…' : <>{pct}&nbsp;%</>}
       </button>
     );
   }

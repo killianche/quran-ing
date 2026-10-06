@@ -1246,6 +1246,11 @@ body {
   .azkar-tile-glow, .azkar-art-pulse, .azkar-art-twinkle { animation: none; }
 }
 
+/* Кольцо загрузки суры, пока не пришло ни байта (SurahOfflineStatus). */
+.offline-ring-spin { animation: offlineRingSpin 900ms linear infinite; }
+@keyframes offlineRingSpin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+@media (prefers-reduced-motion: reduce) { .offline-ring-spin { animation: none; } }
+
 /* ─── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
