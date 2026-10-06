@@ -382,6 +382,54 @@ const SURAH_CHUNK_BYTES = 1024 * 1024;
 const CHUNK_READ_TIMEOUT_MS = 30_000;
 
 /**
+ * Запрос части файла — с таймаутами, страховкой и повторами.
+ *
+ * Владелец 2026-10-06 (iPhone, сборка 12): «скачивание не работает» — кольцо
+ * висело на «…» без конца. В iOS-симуляторе тот же путь качает суру за 2 с
+ * (стенд lab/download-probe), значит на устройстве запрос просто не
+ * возвращался, а у пробного запроса таймаута не было вовсе. Теперь:
+ * - нативные connect/read-таймауты (read сбрасывается с каждой порцией —
+ *   медленную, но живую загрузку не рвёт);
+ * - страховочный таймаут на уровне JS — если нативный почему-то не сработал;
+ * - до трёх попыток с паузой 1,5 и 4 с: мобильная сеть рвёт отдельный
+ *   запрос чаще, чем всё соединение;
+ * - в ошибке — какой шаг сорвался, чтобы следующий отказ было видно.
+ */
+async function rangeRequest(
+  http: typeof import('@capacitor/core').CapacitorHttp,
+  url: string,
+  range: string,
+  step: string,
+): Promise<import('@capacitor/core').HttpResponse> {
+  const pauses = [1500, 4000];
+  let last: unknown = null;
+  for (let attempt = 0; attempt <= pauses.length; attempt++) {
+    let guardTimer = 0;
+    try {
+      const guard = new Promise<never>((_, reject) => {
+        guardTimer = window.setTimeout(() => reject(new Error('нет ответа 45 с')), 45_000);
+      });
+      return await Promise.race([
+        http.request({
+          url, method: 'GET', responseType: 'blob',
+          headers: { Range: range },
+          connectTimeout: 15_000,
+          readTimeout: CHUNK_READ_TIMEOUT_MS,
+        }),
+        guard,
+      ]);
+    } catch (error) {
+      last = error;
+      if (attempt < pauses.length) await new Promise(r => window.setTimeout(r, pauses[attempt]));
+    } finally {
+      window.clearTimeout(guardTimer);
+    }
+  }
+  const msg = last instanceof Error ? last.message : String(last);
+  throw new Error(`${step}: ${msg.slice(0, 80)}`);
+}
+
+/**
  * Скачать суру ОДНИМ файлом — той же сплошной записью, что играет из сети.
  *
  * ── Зачем это вообще ──────────────────────────────────────────────────
@@ -438,10 +486,7 @@ export async function downloadSurahFile(
   // Общий размер узнаём из заголовка ответа на первый частичный запрос:
   // `Content-Range: bytes 0-0/12345678`. Отдельный HEAD не делаем — лишний
   // обход сети, а некоторые хосты на HEAD отвечают иначе, чем на GET.
-  const проба = await CapacitorHttp.request({
-    url, method: 'GET', responseType: 'blob',
-    headers: { Range: 'bytes=0-0' },
-  });
+  const проба = await rangeRequest(CapacitorHttp, url, 'bytes=0-0', 'размер файла');
   const contentRange = String(
     проба.headers?.['Content-Range'] ?? проба.headers?.['content-range'] ?? '');
   const всего = Number(contentRange.split('/')[1]);
@@ -467,12 +512,7 @@ export async function downloadSurahFile(
     if (cancelFlags.has(reciter)) return false;
 
     const до = Math.min(готово + SURAH_CHUNK_BYTES, всего) - 1;
-    const res = await CapacitorHttp.request({
-      url, method: 'GET', responseType: 'blob',
-      headers: { Range: `bytes=${готово}-${до}` },
-      connectTimeout: CHUNK_READ_TIMEOUT_MS,
-      readTimeout: CHUNK_READ_TIMEOUT_MS,
-    });
+    const res = await rangeRequest(CapacitorHttp, url, `bytes=${готово}-${до}`, `кусок с ${Math.round(готово / 1048576)} МБ`);
     // Только 206. Ответ 200 означает, что сервер прислал ВЕСЬ файл, не поняв
     // заголовка Range: дописать такое к уже лежащим байтам — испортить файл
     // молча. Честно отступаем на поаятный путь.
