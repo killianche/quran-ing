@@ -58,3 +58,8 @@ createRoot(document.getElementById('root')!).render(
     </AudioProvider>
   </StrictMode>,
 );
+
+// LAB: зонд загрузки сур (ветка lab/download-probe).
+import * as __labDl from './lib/audioDownloads';
+import * as __labStore from './lib/audioStore';
+(window as unknown as { __lab: unknown }).__lab = { dl: __labDl, store: __labStore };

@@ -1,0 +1,55 @@
+# Лабораторный стенд загрузки сур (ветка lab/download-probe, в main не идёт).
+name: iOS download lab
+on:
+  push:
+    branches: [lab/download-probe]
+  workflow_dispatch:
+jobs:
+  lab:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - run: npm ci
+      - name: Сборка с зондом
+        run: |
+          set -euo pipefail
+          npm run build
+          cp lab/download-probe.js dist/lab-probe.js
+          python3 - <<'PY'
+          p = 'dist/index.html'
+          s = open(p).read()
+          s = s.replace('</body>', '<script src="/lab-probe.js"></script></body>', 1)
+          open(p, 'w').write(s)
+          PY
+      - run: npx cap sync ios
+      - name: Сборка под симулятор
+        run: |
+          set -euo pipefail
+          xcodebuild build -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "${RUNNER_TEMP}/dd" CODE_SIGNING_ALLOWED=NO | tail -5
+      - name: Прогон
+        run: |
+          set +e
+          APP=ing.quran.app
+          DEV=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; c=[(k,x) for k,v in d.items() if "iOS" in k for x in v if x["name"].startswith("iPhone")]; print(c[0][1]["udid"])')
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b > /dev/null 2>&1
+          xcrun simctl install "$DEV" "${RUNNER_TEMP}/dd/Build/Products/Debug-iphonesimulator/App.app"
+          xcrun simctl launch --console-pty "$DEV" "$APP" > "${RUNNER_TEMP}/a.log" 2>&1 &
+          for i in $(seq 1 120); do sleep 2; grep -q 'LAB|DONE\|LAB|probe-crash' "${RUNNER_TEMP}/a.log" && break; done
+          xcrun simctl io "$DEV" screenshot shot.png
+          xcrun simctl terminate "$DEV" "$APP" || true
+          cp "${RUNNER_TEMP}/a.log" console.log
+          grep -E 'LAB\|' console.log | head -200
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: download-lab-console
+          path: |
+            console.log
+            shot.png
