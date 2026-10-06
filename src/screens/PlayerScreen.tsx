@@ -72,6 +72,7 @@ import { TOTAL_SURAHS } from '../lib/ayahNumbering';
 import { formatPlaybackTime } from '../lib/playbackTime';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { readLastPlayback, type LastPlayback } from '../lib/lastPlayback';
+import { OfflinePill } from '../components/SurahOfflineStatus';
 import type { Theme } from '../hooks/useTheme';
 import type { TabFrame } from '../components/TabPager';
 
@@ -419,9 +420,11 @@ export function PlayerScreen(props: Props) {
           </button>
         </section>
 
-        {/* ── Нижний ряд: скорость и список сур ──────────────────────
+        {/* ── Нижний ряд: скорость, скачана ли сура, список сур ──────
             Как нижний ряд системного плеера: второстепенное — по краям,
-            мелко, но с полной зоной нажатия. */}
+            мелко, но с полной зоной нажатия. Посередине — состояние
+            загрузки этой суры у этого чтеца (владелец 2026-10-06: «видеть,
+            какая сура скачана, какая докачивается»). */}
         <section style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           marginTop: 'var(--space-section)',
@@ -446,6 +449,8 @@ export function PlayerScreen(props: Props) {
           >
             {playbackRate}×
           </button>
+
+          <OfflinePill key={`${reciter}:${surah}`} reciter={reciter} surah={surah} />
 
           <button
             onClick={() => setPickerOpen(true)}

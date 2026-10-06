@@ -24,6 +24,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SettingsSheet, SheetCloseButton } from './ReadingSettings';
+import { OfflineMark, surahOffline, useOfflineTick, type SurahOffline } from './SurahOfflineStatus';
 import { Close, Search, ICON_SIZE } from './icons';
 import { SURAHS, type SurahMeta } from '../content/surahs';
 import { findSurahs } from '../lib/search';
@@ -53,6 +54,8 @@ export function SurahPickerSheet({
   onPick: (surah: number) => void;
   onClose: () => void;
 }) {
+  // Значки «скачана / качается» у строк обновляются по ходу загрузки.
+  useOfflineTick();
   const partial = availableSurahCount(reciter) < TOTAL_SURAHS;
   // «Есть у чтеца» — по умолчанию, но не когда текущей суры у чтеца нет
   // (сменили чтеца на Мержоева посреди суры 10): иначе список спрятал бы
@@ -220,6 +223,7 @@ export function SurahPickerSheet({
             current={s.number === current}
             playing={playing && s.number === current}
             has={reciterHasSurah(reciter, s.number)}
+            offline={surahOffline(reciter, s.number)}
             last={i === shown.length - 1}
             onPick={onPick}
           />
@@ -290,12 +294,14 @@ export function SurahPickerSheet({
 }
 
 function PickerRow({
-  meta, current, playing, has, last, onPick,
+  meta, current, playing, has, offline, last, onPick,
 }: {
   meta: SurahMeta;
   current: boolean;
   playing: boolean;
   has: boolean;
+  /** Скачана ли сура у этого чтеца — значок у названия (SurahOfflineStatus). */
+  offline: SurahOffline;
   last: boolean;
   onPick: (n: number) => void;
 }) {
@@ -306,7 +312,7 @@ function PickerRow({
         disabled={!has}
         aria-current={current ? 'true' : undefined}
         aria-label={has
-          ? `${meta.number}. ${meta.transliteration}${current ? ', сейчас в плеере' : ''}`
+          ? `${meta.number}. ${meta.transliteration}${current ? ', сейчас в плеере' : ''}${offline.kind === 'done' ? ', скачана' : offline.kind === 'running' ? ', скачивается' : offline.kind === 'paused' ? ', загрузка на паузе' : ''}`
           : `${meta.number}. ${meta.transliteration} — у этого чтеца нет записи`}
         className="picker-row"
         style={{
@@ -337,14 +343,20 @@ function PickerRow({
 
         <span style={{ flex: 1, minWidth: 0, display: 'grid', gap: '1px' }}>
           <span style={{
-            fontSize: 'var(--font-body)',
-            lineHeight: 'var(--leading-body)',
-            fontWeight: 'var(--weight-semibold)',
-            letterSpacing: 'var(--tracking-tight)',
-            color: current ? 'var(--brand)' : 'var(--text-primary)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0,
           }}>
-            {meta.transliteration}
+            <span style={{
+              minWidth: 0,
+              fontSize: 'var(--font-body)',
+              lineHeight: 'var(--leading-body)',
+              fontWeight: 'var(--weight-semibold)',
+              letterSpacing: 'var(--tracking-tight)',
+              color: current ? 'var(--brand)' : 'var(--text-primary)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {meta.transliteration}
+            </span>
+            <OfflineMark state={offline} />
           </span>
           <span style={{
             fontSize: 'var(--font-footnote)',

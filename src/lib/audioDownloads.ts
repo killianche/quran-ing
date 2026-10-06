@@ -92,10 +92,18 @@ export type DownloadState = {
    */
   bytesTotal: number;
   error: string | null;
+  /**
+   * Задание «весь Коран» сплошными записями: какая сура качается прямо
+   * сейчас и её собственный ход в байтах (total — оценка по `surahBytes`).
+   * Плеер и шторка «Суры» показывают по нему кольцо у этой суры — иначе во
+   * время автозагрузки не было бы видно, «какая докачивается» (владелец
+   * 2026-10-06). У остальных заданий — null.
+   */
+  current?: { surah: number; done: number; total: number } | null;
 };
 
 const IDLE: DownloadState = {
-  status: 'idle', scope: null, done: 0, total: 0, bytes: 0, bytesTotal: 0, error: null,
+  status: 'idle', scope: null, done: 0, total: 0, bytes: 0, bytesTotal: 0, error: null, current: null,
 };
 
 const state = new Map<ReciterId, DownloadState>();
@@ -641,8 +649,13 @@ export async function startDownload(reciter: ReciterId, scope: DownloadScope): P
         // Байты копим по всему заданию: полоса не должна дёргаться назад на
         // каждой новой суре. Полный размер задания заранее неизвестен —
         // сколько весит сура, хост сообщает только в ответе на первый кусок.
+        const весСуры = estimateSurahBytes(reciter, сура);
+        patch(reciter, { current: { surah: сура, done: 0, total: весСуры } });
         const ok = await downloadSurahFile(reciter, сура, (сделано) => {
-          patch(reciter, { bytes: байтовРанее + сделано });
+          patch(reciter, {
+            bytes: байтовРанее + сделано,
+            current: { surah: сура, done: сделано, total: весСуры },
+          });
         });
         // 🔴 Отказ и пауза различаются, иначе задание врёт.
         //
