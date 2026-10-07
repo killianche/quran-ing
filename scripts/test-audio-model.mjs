@@ -1668,6 +1668,29 @@ await groupAsync('Мусхаф: разбивка страниц у издани�
   check('таблицы изданий расходятся ровно на 25 страницах', differ, 25);
 });
 
+// ─── Слушаешь суру — она сама скачивается ────────────────────────────
+//
+// Владелец 2026-10-07: «если я включил суру — пускай она сразу же
+// скачивается». Правило не должно обрывать чужое задание и спорить с паузой.
+
+await groupAsync('Загрузка звучащей суры', async () => {
+  const { shouldDownloadWhilePlaying: go } = await import(
+    pathToFileURL(resolve(ROOT, 'src/lib/playDownload.ts')).href
+  );
+  const base = {
+    offline: true, downloadable: true, recorded: true, alreadyHave: false,
+    otherJobRunning: false, pausedByUserHere: false, triedThisLaunch: false,
+  };
+  check('заиграла нескачанная сура — качаем', go(base), true);
+  check('уже скачана — не качаем', go({ ...base, alreadyHave: true }), false);
+  check('идёт другое задание чтеца — не обрываем', go({ ...base, otherJobRunning: true }), false);
+  check('человек сам поставил эту суру на паузу — не возобновляем', go({ ...base, pausedByUserHere: true }), false);
+  check('за этот запуск уже пробовали — второй раз сами не начинаем', go({ ...base, triedThisLaunch: true }), false);
+  check('на сайте (офлайна нет) — не качаем', go({ ...base, offline: false }), false);
+  check('у чтеца нет этой суры — не качаем', go({ ...base, recorded: false }), false);
+  check('чтец без загрузки — не качаем', go({ ...base, downloadable: false }), false);
+});
+
 // ─── Автозагрузка не спорит с человеком ──────────────────────────────
 //
 // Здесь была ошибка, которую владелец поймал на телефоне: он жал «Пауза», а

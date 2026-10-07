@@ -50,6 +50,7 @@ import { SURAH_BY_NUMBER } from '../content/surahs';
 import { bindMediaSessionHandlers } from '../lib/mediaSession';
 import { readPref } from '../lib/typography';
 import { writeLastPlayback } from '../lib/lastPlayback';
+import { downloadWhilePlaying } from '../lib/playDownload';
 
 const RECITER_IDS = RECITERS.map(r => r.id);
 
@@ -165,6 +166,15 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const rec = liveRec.current;
     writeLastPlayback({ surah: rec.surah, ayah: rec.ayah, reciter: rec.reciter, seconds: rec.seconds, duration: rec.duration, done: false });
   }, [audio.currentSurah, audio.currentAyah, audio.progress, audio.duration, audio.audioState, audio.failure, reciter]);
+
+  // Сура заиграла — пусть сразу и скачивается (lib/playDownload.ts).
+  // Именно «заиграла», а не «выбрана»: при загрузке потока или отказе сети
+  // качать нечего и незачем.
+  useEffect(() => {
+    if (audio.audioState === 'playing' && audio.currentSurah) {
+      downloadWhilePlaying(reciter, audio.currentSurah);
+    }
+  }, [audio.audioState, audio.currentSurah, reciter]);
 
   // Свежий хук под стабильными действиями: сами функции `useAyahAudio`
   // меняют ссылку при каждом обновлении состояния, и без этого объект
