@@ -1,0 +1,83 @@
+# Лабораторный стенд вкладок (ветка lab/tab-swipe, в main не идёт).
+name: iOS swipe lab
+on:
+  push:
+    branches: [lab/tab-swipe]
+  workflow_dispatch:
+jobs:
+  lab:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - run: npm ci
+      - name: Сборка с зондом
+        run: |
+          set -euo pipefail
+          npm run build
+          cp lab/swipe-probe.js dist/lab-probe.js
+          python3 - <<'PY'
+          p = 'dist/index.html'
+          s = open(p).read()
+          s = s.replace('</body>', '<script src="/lab-probe.js"></script></body>', 1)
+          open(p, 'w').write(s)
+          PY
+      - run: npx cap sync ios
+      - name: Сборка под симулятор
+        run: |
+          set -euo pipefail
+          xcodebuild build -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "${RUNNER_TEMP}/dd" CODE_SIGNING_ALLOWED=NO | tail -5
+      - name: idb
+        run: |
+          brew tap facebook/fb
+          brew trust facebook/fb || true
+          brew install facebook/fb/idb-companion
+          python3 -m pip install --break-system-packages fb-idb || python3 -m pip install --user fb-idb
+      - name: Прогон
+        run: |
+          set +e
+          export PATH="$PATH:$(ls -d ~/Library/Python/*/bin 2>/dev/null | head -1)"
+          APP=ing.quran.app
+          DEV=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; c=[(k,x) for k,v in d.items() if "iOS" in k for x in v if x["name"].startswith("iPhone")]; pm=[p for p in c if "Pro" in p[1]["name"] and "Max" not in p[1]["name"]]; p=(pm or c)[0]; print(p[1]["udid"])')
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b > /dev/null 2>&1
+          xcrun simctl install "$DEV" "${RUNNER_TEMP}/dd/Build/Products/Debug-iphonesimulator/App.app"
+          idb_companion --udid "$DEV" > "${RUNNER_TEMP}/companion.log" 2>&1 &
+          sleep 8
+          idb connect localhost 10882 || true
+          xcrun simctl launch --console-pty "$DEV" "$APP" > "${RUNNER_TEMP}/a.log" 2>&1 &
+          for i in $(seq 1 60); do sleep 2; grep -q 'LAB|READY' "${RUNNER_TEMP}/a.log" && break; done
+          sleep 6
+          mark() { echo "LABMARK $1 $(date +%s.%N)"; }
+          # Сценарий владельца: на «Азкары», обратно на «Коран», сразу вертикально.
+          for delay in 0.2 0.5 1.0 2.0; do
+            mark "to-azkar delay=$delay"
+            idb ui swipe --udid "$DEV" --duration 0.15 330 520 60 520
+            sleep 1.5
+            mark "back-to-quran delay=$delay"
+            idb ui swipe --udid "$DEV" --duration 0.15 60 520 330 520
+            sleep $delay
+            mark "vertical delay=$delay"
+            idb ui swipe --udid "$DEV" --duration 0.3 200 700 200 300
+            sleep 1.5
+            xcrun simctl io "$DEV" screenshot "after-$delay.png"
+            mark "back-to-top delay=$delay"
+            idb ui swipe --udid "$DEV" --duration 0.3 200 300 200 750
+            sleep 1.5
+          done
+          sleep 2
+          xcrun simctl terminate "$DEV" "$APP" || true
+          cp "${RUNNER_TEMP}/a.log" console.log
+          grep -E 'LAB\|' console.log | head -300
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: swipe-lab-console
+          path: |
+            console.log
+            after-*.png

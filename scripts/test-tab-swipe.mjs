@@ -77,6 +77,16 @@ same('резинка за краями не выводит долю за лен�
   check('посередине — нет', !m.isTabAligned(W * 1.5, W));
   check('полпикселя дрожи — ещё выровнена', m.isTabAligned(W + 0.5, W));
   check('запаздывание WebKit в 10 px — лента стоит', m.isTabAligned(W - 10, W, tol));
+  // Хвост привязки (владелец 2026-10-07, стенд lab/tab-swipe).
+  check('хвост: доезжает 25 → 19 px до «Корана» — досадить', m.snapTailTarget(W + 19, W, 3, W + 25) === W);
+  check('хвост с другой стороны — тоже', m.snapTailTarget(W - 12, W, 3, W - 20) === W);
+  check('бросок: в 23 px от исходной, но улетает от неё — НЕ трогать (иначе свайп отменится)',
+    m.snapTailTarget(W + 23, W, 3, W + 20) === null);
+  check('без прошлого положения — не трогать', m.snapTailTarget(W + 10, W, 3, Number.NaN) === null);
+  check('уже стоит — не трогать', m.snapTailTarget(W, W, 3, W + 3) === null);
+  check('посреди листания — не трогать', m.snapTailTarget(W * 1.5, W, 3, W * 1.6) === null);
+  check('резинка за левым краем — не трогать', m.snapTailTarget(-15, W, 3, -20) === null);
+  check('резинка за правым краем — не трогать', m.snapTailTarget(2 * W + 15, W, 3, 2 * W + 20) === null);
   check('и +7 px — тоже', m.isTabAligned(W + 7, W, tol));
   check('палец посреди перелистывания — не стоит', !m.isTabAligned(W + W * 0.3, W, tol));
   same('допуск не меньше 16 px даже на узком экране', m.tabSettleTolerance(100), 16);
