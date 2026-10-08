@@ -66,6 +66,7 @@ import {
   tabProgress,
   tabSettleTolerance,
   tabStep,
+  snapTailTarget,
 } from '../lib/tabStrip';
 
 /** Через сколько после старта монтировать вкладки, где ещё не были, мс. */
@@ -265,6 +266,10 @@ export function TabPager({
       if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current);
       settleTimerRef.current = 0;
     };
+    /** Палец на ленте — пока он держит, хвост привязки не трогаем. */
+    let fingerDown = false;
+    /** Положение ленты на прошлом событии — куда она едет (snapTailTarget). */
+    let prevX = Number.NaN;
     /** Сколько раз остановка ждала цель нашей прокрутки (см. settle). */
     let waitedTarget = 0;
 
@@ -324,6 +329,14 @@ export function TabPager({
         }
       }
       paintChrome(x);
+      // Хвост привязки после отпускания — ставим ленту на страницу сразу
+      // (см. snapTailTarget: иначе первое касание списка уходит ленте).
+      // Только без пальца и не во время нашей плавной прокрутки по тапу.
+      if (!fingerDown && programmaticRef.current == null) {
+        const target = snapTailTarget(x, w, tabs.length, prevX);
+        if (target != null) root.scrollTo({ left: target, behavior: 'instant' });
+      }
+      prevX = x;
       clearSettle();
       settleTimerRef.current = window.setTimeout(settle, SETTLE_QUIET_MS);
     };
@@ -338,7 +351,8 @@ export function TabPager({
 
     // Человек взялся за ленту посреди нашей прокрутки — подсветка снова
     // следует за пальцем.
-    const onTouchStart = () => { programmaticRef.current = null; };
+    const onTouchStart = () => { programmaticRef.current = null; fingerDown = true; };
+    const onTouchEnd = (event: TouchEvent) => { if (event.touches.length === 0) fingerDown = false; };
 
     // Прокрутка страниц — запоминаем на случай сброса парковкой. Событие
     // прокрутки не всплывает — ловим на погружении.
@@ -356,11 +370,15 @@ export function TabPager({
     root.addEventListener('scroll', onScroll, { passive: true });
     root.addEventListener('scrollend', onScrollEnd, { passive: true });
     root.addEventListener('touchstart', onTouchStart, { passive: true });
+    root.addEventListener('touchend', onTouchEnd, { passive: true });
+    root.addEventListener('touchcancel', onTouchEnd, { passive: true });
     root.addEventListener('scroll', onPageScroll, { passive: true, capture: true });
     return () => {
       root.removeEventListener('scroll', onScroll);
       root.removeEventListener('scrollend', onScrollEnd);
       root.removeEventListener('touchstart', onTouchStart);
+      root.removeEventListener('touchend', onTouchEnd);
+      root.removeEventListener('touchcancel', onTouchEnd);
       root.removeEventListener('scroll', onPageScroll, { capture: true } as EventListenerOptions);
       clearSettle();
     };
