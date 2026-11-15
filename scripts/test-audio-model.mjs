@@ -194,9 +194,16 @@ group('Хьусейн Мержоев: записи целых сур, 80 из 11
 });
 
 group('Каталог чтецов и источники аудио', () => {
-  check('в каталоге семь чтецов',
+  check('в каталоге шесть чтецов',
     RECITERS.map(reciter => reciter.id),
-    ['alafasy', 'shaatree', 'yasser', 'luhaidan', 'ajmi', 'husary', 'merzhoev']);
+    ['alafasy', 'shaatree', 'yasser', 'ajmi', 'husary', 'merzhoev']);
+  check('Люхайдан отключён (решение владельца 15.11.2026)',
+    RECITERS.some(reciter => String(reciter.id) === 'luhaidan'), false);
+  check('ни один чтец не грузит звук с сервера an-Nur (l.asrbook.ru)',
+    RECITERS.filter(reciter =>
+      [reciter.ayahAudioBase, reciter.surahAudioBase]
+        .some(url => url?.includes('asrbook'))).map(reciter => reciter.id),
+    []);
   check('Ясир Ад-Даусари подписан по-русски и по-арабски',
     [reciterById('yasser').label, reciterById('yasser').arabic],
     ['Ясир Ад-Даусари', 'ياسر الدوسري']);
@@ -210,40 +217,6 @@ group('Каталог чтецов и источники аудио', () => {
     requiresSurahAudioStream('yasser'), false);
   check('для Ад-Даусари включены собственные пословные тайминги',
     RECITERS_WITH_SEGMENTS.has('yasser'), true);
-  check('Люхайдан подписан по-русски и по-арабски',
-    [reciterById('luhaidan').label, reciterById('luhaidan').arabic],
-    ['Мухаммад Аль-Люхайдан', 'محمد اللحيدان']);
-  check('URL Люхайдана указывает на короткий файл выбранного аята',
-    ayahAudioUrl(2, 255, 'luhaidan'),
-    'https://l.asrbook.ru/audio/luhaidan/002/255.mp3');
-  check('исходная непрерывная запись Люхайдана остаётся воспроизводимой',
-    surahAudioUrl('luhaidan', 2),
-    'https://server8.mp3quran.net/lhdan/002.mp3');
-  check('Люхайдан начинает 2:255 по локальной точной границе',
-    ayahAudioRange('luhaidan', 2, 255),
-    { startSeconds: 5729.187, endSeconds: 5781.676 });
-  let luhaidanRangeCount = 0;
-  let invalidLuhaidanRanges = 0;
-  for (let surah = 1; surah <= TOTAL_SURAHS; surah++) {
-    for (let ayah = 1; ayah <= ayahsInSurah(surah); ayah++) {
-      const range = ayahAudioRange('luhaidan', surah, ayah);
-      if (!range) invalidLuhaidanRanges++;
-      else {
-        luhaidanRangeCount++;
-        if (range.startSeconds < 0 || range.endSeconds <= range.startSeconds) {
-          invalidLuhaidanRanges++;
-        }
-      }
-    }
-  }
-  check('у Люхайдана есть валидная граница каждого из 6236 аятов',
-    [luhaidanRangeCount, invalidLuhaidanRanges], [TOTAL_AYAHS, 0]);
-  check('короткие файлы Люхайдана доступны для поаятной офлайн-загрузки',
-    supportsAyahOffline('luhaidan'), true);
-  check('холодный запуск Люхайдана не открывает файл всей суры',
-    requiresSurahAudioStream('luhaidan'), false);
-  check('Люхайдан использует честную подсветку целого аята без пословных таймингов',
-    usesWholeAyahHighlight('luhaidan'), true);
   check('чтец с пословными таймингами сохраняет караоке-подсветку',
     usesWholeAyahHighlight('alafasy'), false);
   check('Аль-Аджми подписан по-русски и по-арабски',
@@ -300,9 +273,9 @@ group('Каталог чтецов и источники аудио', () => {
       }
     }
   }
-  check('у всех шести чтецов с поаятной разметкой есть валидные границы для 6236 аятов',
+  check('у всех пяти чтецов с поаятной разметкой есть валидные границы для 6236 аятов',
     [ayahTimedReciters.length, continuousRangeCount, invalidContinuousRanges],
-    [6, TOTAL_AYAHS * 6, 0]);
+    [5, TOTAL_AYAHS * 5, 0]);
 });
 
 group('iOS: стабильная подсветка QCF-глифов', () => {

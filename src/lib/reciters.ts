@@ -15,9 +15,10 @@
  *     Резерв для чтецов, которых islamic.network не раздаёт.
  *
  *   - собственный сервер — {ayahAudioBase}/{SSS}/{AAA}.mp3
- *     заранее подготовленные короткие файлы отдельных аятов. Такой путь
- *     используется для Люхайдана: приложение сразу открывает выбранный
- *     аят, а не загружает и не перематывает большой файл всей суры.
+ *     заранее подготовленные короткие файлы отдельных аятов: приложение
+ *     сразу открывает выбранный аят, а не загружает и не перематывает
+ *     большой файл всей суры. Так был устроен Люхайдан (отключён
+ *     15.11.2026, см. ниже); сейчас этим путём не пользуется никто.
  *
  *   - mp3quran.net — serverN.mp3quran.net/{dir}/{SSS}.mp3
  *     запись целой суры. Для такого источника приложение вырезает нужный
@@ -43,7 +44,6 @@ export type ReciterId =
   | 'alafasy'
   | 'shaatree'
   | 'yasser'
-  | 'luhaidan'
   | 'ajmi'
   | 'husary'
   | 'merzhoev';
@@ -118,15 +118,22 @@ export const RECITERS: Reciter[] = [
     surahAudioBase: 'https://download.quranicaudio.com/quran/yasser_ad-dussary',
     surahAudioPadded: true,
   },
-  {
-    id: 'luhaidan',
-    label: 'Мухаммад Аль-Люхайдан',
-    arabic: 'محمد اللحيدان',
-    bitrateKbps: 128,
-    ayahAudioBase: 'https://l.asrbook.ru/audio/luhaidan',
-    surahAudioBase: 'https://server8.mp3quran.net/lhdan',
-    surahAudioPadded: true,
-  },
+  /*
+   * Мухаммад Аль-Люхайдан отключён по решению владельца 15.11.2026.
+   *
+   * Его поаятные файлы раздавал только сервер an-Nur (l.asrbook.ru) — чужой
+   * для Quran Ing проект, от которого приложение не должно зависеть. Своего
+   * хранилища пока нет. Сохранённый выбор «luhaidan» при чтении настроек
+   * сам падает на чтеца по умолчанию (`readPref` сверяет id с каталогом).
+   *
+   * Чтобы вернуть: разложить нарезку на своём сервере
+   * (`scripts/gen/split-luhaidan-ayahs.mjs`, границы —
+   * `src/content/luhaidan-ayah-ranges.ts`, полные суры —
+   * server8.mp3quran.net/lhdan), вернуть запись в каталог с новым
+   * `ayahAudioBase`, id в `ReciterId`, ветку в `ayahAudioRange` и
+   * `usesWholeAyahHighlight` и проверки в `scripts/test-audio-model.mjs` —
+   * всё это лежит в git до коммита «отключить Люхайдана».
+   */
   {
     id: 'ajmi',
     label: 'Ахмад Аль-Аджми',
@@ -237,11 +244,11 @@ export const RECITERS_WITH_SEGMENTS: ReadonlySet<ReciterId> = new Set([
   'alafasy', 'shaatree', 'yasser', 'husary',
 ]);
 
-/** У Люхайдана и Аль-Аджми есть точные границы каждого аята, но нет
- * честных пословных сегментов. Вместо ложного караоке интерфейс отмечает
- * весь звучащий аят одной мягкой подложкой. */
+/** У Аль-Аджми есть точные границы каждого аята, но нет честных
+ * пословных сегментов. Вместо ложного караоке интерфейс отмечает весь
+ * звучащий аят одной мягкой подложкой. */
 export function usesWholeAyahHighlight(id: ReciterId): boolean {
-  return id === 'luhaidan' || id === 'ajmi';
+  return id === 'ajmi';
 }
 
 /**

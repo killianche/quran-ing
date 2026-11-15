@@ -13,7 +13,7 @@
  * (ключ — в LOCAL_DATA_KEYS, «удалить мои данные» его чистит).
  */
 
-import { RECITERS, type ReciterId } from './reciters';
+import { DEFAULT_RECITER, RECITERS, type ReciterId } from './reciters';
 import { TOTAL_SURAHS } from './ayahNumbering';
 import { SURAH_BY_NUMBER } from '../content/surahs';
 
@@ -38,12 +38,17 @@ export function readLastPlayback(): LastPlayback | null {
     const surah = Number(v.surah), ayah = Number(v.ayah);
     if (!Number.isInteger(surah) || surah < 1 || surah > TOTAL_SURAHS) return null;
     if (!Number.isInteger(ayah) || ayah < 1 || ayah > (SURAH_BY_NUMBER[surah]?.ayahs ?? 0)) return null;
-    if (!RECITERS.some(r => r.id === v.reciter)) return null;
-    const seconds = typeof v.seconds === 'number' && Number.isFinite(v.seconds) && v.seconds >= 0
+    // Чтеца могли убрать из каталога (Люхайдан — 15.11.2026). Место в
+    // Коране (сура:аят) сохраняем и продолжаем чтецом по умолчанию, а
+    // секунды и длину отбрасываем: они от чужой записи и в другой
+    // записи указали бы не на тот аят.
+    const known = RECITERS.some(r => r.id === v.reciter);
+    const reciter = known ? (v.reciter as ReciterId) : DEFAULT_RECITER;
+    const seconds = known && typeof v.seconds === 'number' && Number.isFinite(v.seconds) && v.seconds >= 0
       ? v.seconds : undefined;
-    const duration = typeof v.duration === 'number' && Number.isFinite(v.duration) && v.duration > 0
+    const duration = known && typeof v.duration === 'number' && Number.isFinite(v.duration) && v.duration > 0
       ? v.duration : undefined;
-    return { surah, ayah, reciter: v.reciter as ReciterId, seconds, duration, done: v.done === true };
+    return { surah, ayah, reciter, seconds, duration, done: v.done === true };
   } catch {
     return null;
   }
