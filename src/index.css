@@ -577,6 +577,60 @@
   --on-brand:   #241c10;
 }
 
+/* ─── Сцена главной: ингушские башни в горах (HomeScene) ──────────────────
+   Владелец 15.11.2026: «не хватает сверху картинки, иллюстрации — весь
+   текст, всё скучно». Сцена рисуется векторами, цвета только отсюда:
+   светлые темы — утро в горах в тонах ковра, тёмные — ночь с месяцем.
+   Звёзды и месяц видны только ночью, солнце — только днём. */
+[data-theme="light"],
+[data-theme="aurora"] {
+  --scene-sky-top:    #e7d8bf;
+  --scene-sky-bottom: #f8f1e4;
+  --scene-glow:       #fff6df;
+  --scene-sun:        #f2d9a8;
+  --scene-far:        #d3bf9e;
+  --scene-snow:       #fbf6ec;
+  --scene-mid:        #b39673;
+  --scene-near:       #8a6e4c;
+  --scene-tower:      #5f4a31;
+  --scene-window:     #5f4a31;
+  --scene-night:      0;
+  --scene-day:        1;
+}
+[data-theme="dark"],
+[data-theme="aurora2"],
+[data-theme="cosmos"] {
+  --scene-sky-top:    #07080d;
+  --scene-sky-bottom: #1b1d27;
+  --scene-glow:       #2a2632;
+  --scene-sun:        #dcc5a3;
+  --scene-far:        #262833;
+  --scene-snow:       #4a4c58;
+  --scene-mid:        #1a1b23;
+  --scene-near:       #111218;
+  --scene-tower:      #0a0b0f;
+  --scene-window:     #e9c98f;
+  --scene-night:      1;
+  --scene-day:        0;
+}
+
+/* Мерцание звёзд и дрейф облаков сцены — только opacity/transform. */
+.scene-star { animation: sceneTwinkle 3.6s ease-in-out infinite alternate; }
+.scene-cloud { animation: sceneDrift 38s linear infinite alternate; }
+@keyframes sceneTwinkle { from { opacity: 0.25; } to { opacity: 1; } }
+@keyframes sceneDrift { from { transform: translateX(-14px); } to { transform: translateX(14px); } }
+@media (prefers-reduced-motion: reduce) {
+  .scene-star, .scene-cloud { animation: none; }
+}
+
+/* Полоски «звучит» у играющей суры (SurahPicker, SoundingBars): только
+   transform — анимация идёт в компоновщике. */
+.sounding-bars > span { animation: soundingBar 0.9s ease-in-out infinite alternate; }
+@keyframes soundingBar { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .sounding-bars > span { animation: none; transform: scaleY(0.6); }
+}
+
 [data-theme="dark"],
 [data-theme="aurora2"] {
   --qcf-active: #4ade80;

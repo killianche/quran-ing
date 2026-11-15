@@ -30,14 +30,20 @@
  * остаётся отзывчивым, а тяжёлый проход по 6236 аятам React выполняет
  * в фоне и не блокирует ввод.
  *
- * ── Почему список сур без деления на джузы ────────────────────────────
+ * ── Иллюстрация и вид списка (владелец 15.11.2026) ────────────────────
  *
- * Пробовали подписи «Джуз N» между строками — выходило «1 → 3 → 4 → 6»,
- * потому что джузы 2 и 5 начинаются посреди Аль-Бакары и Ан-Нисы.
- * Потом был переключатель «Суры / Джузы» с честными границами.  Снят
- * по решению владельца: экран открывают, чтобы найти суру, и лишний
- * орган управления над списком только отвлекает.  Разрез по джузам
- * лежит в истории git — вернуть можно одним коммитом.
+ * Над «Продолжить чтение» — векторная сцена с ингушскими башнями
+ * (components/HomeScene.tsx): «не хватает сверху картинки, всё скучно».
+ * Строка суры — вариант B «Арабское крупно» (см. SurahRow).
+ *
+ * ── Джузы ─────────────────────────────────────────────────────────────
+ *
+ * Подписи «Джуз N» над сурами давали «1 → 3 → 4 → 6»: джузы 2 и 5
+ * начинаются посреди Аль-Бакары и Ан-Нисы. Переключатель «Суры / Джузы»
+ * снят 10.08.2026 по решению владельца. 15.11.2026 владелец попросил
+ * попробовать два столбца с делением по джузам — пробная раскладка
+ * `juz` (см. listLayout) делит честно: сура, начатая в прошлом джузе,
+ * приходит продолжением «аяты 142–252». Пока это эксперимент на выбор.
  *
  * ── Типографика ───────────────────────────────────────────────────────
  *
@@ -50,7 +56,7 @@ import { useState, useMemo, useRef, useDeferredValue, useLayoutEffect, useEffect
 import { FastScrubber } from '../components/FastScrubber';
 import { FAST_SCROLL } from '../lib/fastScroll';
 import { SURAHS, SURAH_BY_NUMBER, type SurahMeta } from '../content/surahs';
-import { juzOfSurah } from '../lib/ayahNumbering';
+import { firstGlobalOfSurah, juzRange } from '../lib/ayahNumbering';
 import { readRecents } from '../lib/recents';
 import { AYAH_LANG_LABEL, search, snippet, visibleSearchLangs, warmSearchIndex, type AyahHit } from '../lib/search';
 import { useQuranSources } from '../content/quran-sources-lazy';
@@ -65,6 +71,7 @@ import type { Theme } from '../hooks/useTheme';
 import { HitArea } from '../components/HitArea';
 import { LargeTitleHeader, type HeaderAction } from '../components/ScreenHeader';
 import type { TabFrame } from '../components/TabPager';
+import { HomeScene } from '../components/HomeScene';
 
 /**
  * Единственная форма капс-подзаголовка на экране: «Продолжить чтение»
@@ -172,6 +179,13 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [active],
   );
+  /** Докуда дочитана сура — полоса прогресса в строке списка. */
+  const readAyah = useMemo(
+    () => new Map(recents.map(r => [r.surah, r.ayah] as const)),
+    [recents],
+  );
+  // Раскладка читается один раз: временный переключатель, см. listLayout.
+  const [layout] = useState(listLayout);
   // Попап оформления — портал в body: у припаркованной главной он остался
   // бы висеть над сурой.
   useEffect(() => { if (!active) setThemeOpen(false); }, [active]);
@@ -251,6 +265,9 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
           headerRef={barRef}
           active={active}
         />
+        {/* Иллюстрация — только на полном экране: при поиске выдаче нужно
+            всё место над клавиатурой. */}
+        {!searching && <HomeScene />}
         {!searching && recents.length > 0 && (
           <Recents
             recents={recents}
@@ -325,7 +342,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
           )
           : (
             <>
-              <SurahList surahs={SURAHS} onSelect={onSelectSurah} />
+              <SurahList surahs={SURAHS} onSelect={onSelectSurah} readAyah={readAyah} layout={layout} />
               {/* Быстрая прокрутка: удержание на номере суры и протяжка
                   вверх-вниз. Только при полном списке — в результатах поиска номера
                   идут вразбивку, и прокрутка по ним была бы бессмыслицей. */}
@@ -338,7 +355,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
                 // большую площадь занимал»). Прежде 10…54 px — у самого края
                 // палец промахивался мимо полосы.
                 left={0}
-                width={surahTitleLeft}
+                width={scrubWidth}
                 // От нижней кромки закреплённой панели: строка под стеклом
                 // не должна запускать прокрутку.
                 topInset={() => barBottom() + 8}
@@ -529,10 +546,15 @@ function сураНаВысоте(y: number): HTMLElement | null {
   return document.elementFromPoint(window.innerWidth / 2, y)?.closest<HTMLElement>('[data-surah]') ?? null;
 }
 
-/** Где начинается название суры — правая граница полосы быстрой прокрутки. */
-function surahTitleLeft(): number {
-  const title = document.querySelector<HTMLElement>('[data-surah-title]');
-  return title ? Math.round(title.getBoundingClientRect().left) : 64;
+/**
+ * Ширина полосы быстрой прокрутки: от края экрана до правой кромки метки
+ * «Сура N» (владелец 2026-10-04: «от края до главной буквы, чтобы большую
+ * площадь занимал»). Номер теперь стоит над именем суры, поэтому меряем
+ * метку, а не начало названия.
+ */
+function scrubWidth(): number {
+  const num = document.querySelector<HTMLElement>('[data-surah-num]');
+  return num ? Math.max(64, Math.round(num.getBoundingClientRect().right)) : 72;
 }
 
 /** Прыжок к строке суры: по центру экрана, без плавности — палец ведёт сам. */
@@ -550,33 +572,75 @@ function кСуре(n: number, scroller?: HTMLElement | null) {
   scroller.scrollTop += r.top - view.top - (scroller.clientHeight - r.height) / 2;
 }
 
-function SurahList({ surahs, onSelect, grouped = true }: {
-  surahs: SurahMeta[];
-  onSelect: (n: number) => void;
-  /** Группировать по джузам. В результатах поиска выключено: заголовки
-   *  джузов над разрозненными находками только мешают. */
-  grouped?: boolean;
-}) {
-  // Группируем по джузу, в котором сура НАЧИНАЕТСЯ. Границы джузов не совпадают
-  // с границами сур, поэтому это приближение — и оно названо честно в
-  // `juzOfSurah`. Для заголовков в списке его достаточно.
-  const секции = useMemo(() => {
-    if (!grouped) return [{ juz: 0, items: surahs }];
-    const out: { juz: number; items: SurahMeta[] }[] = [];
-    for (const m of surahs) {
-      const juz = juzOfSurah(m.number);
-      const последняя = out[out.length - 1];
-      if (последняя && последняя.juz === juz) последняя.items.push(m);
-      else out.push({ juz, items: [m] });
-    }
-    return out;
-  }, [surahs, grouped]);
+/** Как раскладывать полный список сур. */
+type ListLayout = 'list' | 'juz';
 
-  // 🔴 Подписка на звук — ОДНА на весь список, а не в каждой карточке.
+/**
+ * 🧪 Временно (15.11.2026): владелец выбрал вариант B и попросил
+ * «попробовать список сур в два столбца с разделением по джузам». Обе
+ * раскладки живут в коде, пока он не сравнит их; переключатель — ключ
+ * `dev.surahList` в localStorage (`juz` — два столбца). После выбора
+ * лишняя раскладка удаляется вместе с этой функцией.
+ */
+function listLayout(): ListLayout {
+  try {
+    if (localStorage.getItem('dev.surahList') === 'juz') return 'juz';
+  } catch { /* нет хранилища */ }
+  return 'list';
+}
+
+/**
+ * Часть суры внутри джуза: с какого по какой аят.
+ *
+ * Границы джузов не совпадают с границами сур: джуз 2 начинается с аята
+ * 142 «Аль-Бакары», и прежний список с заголовками «Джуз N» над сурами шёл
+ * «1 → 3 → 4 → 6». Здесь деление честное: каждый джуз показывает все суры,
+ * которые в него попадают, а сура, начатая в прошлом джузе, приходит
+ * продолжением «аяты 142–252» и открывается на первом аяте этой части.
+ * Границы — `juzRange` (стандартное деление мусхафа King Fahd Complex).
+ */
+type JuzPart = { meta: SurahMeta; from: number; to: number };
+
+function buildJuzParts(): { juz: number; parts: JuzPart[] }[] {
+  const out: { juz: number; parts: JuzPart[] }[] = [];
+  for (let juz = 1; juz <= 30; juz++) {
+    const [a, b] = juzRange(juz);
+    const parts: JuzPart[] = [];
+    for (const meta of SURAHS) {
+      const first = firstGlobalOfSurah(meta.number);
+      const last = first + meta.ayahs - 1;
+      if (last < a || first > b) continue;
+      parts.push({
+        meta,
+        from: Math.max(a, first) - first + 1,
+        to: Math.min(b, last) - first + 1,
+      });
+    }
+    out.push({ juz, parts });
+  }
+  return out;
+}
+
+function SurahList({ surahs, onSelect, grouped = true, readAyah, layout = 'list' }: {
+  surahs: SurahMeta[];
+  onSelect: (n: number, ayah?: number) => void;
+  /** Группировать по джузам (только раскладка в два столбца). В результатах
+   *  поиска выключено: заголовки джузов над разрозненными находками мешают. */
+  grouped?: boolean;
+  /** Сура → последний прочитанный аят (из «Продолжить чтение»). */
+  readAyah?: ReadonlyMap<number, number>;
+  layout?: ListLayout;
+}) {
+  const juzParts = useMemo(
+    () => (layout === 'juz' && grouped ? buildJuzParts() : null),
+    [layout, grouped],
+  );
+
+  // 🔴 Подписка на звук — ОДНА на весь список, а не в каждой строке.
   //
   // Раньше `useAudioState()` вызывался внутри карточки, и на каждой границе
   // аята перерисовывались все 114 карточек с арабской типографикой. Теперь
-  // список знает, что звучит, и передаёт карточке готовый ответ; React
+  // список знает, что звучит, и передаёт строке готовый ответ; React
   // перерисует только ту, у которой он изменился.
   const { currentSurah, audioState, reciter } = useAudioState();
   const звучит = audioState === 'playing' ? currentSurah : null;
@@ -586,41 +650,59 @@ function SurahList({ surahs, onSelect, grouped = true }: {
   // припаркована, а не размонтирована.
   const selectRef = useRef(onSelect);
   selectRef.current = onSelect;
-  const select = useCallback((n: number) => selectRef.current(n), []);
+  const select = useCallback((n: number, ayah?: number) => selectRef.current(n, ayah), []);
+
+  if (juzParts) {
+    return (
+      <div style={{ display: 'grid', gap: 'var(--space-section)' }}>
+        {juzParts.map(({ juz, parts }) => {
+          const first = parts[0], last = parts[parts.length - 1];
+          return (
+            <section key={juz} style={{ display: 'grid', gap: 'var(--space-snug)' }}>
+              <JuzHeading
+                juz={juz}
+                range={`${first.meta.number}:${first.from} – ${last.meta.number}:${last.to}`}
+              />
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: 'var(--space-snug)',
+              }}>
+                {parts.map(part => {
+                  const read = readAyah?.get(part.meta.number);
+                  return (
+                    <SurahTile
+                      key={part.meta.number}
+                      meta={part.meta}
+                      from={part.from}
+                      to={part.to}
+                      onSelect={select}
+                      sounding={звучит === part.meta.number}
+                      hasRecording={reciterHasSurah(reciter, part.meta.number)}
+                      readAyah={read && read >= part.from && read <= part.to ? read : undefined}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'grid', gap: 'var(--space-section)' }}>
-      {секции.map(({ juz, items }) => (
-        <section key={juz || 'all'} style={{ display: 'grid', gap: 'var(--space-snug)' }}>
-          {juz > 0 && <JuzHeading juz={juz} />}
-          {/* 🔴 Островка с заливкой больше НЕТ.
-              Владелец 10.09.2026: «не нравится, как суры написаны, тёмный фон
-              не нравится». Заливка была `rgb(ink / 0.04)` — на светлой теме
-              это серый прямоугольник на белом листе, и весь экран читался
-              как набор серых плашек, а не как оглавление книги.
-
-              Строки теперь лежат прямо на фоне, разделённые волоском с
-              отступом слева. Это тот же приём, что в списках «Музыки» и
-              «Подкастов»: содержимое несёт себя само, а фон не спорит с
-              текстом. Заодно исчезла рамка — на светлой теме она давала
-              вторую линию рядом с волоском.
-
-              Один столбец сохранён намеренно (владелец 08.09.2026): в 175 px
-              не помещается ни смысл суры, ни длинное название, а у джузов
-              3, 4, 6, 7 подряд идёт по одной суре — вторая колонка пустовала. */}
-          <div>
-            {items.map((m, i) => (
-              <SurahRow
-                key={m.number}
-                meta={m}
-                onSelect={select}
-                last={i === items.length - 1}
-                sounding={звучит === m.number}
-                hasRecording={reciterHasSurah(reciter, m.number)}
-              />
-            ))}
-          </div>
-        </section>
+    <div>
+      {surahs.map((m, i) => (
+        <SurahRow
+          key={m.number}
+          meta={m}
+          onSelect={select}
+          last={i === surahs.length - 1}
+          sounding={звучит === m.number}
+          hasRecording={reciterHasSurah(reciter, m.number)}
+          readAyah={readAyah?.get(m.number)}
+        />
       ))}
     </div>
   );
@@ -645,66 +727,43 @@ function SectionHeading({ text }: { text: string }) {
   );
 }
 
-function JuzHeading({ juz }: { juz: number }) {
+function JuzHeading({ juz, range }: { juz: number; range?: string }) {
   return (
-    <p style={{
+    <div style={{
       // 🔴 Без черты справа. В сгруппированных списках iOS заголовок группы —
-      // это просто подпись капителью над островком; линия во всю ширину
+      // это просто подпись капителью над группой; линия во всю ширину
       // осталась от прежней вёрстки и выдавала «не системный» вид.
       // Владелец 09.09.2026 попросил привести главную к языку iOS 26.
-      margin: 0,
-      padding: '0 var(--space-cozy) var(--space-tight)',
-      fontSize: 'var(--font-caption1)',
-      lineHeight: 'var(--leading-caption1)',
-      letterSpacing: '0.06em',
-      textTransform: 'uppercase',
-      color: 'var(--text-tertiary)',
+      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+      gap: 'var(--space-snug)',
+      padding: '0 var(--space-hair) var(--space-tight)',
     }}>
-      Джуз {juz}
-    </p>
+      <h3 style={{
+        margin: 0,
+        fontSize: 'var(--font-headline)',
+        lineHeight: 'var(--leading-headline)',
+        fontWeight: 'var(--weight-semibold)',
+        letterSpacing: 'var(--tracking-tight)',
+        color: 'var(--text-primary)',
+      }}>
+        Джуз {juz}
+      </h3>
+      {range && (
+        // Диапазон «сура:аят – сура:аят» — где джуз начинается и кончается.
+        <span style={{
+          fontSize: 'var(--font-footnote)',
+          lineHeight: 'var(--leading-footnote)',
+          color: 'var(--text-tertiary)',
+          fontVariantNumeric: 'tabular-nums',
+          whiteSpace: 'nowrap',
+        }}>
+          {range}
+        </span>
+      )}
+    </div>
   );
 }
 
-/**
- * Карточка суры.
- *
- * Пришла на смену строке во всю ширину: в два столбца строка не помещается,
- * и содержимое пересобрано под вертикальный порядок — знак и воспроизведение
- * сверху, арабское название крупно, ниже название и перевод.
- *
- * Оформление — то же «жидкое стекло», что у нижней панели: полупрозрачная
- * поверхность, волосяная рамка и светлая кромка сверху. Цвета взяты токенами,
- * поэтому карточка одинаково работает на всех пяти темах, включая тёмные и
- * фотографическую «бумагу».
- */
-/**
- * SurahRow — строка суры в сгруппированном списке.
- *
- * ── История, чтобы не ходить по кругу ─────────────────────────────────
- *
- * Список сур переделывался трижды за двое суток. Сначала были высокие
- * карточки в две колонки (владелец: «максимально плох»), потом компактные в
- * две колонки (владелец: «также ужасен»), и только потом стало ясно, что
- * дело не в оформлении карточки, а в самой сетке: в колонку 175 px не
- * помещается ни смысл суры, ни длинное название, а у джузов 3, 4, 6, 7 подряд
- * идёт по одной суре и половина ряда пустует.
- *
- * 08.09.2026 владелец попросил вернуть один столбец и заодно довести вид «как
- * в последней iOS». Это одна и та же работа: строка во всю ширину и есть тот
- * самый вид.
- *
- * ── Из чего собрана строка ────────────────────────────────────────────
- *
- * Слева — номер в ромбе: форма из мусхафа, где номер аята стоит в розетке.
- * Дальше имя и под ним смысл с числом аятов — обе строки получают всю ширину
- * и больше не обрываются. Справа арабское название: оно и есть настоящее имя
- * суры, поэтому стоит на своём месте — у правого края, как в книге. Кнопка
- * «слушать» замыкает строку.
- *
- * Волоски между строками отступают от левого края на ширину ромба — так же
- * ведёт себя сгруппированная таблица в iOS: разделитель начинается под
- * текстом, а не под иконкой.
- */
 /**
  * Не больше двух строк — и перенос, а не многоточие.
  *
@@ -727,28 +786,115 @@ const TWO_LINES = {
   textWrap: 'balance',
 } as const;
 
-/** Ширина колонки номеров и высота строки — в одном месте: их использует и волосок. */
-const NUMBER_COLUMN = 26;
-const ROW_HEIGHT = 64;
+/** Три полоски «звучит» у играющей суры. Анимация — только transform
+ *  (компоновщик), при «Уменьшении движения» полоски стоят. */
+function SoundingBars() {
+  return (
+    <span aria-hidden className="sounding-bars" style={{
+      display: 'inline-flex', alignItems: 'flex-end', gap: '2px', height: '10px',
+    }}>
+      {[0, 1, 2].map(i => (
+        <span key={i} style={{
+          width: '2.5px', height: '10px', borderRadius: '1.25px',
+          background: 'currentColor', transformOrigin: 'bottom',
+          animationDelay: `${i * -0.35}s`,
+        }} />
+      ))}
+    </span>
+  );
+}
 
+/** Сколько прочитано, в процентах (не меньше 4 — иначе полосы не видно). */
+function readPercent(readAyah: number, from: number, to: number): number {
+  const span = to - from + 1;
+  return Math.max(4, Math.min(100, Math.round(((readAyah - from + 1) / span) * 100)));
+}
+
+/** Тонкая полоса прочитанного под подписью. */
+function ReadBar({ pct, width }: { pct: number; width: string }) {
+  return (
+    <span aria-hidden style={{
+      display: 'block', marginTop: '6px', width, height: '3px',
+      borderRadius: 'var(--radius-pill)', background: 'rgb(var(--ink-rgb) / 0.08)', overflow: 'hidden',
+    }}>
+      <span style={{
+        display: 'block', height: '100%', width: `${pct}%`,
+        borderRadius: 'inherit', background: 'var(--brand)',
+      }} />
+    </span>
+  );
+}
+
+/** Кнопка «слушать суру целиком» / «пауза» — общая для строки и плитки. */
+function ListenButton({ meta, sounding, hasRecording, size }: {
+  meta: SurahMeta; sounding: boolean; hasRecording: boolean; size: number;
+}) {
+  const audio = useAudioActions();
+  return (
+    <button
+      onClick={() => {
+        if (sounding) audio.pause();
+        else audio.playSurah(meta.number, meta.ayahs);
+      }}
+      aria-label={sounding
+        ? `Пауза: ${meta.transliteration}`
+        : hasRecording
+          ? `Слушать суру ${meta.transliteration} целиком`
+          : `${meta.transliteration}: у выбранного чтеца нет записи`}
+      className="icon-btn"
+      style={{
+        position: 'relative', flexShrink: 0,
+        width: `${size}px`, height: `${size}px`, borderRadius: '50%',
+        background: sounding ? 'rgb(var(--brand-rgb) / 0.16)' : 'rgb(var(--ink-rgb) / 0.06)',
+        color: sounding ? 'var(--brand)' : 'var(--text-secondary)',
+        opacity: hasRecording ? 1 : 0.35,
+      }}
+    >
+      {sounding ? <Pause size={14} /> : <Play size={14} />}
+      <HitArea />
+    </button>
+  );
+}
+
+/**
+ * SurahRow — строка суры, вариант B «Арабское крупно» (выбран владельцем
+ * 15.11.2026 из трёх: A «Оглавление», B, C «Островки»).
+ *
+ * ── История, чтобы не ходить по кругу ─────────────────────────────────
+ *
+ * 08.09.2026: высокие карточки в две колонки («максимально плох»), потом
+ * компактные в две колонки («также ужасен») → строка во всю ширину.
+ * 10.09.2026: снята серая заливка островков («тёмный фон не нравится») —
+ * строки лежат прямо на фоне, между ними волосок.
+ * 15.11.2026: вариант B — главное в строке арабское название суры, над
+ * русским именем акцентом «Сура N», в подписи смысл, место ниспослания и
+ * число аятов; у начатых сур полоса прочитанного, у звучащей — полоски.
+ *
+ * ── Быстрая прокрутка ─────────────────────────────────────────────────
+ *
+ * Метка «Сура N» несёт `data-surah-num`: её правая кромка — граница
+ * полосы удержания у левого края (`scrubWidth`). Номер теперь стоит над
+ * именем, и полоса по-прежнему «от края до номера».
+ */
 const SurahRow = memo(function SurahRow({
-  meta, onSelect, last = false, sounding = false, hasRecording = true,
+  meta, onSelect, last = false, sounding = false, hasRecording = true, readAyah,
 }: {
   meta: SurahMeta;
-  onSelect: (n: number) => void;
-  /** Последняя в разделе — под ней волоска нет. */
+  onSelect: (n: number, ayah?: number) => void;
+  /** Последняя в списке — под ней волоска нет. */
   last?: boolean;
   /** Звучит ли именно эта сура. Приходит сверху: подписка на звук одна на
    *  весь список, иначе перерисовывались бы все 114 строк. */
   sounding?: boolean;
   /** Есть ли у выбранного чтеца запись этой суры. Нет — кнопка «слушать»
-   *  приглушена; нажатие объяснит это плашкой, а не попыткой загрузки. */
+   *  приглушена. */
   hasRecording?: boolean;
+  /** Докуда дочитана сура — полоса прогресса. */
+  readAyah?: number;
 }) {
   const [pressed, setPressed] = useState(false);
-  const audio = useAudioActions();
   const prefetch = usePressPrefetch(meta.number);
-  const onClick = () => onSelect(meta.number);
+  const pct = readAyah ? readPercent(readAyah, 1, meta.ayahs) : 0;
 
   return (
     <div
@@ -756,145 +902,192 @@ const SurahRow = memo(function SurahRow({
       // палец начал, и чтобы к ней прыгнуть.
       data-surah={meta.number}
       style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        // Подсветка нажатия скруглена и не доходит до краёв: без островка
-        // прямоугольник во всю ширину выглядел бы как вернувшаяся плашка.
+        position: 'relative', display: 'flex', alignItems: 'center',
+        // Подсветка нажатия скруглена: прямоугольник во всю ширину выглядел
+        // бы как вернувшаяся плашка.
         borderRadius: 'var(--radius-control)',
-        background: pressed
-          ? 'rgb(var(--ink-rgb) / 0.05)'
-          : sounding
-            ? 'rgb(var(--ink-rgb) / 0.03)'
-            : 'transparent',
+        background: pressed ? 'rgb(var(--ink-rgb) / 0.05)' : 'transparent',
         transition: 'background var(--dur-fast) var(--ease-standard)',
       }}
     >
       <button
-        onClick={onClick}
+        onClick={() => onSelect(meta.number)}
         // Касание — сигнал, что суру сейчас откроют: страницы начинают
         // качаться до клика (usePressPrefetch).
         onPointerDown={() => { setPressed(true); prefetch.start(); }}
         onPointerUp={() => { setPressed(false); prefetch.commit(); }}
         onPointerLeave={() => { setPressed(false); prefetch.cancel(); }}
         onPointerCancel={() => { setPressed(false); prefetch.cancel(); }}
+        aria-label={`${meta.number}. ${meta.transliteration}, ${meta.russian}, ${meta.ayahs} ${ayahWord(meta.ayahs)}${readAyah ? `, прочитано до аята ${readAyah}` : ''}`}
         style={{
           flex: 1, minWidth: 0,
           display: 'flex', alignItems: 'center', gap: 'var(--space-cozy)',
-          padding: 'var(--space-cozy) 0',
-          minHeight: `${ROW_HEIGHT}px`,
-          border: 'none', background: 'transparent',
-          cursor: 'pointer', textAlign: 'left',
-          fontFamily: 'inherit', color: 'inherit',
-          WebkitTapHighlightColor: 'transparent',
+          padding: '14px 0', minHeight: '76px',
+          border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
+          fontFamily: 'inherit', color: 'inherit', WebkitTapHighlightColor: 'transparent',
         }}
       >
-        {/* 🔴 Номер — просто цифра, без ромба.
-            Ромб-розетка был декорацией: на 28 px он читался как значок, а не
-            как номер, и вместе с заливкой островка добавлял экрану третий
-            графический слой. В колонке одинаковой ширины с табличными
-            цифрами номера выстраиваются по правому краю сами, и глаз идёт
-            по списку без зацепок. */}
-        <span aria-hidden style={{
-          flexShrink: 0,
-          width: `${NUMBER_COLUMN}px`,
-          textAlign: 'right',
-          fontSize: 'var(--font-footnote)',
-          lineHeight: 'var(--leading-footnote)',
-          fontWeight: 'var(--weight-semibold)',
-          color: sounding ? 'var(--text-primary)' : 'var(--text-tertiary)',
-          fontVariantNumeric: 'tabular-nums',
-        }}>
-          {meta.number}
-        </span>
-
-        <span style={{ flex: 1, minWidth: 0, display: 'grid', gap: '2px' }}>
-          {/* Имя суры выросло с 15 px до 17 — это базовый кегль системы, и
-              именно по нему человек ищет суру. Прежние 15 полужирных рядом
-              с 11-пиксельной подписью читались как заголовок карточки, а не
-              как строка оглавления. */}
+        <span style={{ flex: 1, minWidth: 0, display: 'grid', gap: '1px' }}>
+          <span aria-hidden data-surah-num="" style={{
+            justifySelf: 'start',
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            fontSize: 'var(--font-caption1)', lineHeight: 'var(--leading-caption1)',
+            fontWeight: 'var(--weight-semibold)', color: 'var(--brand)',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {sounding && <SoundingBars />}
+            Сура {meta.number}
+          </span>
           <span data-surah-title="" style={{
-            fontSize: 'var(--font-body)',
-            lineHeight: 'var(--leading-body)',
-            fontWeight: 'var(--weight-semibold)',
+            fontSize: 'var(--font-body)', lineHeight: 'var(--leading-body)',
+            fontWeight: 'var(--weight-semibold)', letterSpacing: 'var(--tracking-tight)',
             color: 'var(--text-primary)',
-            letterSpacing: 'var(--tracking-tight)',
             ...TWO_LINES,
           }}>
             {meta.transliteration}
           </span>
-          {/* Подпись — 13 px вместо 11: 11 это нижняя граница шкалы, она для
-              счётчиков и меток, а не для строки, которую читают. */}
           <span style={{
-            fontSize: 'var(--font-footnote)',
-            lineHeight: 'var(--leading-footnote)',
+            fontSize: 'var(--font-footnote)', lineHeight: 'var(--leading-footnote)',
             color: 'var(--text-tertiary)',
             ...TWO_LINES,
           }}>
-            {/* Два неразрывных пробела, и оба по делу. Число склеено с
-                «аятов»: при переносе «200» оставалось на первой строке, а
-                «аятов» уезжало на вторую. Точка-разделитель склеена с
-                предыдущим словом: иначе вторая строка начиналась с «· 7
-                аятов», а разделитель по правилам набора остаётся в конце
-                строки. */}
-            {`${meta.russian}\u00A0· ${meta.ayahs}\u00A0${ayahWord(meta.ayahs)}`}
+            {/* Неразрывные пробелы: число склеено с «аятов», точка —
+                с предыдущим словом (разделитель остаётся в конце строки). */}
+            {`${meta.russian} · ${meta.type === 'meccan' ? 'Мекка' : 'Медина'} · ${meta.ayahs} ${ayahWord(meta.ayahs)}`}
           </span>
+          {pct > 0 && <ReadBar pct={pct} width="96px" />}
         </span>
-
-        {/* Арабское название — единственное украшение строки, и теперь оно
-            им и работает: крупнее прежнего и заметнее по тону. */}
-        <span
-          dir="rtl"
-          lang="ar"
-          style={{
-            flexShrink: 0,
-            maxWidth: '34%',
-            paddingInlineStart: 'var(--space-snug)',
-            fontFamily: "'KFGQPC Uthmanic Hafs v22', serif",
-            // От ширины экрана: на 320 px полные 22 px отъедали у имени
-            // столько места, что обрезались 7 названий и 41 подпись из 114.
-            fontSize: 'clamp(17px, 5.4vw, 22px)',
-            lineHeight: 1.3,
-            color: 'var(--text-secondary)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}
-        >
+        <span dir="rtl" lang="ar" style={{
+          flexShrink: 0, maxWidth: '42%',
+          paddingInlineStart: 'var(--space-snug)',
+          fontFamily: "'KFGQPC Uthmanic Hafs v22', serif",
+          // От ширины экрана: на 320 px полный кегль отъедал бы у имени место.
+          fontSize: 'clamp(22px, 7.4vw, 30px)',
+          lineHeight: 1.35,
+          color: 'var(--text-primary)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
           {meta.arabic}
         </span>
       </button>
 
-      <button
-        onClick={() => {
-          if (sounding) audio.pause();
-          else audio.playSurah(meta.number, meta.ayahs);
-        }}
-        aria-label={sounding
-          ? `Пауза: ${meta.transliteration}`
-          : hasRecording
-            ? `Слушать суру ${meta.transliteration} целиком`
-            : `${meta.transliteration}: у выбранного чтеца нет записи`}
-        className="icon-btn"
-        style={{
-          flexShrink: 0,
-          width: '40px', height: '40px',
-          marginInlineStart: 'var(--space-tight)',
-          color: sounding ? 'var(--text-primary)' : 'var(--text-tertiary)',
-          opacity: hasRecording ? 1 : 0.35,
-        }}
-      >
-        {sounding ? <Pause size={ICON_SIZE.sm} /> : <Play size={ICON_SIZE.sm} />}
-      </button>
+      <span style={{ marginInlineStart: 'var(--space-snug)', display: 'inline-flex' }}>
+        <ListenButton meta={meta} sounding={sounding} hasRecording={hasRecording} size={32} />
+      </span>
 
-      {/* Волосок начинается там же, где имя суры: колонка номеров остаётся
-          свободной, и список читается как один столбец, а не как таблица. */}
       {!last && (
         <span aria-hidden style={{
-          position: 'absolute',
-          left: `calc(${NUMBER_COLUMN}px + var(--space-cozy))`,
-          right: 0, bottom: 0, height: '1px',
+          position: 'absolute', left: 0, right: 0, bottom: 0, height: '1px',
           background: 'var(--hairline)',
         }} />
       )}
+    </div>
+  );
+});
+
+/**
+ * SurahTile — плитка суры в раскладке «два столбца по джузам» (пробная,
+ * 15.11.2026, см. `listLayout`).
+ *
+ * Тот же язык, что у строки B: «Сура N» акцентом, крупное арабское
+ * название, русское имя. Если в джуз попала только часть суры, вместо
+ * числа аятов подпись «аяты 142–252», и тап открывает суру на первом аяте
+ * этой части.
+ *
+ * Плитка лежит на лёгкой подложке: без неё в два столбца имена висели бы
+ * в воздухе, и глаз не понимал бы, где кончается одна сура и начинается
+ * другая. Подложка та же, что у поля поиска, — новый слой не появляется.
+ */
+const SurahTile = memo(function SurahTile({
+  meta, from, to, onSelect, sounding = false, hasRecording = true, readAyah,
+}: {
+  meta: SurahMeta;
+  /** Первый и последний аят суры внутри этого джуза. */
+  from: number;
+  to: number;
+  onSelect: (n: number, ayah?: number) => void;
+  sounding?: boolean;
+  hasRecording?: boolean;
+  /** Прочитанный аят, если он внутри этой части. */
+  readAyah?: number;
+}) {
+  const [pressed, setPressed] = useState(false);
+  const prefetch = usePressPrefetch(meta.number);
+  const whole = from === 1 && to === meta.ayahs;
+  const pct = readAyah ? readPercent(readAyah, from, to) : 0;
+  const span = whole
+    ? `${meta.ayahs} ${ayahWord(meta.ayahs)}`
+    : from === to ? `аят ${from}` : `аяты ${from}–${to}`;
+
+  return (
+    <div
+      data-surah={meta.number}
+      style={{
+        position: 'relative',
+        borderRadius: 'var(--radius-card)',
+        background: pressed ? 'rgb(var(--ink-rgb) / 0.09)' : 'rgb(var(--ink-rgb) / 0.045)',
+        transition: 'background var(--dur-fast) var(--ease-standard)',
+      }}
+    >
+      <button
+        onClick={() => onSelect(meta.number, from > 1 ? from : undefined)}
+        onPointerDown={() => { setPressed(true); prefetch.start(); }}
+        onPointerUp={() => { setPressed(false); prefetch.commit(); }}
+        onPointerLeave={() => { setPressed(false); prefetch.cancel(); }}
+        onPointerCancel={() => { setPressed(false); prefetch.cancel(); }}
+        aria-label={`${meta.number}. ${meta.transliteration}, ${meta.russian}, ${whole ? `${meta.ayahs} ${ayahWord(meta.ayahs)}` : `аяты с ${from} по ${to}`}${readAyah ? `, прочитано до аята ${readAyah}` : ''}`}
+        style={{
+          display: 'grid', gap: '2px', width: '100%', height: '100%',
+          alignContent: 'start',
+          padding: 'var(--space-cozy)',
+          border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
+          fontFamily: 'inherit', color: 'inherit', WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        <span aria-hidden data-surah-num="" style={{
+          justifySelf: 'start',
+          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          // Справа место под кнопку «слушать».
+          minHeight: '32px', paddingInlineEnd: '36px',
+          fontSize: 'var(--font-caption1)', lineHeight: 'var(--leading-caption1)',
+          fontWeight: 'var(--weight-semibold)', color: 'var(--brand)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {sounding && <SoundingBars />}
+          Сура {meta.number}
+        </span>
+        <span dir="rtl" lang="ar" style={{
+          justifySelf: 'stretch', textAlign: 'right',
+          fontFamily: "'KFGQPC Uthmanic Hafs v22', serif",
+          fontSize: 'clamp(22px, 6.6vw, 28px)',
+          lineHeight: 1.45,
+          color: 'var(--text-primary)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {meta.arabic}
+        </span>
+        <span data-surah-title="" style={{
+          fontSize: 'var(--font-subhead)', lineHeight: 'var(--leading-subhead)',
+          fontWeight: 'var(--weight-semibold)', letterSpacing: 'var(--tracking-tight)',
+          color: 'var(--text-primary)',
+          ...TWO_LINES,
+        }}>
+          {meta.transliteration}
+        </span>
+        <span style={{
+          fontSize: 'var(--font-footnote)', lineHeight: 'var(--leading-footnote)',
+          color: 'var(--text-tertiary)',
+          fontVariantNumeric: 'tabular-nums',
+          ...TWO_LINES,
+        }}>
+          {`${meta.russian} · ${span}`}
+        </span>
+        {pct > 0 && <ReadBar pct={pct} width="100%" />}
+      </button>
+
+      <span style={{ position: 'absolute', top: 'var(--space-cozy)', right: 'var(--space-cozy)', display: 'inline-flex' }}>
+        <ListenButton meta={meta} sounding={sounding} hasRecording={hasRecording} size={32} />
+      </span>
     </div>
   );
 });
