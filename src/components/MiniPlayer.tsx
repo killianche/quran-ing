@@ -59,7 +59,7 @@ export function MiniPlayer({ onOpen, placement = 'tabs', hidden = false }: {
    *  невидимая кнопка «Открыть плеер» ловила бы фокус (ревью 2026-10-05). */
   hidden?: boolean;
 }) {
-  const { currentSurah, currentAyah, audioState, reciter } = useAudioState();
+  const { currentSurah, currentAyah, audioState, ayahRepeat, reciter } = useAudioState();
   const audio = useAudioActions();
 
   // Капсула перекрывает низ экрана, а её высота известна только ей. Чтобы
@@ -190,7 +190,12 @@ export function MiniPlayer({ onOpen, placement = 'tabs', hidden = false }: {
           }}>
             {loading
               ? 'Загрузка…'
-              : `${currentAyah && !timeline ? `Аят ${currentAyah} · ` : ''}${reciterById(reciter).label}`}
+              // Повтор аята — сразу после номера: в капсуле нет его кнопки,
+              // а без пометки «аят не сменяется» выглядело бы зависанием.
+              : `${currentAyah && !timeline ? `Аят ${currentAyah} · ` : ''}${
+                !timeline && ayahRepeat === 'three' ? '×3 · '
+                : !timeline && ayahRepeat === 'loop' ? 'по кругу · ' : ''
+              }${reciterById(reciter).label}`}
           </span>
         </span>
       </button>

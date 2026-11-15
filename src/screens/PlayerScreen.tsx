@@ -61,8 +61,10 @@ import { PullDownMenu } from '../components/PullDownMenu';
 import { SurahPickerSheet } from '../components/SurahPickerSheet';
 import {
   Play, Pause, SkipBack, SkipForward, SeekBack10, SeekForward10,
-  ChevronDown, ListBullet, Appearance, ICON_SIZE,
+  ChevronDown, ListBullet, Appearance, Repeat, ICON_SIZE,
 } from '../components/icons';
+import { ayahRepeatLabel } from '../lib/ayahRepeat';
+import { useTightRow } from '../hooks/useTightRow';
 import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
 import {
   RECITERS, TIMELINE_SEEK_STEP_SECONDS, availableSurahCount, reciterById,
@@ -96,9 +98,12 @@ type Props =
 export function PlayerScreen(props: Props) {
   const isTab = props.placement === 'tab';
   const active = props.placement === 'tab' ? props.active : true;
-  const { currentSurah, currentAyah, audioState, playbackRate, reciter } = useAudioState();
+  const { currentSurah, currentAyah, audioState, playbackRate, ayahRepeat, reciter } = useAudioState();
   const audio = useAudioActions();
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Нижний ряд плеера: не влезает — у «Суры» остаётся только значок.
+  const [bottomRow, setBottomRow] = useState<HTMLElement | null>(null);
+  const bottomRowTight = useTightRow(bottomRow);
   const [reciterAnchor, setReciterAnchor] = useState<HTMLElement | null>(null);
   const [themeOpen, setThemeOpen] = useState(false);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
@@ -158,6 +163,10 @@ export function PlayerScreen(props: Props) {
     : paused && timeline && restored?.seconds != null && restored.reciter === reciter && !restored.duration
       ? `Остановлено на ${formatPlaybackTime(restored.seconds)}`
     : paused ? 'На паузе'
+    // Включённый повтор аята виден словами, пока идёт чтение: значок на
+    // кнопке внизу легко не заметить, а «почему не идёт дальше» — вопрос.
+    : !timeline && ayahRepeat === 'three' ? 'Каждый аят 3 раза'
+    : !timeline && ayahRepeat === 'loop' ? 'Аят по кругу'
     : null;
 
   const playSurah = (n: number) => {
@@ -425,10 +434,12 @@ export function PlayerScreen(props: Props) {
             мелко, но с полной зоной нажатия. Посередине — состояние
             загрузки этой суры у этого чтеца (владелец 2026-10-06: «видеть,
             какая сура скачана, какая докачивается»). */}
-        <section style={{
+        <section ref={setBottomRow} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: '8px',
           marginTop: 'var(--space-section)',
         }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <button
             onClick={() => audio.cyclePlaybackRate()}
             aria-label={`Скорость ${playbackRate}×. Изменить`}
@@ -450,6 +461,39 @@ export function PlayerScreen(props: Props) {
             {playbackRate}×
           </button>
 
+          {/* Повтор аята (владелец 2026-11-15): выкл → каждый аят 3 раза →
+              один аят по кругу. Рядом со скоростью — это тоже «как
+              читать», а не «что читать». У чтеца без границ аятов аят из
+              записи не выделить — кнопки нет. */}
+          {!timeline && (
+            <button
+              onClick={() => audio.cycleAyahRepeat()}
+              aria-label={`${ayahRepeatLabel(ayahRepeat)}. Изменить`}
+              title={ayahRepeatLabel(ayahRepeat)}
+              className="player-press"
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                minWidth: '52px', minHeight: '44px', padding: '0 12px',
+                borderRadius: 'var(--radius-pill)',
+                border: 'none',
+                background: ayahRepeat === 'off' ? 'rgb(var(--ink-rgb) / 0.07)' : 'rgb(var(--brand-rgb) / 0.16)',
+                color: ayahRepeat === 'off' ? 'var(--text-secondary)' : 'var(--brand)',
+                fontFamily: 'inherit',
+                fontSize: 'var(--font-subhead)',
+                fontWeight: 'var(--weight-semibold)',
+                fontVariantNumeric: 'tabular-nums',
+                cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+                transition: 'background-color 200ms var(--ease-standard), color 200ms var(--ease-standard)',
+              }}
+            >
+              <Repeat size={ICON_SIZE.md} />
+              {ayahRepeat === 'three' && <span aria-hidden>3</span>}
+              {ayahRepeat === 'loop' && <span aria-hidden style={{ fontSize: '1.15em', lineHeight: 1 }}>∞</span>}
+            </button>
+          )}
+          </div>
+
           <OfflinePill key={`${reciter}:${surah}`} reciter={reciter} surah={surah} />
 
           <button
@@ -458,8 +502,9 @@ export function PlayerScreen(props: Props) {
             aria-haspopup="dialog"
             className="player-press"
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: '8px',
-              minHeight: '44px', padding: '0 16px',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              flexShrink: 0,
+              minWidth: '44px', minHeight: '44px', padding: bottomRowTight ? '0 12px' : '0 16px',
               borderRadius: 'var(--radius-pill)',
               border: 'none',
               background: 'rgb(var(--ink-rgb) / 0.07)',
@@ -472,7 +517,7 @@ export function PlayerScreen(props: Props) {
             }}
           >
             <ListBullet size={ICON_SIZE.md} />
-            Суры
+            {!bottomRowTight && <span data-collapsible-label>Суры</span>}
           </button>
         </section>
         </>)}

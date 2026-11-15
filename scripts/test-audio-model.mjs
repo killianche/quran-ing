@@ -1916,6 +1916,52 @@ await groupAsync('Возврат из поаятного режима на сп�
   check('пауза не убывает с числом неудач', убывает, 0);
 });
 
+// ─── Повтор аята (src/lib/ayahRepeat.ts) ──────────────────────────────
+// Владелец 2026-11-15: кнопка с тремя режимами — выключено (как раньше,
+// каждый аят один раз), каждый аят три раза и дальше, один аят по кругу.
+const repeatMod = await import(pathToFileURL(resolve(ROOT, 'src/lib/ayahRepeat.ts')).href);
+group('Повтор аята: режимы и решение «ещё раз или дальше»', () => {
+  const {
+    AYAH_REPEAT_MODES, AYAH_REPEAT_TIMES, nextAyahRepeatMode, shouldRepeatAyah,
+    countFinishedPlay, parseStoredAyahRepeat, ayahRepeatLabel,
+  } = repeatMod;
+
+  check('три режима в порядке кнопки', AYAH_REPEAT_MODES, ['off', 'three', 'loop']);
+  check('повторов — три', AYAH_REPEAT_TIMES, 3);
+  check('выкл → три раза', nextAyahRepeatMode('off'), 'three');
+  check('три раза → по кругу', nextAyahRepeatMode('three'), 'loop');
+  check('по кругу → выкл', nextAyahRepeatMode('loop'), 'off');
+
+  check('выкл: после первого прочтения — дальше', shouldRepeatAyah('off', 1), false);
+  check('три раза: после 1-го — ещё раз', shouldRepeatAyah('three', 1), true);
+  check('три раза: после 2-го — ещё раз', shouldRepeatAyah('three', 2), true);
+  check('три раза: после 3-го — дальше', shouldRepeatAyah('three', 3), false);
+  check('три раза: счёт сверх трёх (сменили режим посреди) — дальше', shouldRepeatAyah('three', 7), false);
+  check('по кругу: после 1-го — ещё раз', shouldRepeatAyah('loop', 1), true);
+  check('по кругу: и после сотого — ещё раз', shouldRepeatAyah('loop', 100), true);
+
+  // Счёт прочтений привязан к аяту: на другом аяте начинается заново.
+  let t = countFinishedPlay(null, 'a:2:5');
+  check('первое прочтение аята', t, { key: 'a:2:5', done: 1 });
+  t = countFinishedPlay(t, 'a:2:5');
+  check('второе прочтение того же аята', t.done, 2);
+  t = countFinishedPlay(t, 'a:2:6');
+  check('другой аят — счёт с единицы', t, { key: 'a:2:6', done: 1 });
+  t = countFinishedPlay(t, 'b:2:6');
+  check('другой чтец — тоже заново', t.done, 1);
+
+  // Сохраняется только «три раза». «По кругу» — на один сеанс: иначе после
+  // перезапуска «слушать суру» навсегда застревало бы на первом аяте.
+  check('сохранённое «три раза» читается', parseStoredAyahRepeat('three'), 'three');
+  check('сохранённое «по кругу» не переживает перезапуск', parseStoredAyahRepeat('loop'), 'off');
+  check('пусто — выкл', parseStoredAyahRepeat(null), 'off');
+  check('мусор — выкл', parseStoredAyahRepeat('x3'), 'off');
+
+  check('подпись: выкл', ayahRepeatLabel('off'), 'Повтор аята выключен');
+  check('подпись: три раза', ayahRepeatLabel('three'), 'Каждый аят 3 раза');
+  check('подпись: по кругу', ayahRepeatLabel('loop'), 'Один аят по кругу');
+});
+
 // ─── Итог ─────────────────────────────────────────────────────────────
 console.log('');
 if (failures.length === 0) {

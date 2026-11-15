@@ -195,6 +195,17 @@ export const SkipBack = ({ size = ICON_SIZE.md, className, style }: Props) => (
   </svg>
 );
 
+/** Повтор (как SF Symbol `repeat`): две стрелки по кругу. Кнопка повтора
+ *  аята в полном плеере; число повторов пишется рядом текстом. */
+export const Repeat = ({ size = ICON_SIZE.md, className, style }: Props) => (
+  <svg {...stroke(size, className, style)}>
+    <path d="M4 11.5V10a3.5 3.5 0 0 1 3.5-3.5H19" />
+    <path d="m16 3.5 3 3-3 3" />
+    <path d="M20 12.5V14a3.5 3.5 0 0 1-3.5 3.5H5" />
+    <path d="m8 20.5-3-3 3-3" />
+  </svg>
+);
+
 /**
  * Перемотка на 10 секунд — круговая стрелка с числом внутри, как у
  * системных плееров. Нужна чтецу без границ аятов: у него «соседний аят»
