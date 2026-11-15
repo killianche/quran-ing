@@ -33,13 +33,13 @@ const config: CapacitorConfig = {
     // ~60 pt пустоты над заголовком.  Один источник истины надёжнее:
     // теперь safe-area знает только CSS.
     contentInset: 'never',
-    // Поле ковра вокруг медальона (scripts/brand/design-logo.py): совпадает
+    // Поле заставки (тёмный край фото и плитки QALB, brand.json): совпадает
     // с LaunchScreen и с копией заставки #launch — без вспышки на старте.
-    backgroundColor: '#786747',
+    backgroundColor: '#221a11',
   },
   android: {
-    // Как на iOS: поле ковра — цвет под заставкой и её копией #launch.
-    backgroundColor: '#786747',
+    // Как на iOS: поле заставки — цвет под ней и под её копией #launch.
+    backgroundColor: '#221a11',
   },
   plugins: {
     LocalNotifications: {
@@ -62,7 +62,7 @@ const config: CapacitorConfig = {
       // на неё не действует — только эта настройка. 0: под заставкой уже её
       // копия #launch, плавность даёт анимация копии (lib/launchReveal.ts).
       launchFadeOutDuration: 0,
-      backgroundColor: '#786747',
+      backgroundColor: '#221a11',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,

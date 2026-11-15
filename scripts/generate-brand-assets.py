@@ -13,7 +13,7 @@ import json
 import re
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,6 +69,55 @@ def load_wordmark() -> Image.Image:
 def splash_background(size: tuple[int, int]) -> Image.Image:
     """Фон заставки — цвет плитки логотипа (brand.json)."""
     return Image.new("RGB", size, brand_background())
+
+
+LAUNCH_ASPECT = 9 / 16  # фото заставки, ширина / высота
+
+
+def launch_photo() -> Image.Image:
+    """Фото заставки в тонировке (scripts/brand/qalb-recolor.py)."""
+    name = brand().get("launchPhoto")
+    if not name or not (ROOT / name).is_file():
+        raise SystemExit("Missing launch photo: run scripts/brand/qalb-recolor.py")
+    return Image.open(ROOT / name).convert("RGB")
+
+
+def launch_mark(wordmark: Image.Image) -> Image.Image:
+    """Знак заставки: wordmark с мягкой тенью и прозрачными полями.
+
+    Поля — 8 % ширины знака с каждой стороны, под тень. Один и тот же файл
+    кладётся в нативную заставку iOS и в её веб-копию #launch
+    (public/brand/launch-mark.webp), поэтому размеры совпадают пиксель в
+    пиксель: ширина картинки = launchMarkScale × ширина фото после cover.
+    """
+    pad = round(wordmark.width * 0.08)
+    width, height = wordmark.width + 2 * pad, wordmark.height + 2 * pad
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    shadow_alpha = wordmark.getchannel("A").point(lambda v: int(v * 0.6))
+    shadow.paste((12, 8, 4, 255), (pad, pad + round(wordmark.height * 0.012)), shadow_alpha)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(wordmark.width * 0.018))
+    canvas.alpha_composite(shadow)
+    canvas.alpha_composite(wordmark, (pad, pad))
+    return canvas
+
+
+def compose_launch(photo: Image.Image, mark: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """Заставка size: фото по правилу aspectFill/cover + знак по центру.
+
+    Ровно та же геометрия, что у storyboard (scaleAspectFill) и у #launch
+    (object-fit: cover; ширина знака считается в index.html).
+    """
+    width, height = size
+    scale = max(width / photo.width, height / photo.height)
+    cover = photo.resize((round(photo.width * scale), round(photo.height * scale)), RESAMPLE)
+    left, top = (cover.width - width) // 2, (cover.height - height) // 2
+    canvas = cover.crop((left, top, left + width, top + height)).convert("RGBA")
+    mark_width = round(float(brand()["launchMarkScale"]) * cover.width)
+    mark_height = round(mark.height * mark_width / mark.width)
+    sized = mark.resize((mark_width, mark_height), RESAMPLE)
+    canvas.alpha_composite(sized, ((width - mark_width) // 2, (height - mark_height) // 2))
+    return canvas.convert("RGB")
 
 
 def save_adaptive_foreground(wordmark: Image.Image, target: Path, size: int) -> None:
@@ -133,23 +182,38 @@ def main() -> None:
 
     wordmark = load_wordmark()
 
-    splash = ROOT / "assets/splash.png"
-    splash_dark = ROOT / "assets/splash-dark.png"
-    save_splash(wordmark, splash, (2732, 2732))
-    save_splash(wordmark, splash_dark, (2732, 2732))
+    photo = launch_photo()
+    mark = launch_mark(wordmark)
 
+    # Предпросмотр заставки (ничем не читается, только для глаз).
+    for stale in ("assets/splash.png", "assets/splash-dark.png"):
+        (ROOT / stale).unlink(missing_ok=True)
+    compose_launch(photo, mark, (1440, 2560)).save(ROOT / "assets/splash.jpg", "JPEG", quality=90, optimize=True)
+
+    # iOS: LaunchScreen.storyboard показывает картинку "Splash" через
+    # scaleAspectFill. Портретная 9:16 в трёх масштабах, JPEG: фото в PNG
+    # весило бы ~5 МБ на файл. Тёмного варианта нет — заставка одна.
     ios_splash = ROOT / "ios/App/App/Assets.xcassets/Splash.imageset"
+    for old_file in ios_splash.glob("Default@*"):
+        old_file.unlink()
+    images = []
     for scale in (1, 2, 3):
-        save_splash(
-            wordmark,
-            ios_splash / f"Default@{scale}x~universal~anyany.png",
-            (2732, 2732),
+        name = f"Default@{scale}x~universal~anyany.jpg"
+        compose_launch(photo, mark, (480 * scale, round(480 * scale / LAUNCH_ASPECT))).save(
+            ios_splash / name, "JPEG", quality=88, optimize=True, progressive=False,
         )
-        save_splash(
-            wordmark,
-            ios_splash / f"Default@{scale}x~universal~anyany-dark.png",
-            (2732, 2732),
-        )
+        images.append({"idiom": "universal", "filename": name, "scale": f"{scale}x"})
+    (ios_splash / "Contents.json").write_text(
+        json.dumps({"images": images, "info": {"author": "xcode", "version": 1}}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    # Веб-копия заставки #launch (index.html): то же фото и тот же знак.
+    brand_dir = ROOT / "public/brand"
+    brand_dir.mkdir(parents=True, exist_ok=True)
+    photo.resize((1080, 1920), RESAMPLE).save(brand_dir / "launch-photo.webp", "WEBP", quality=80, method=6)
+    web_mark = mark.resize((900, round(mark.height * 900 / mark.width)), RESAMPLE)
+    web_mark.save(brand_dir / "launch-mark.webp", "WEBP", quality=90, method=6)
 
     if args.ios_splash_only:
         print("Generated iOS splash from logo-wordmark.png")
@@ -198,15 +262,18 @@ def main() -> None:
     # системный SplashScreen API (Android 12+, на старых — библиотека
     # совместимости): фон + иконка по центру, а не картинка drawable/splash
     # на весь экран. Иконка без подложки — холст 288 dp, содержимое обязано
-    # вписаться в круг 192 dp; медальон кладём ровно в 192 dp. Тот же размер
-    # (192 CSS px = 192 dp) у копии заставки #launch в index.html.
+    # вписаться в круг 192 dp; знак вписан в него по диагонали. Фото
+    # системная заставка Android показать не умеет — фото появляется в копии
+    # #launch (index.html), где знак сначала того же размера, что здесь.
     for density, scale in {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}.items():
         canvas_px = round(288 * scale)
         mark_px = round(192 * scale)
         canvas = Image.new("RGBA", (canvas_px, canvas_px), (0, 0, 0, 0))
-        mark = wordmark.resize((mark_px, mark_px), RESAMPLE)
-        offset = (canvas_px - mark_px) // 2
-        canvas.paste(mark, (offset, offset), mark)
+        # Знак QALB широкий: вписываем по диагонали в круг 192 dp — так
+        # маска системной заставки не срежет углы букв.
+        fit = mark_px / (wordmark.width ** 2 + wordmark.height ** 2) ** 0.5
+        icon = wordmark.resize((round(wordmark.width * fit), round(wordmark.height * fit)), RESAMPLE)
+        canvas.paste(icon, ((canvas_px - icon.width) // 2, (canvas_px - icon.height) // 2), icon)
         target = ROOT / f"android/app/src/main/res/drawable-{density}/splash_icon.png"
         target.parent.mkdir(parents=True, exist_ok=True)
         canvas.save(target, "PNG", optimize=True)

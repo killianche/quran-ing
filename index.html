@@ -15,8 +15,9 @@
 
     <title>Quran Ing</title>
 
-    <!-- Медальон заставки — нужен с первого кадра (#launch ниже). -->
-    <link rel="preload" as="image" href="/brand/medallion.webp" type="image/webp" />
+    <!-- Фото и знак заставки — нужны с первого кадра (#launch ниже). -->
+    <link rel="preload" as="image" href="/brand/launch-photo.webp" type="image/webp" />
+    <link rel="preload" as="image" href="/brand/launch-mark.webp" type="image/webp" />
     <!-- Шрифт подписи «Quran Ing» на заставке — без него первый кадр подписи
          рисуется запасным Georgia и затем перескакивает. -->
     <link rel="preload" as="font" href="/latin-fonts/EBGaramond-VariableFont_wght.woff2" type="font/woff2" crossorigin />
@@ -24,20 +25,32 @@
     <!-- #launch — копия системной заставки и сцена анимации появления
          (src/lib/launchReveal.ts). Стили инлайном: они нужны раньше, чем
          загрузится CSS приложения. Только transform/opacity — композитор,
-         без перерисовки. Цвет поля #786747 — scripts/brand/design-logo.py. -->
+         без перерисовки. Фото, знак QALB/قلب и цвет поля #221a11 —
+         scripts/brand/qalb-recolor.py + scripts/generate-brand-assets.py. -->
     <style>
       /* Касания перехватываются, пока заставка видна: под ней уже живой
          главный экран, и случайный тап открыл бы суру вслепую. */
-      #launch { position: fixed; inset: 0; z-index: 2147483000; background: #786747;
+      #launch { position: fixed; inset: 0; z-index: 2147483000; background: #221a11;
         overflow: hidden; touch-action: none; }
+      /* object-fit: cover = scaleAspectFill у LaunchScreen iOS: фото ложится
+         так же, как на системной заставке. */
+      #launch .launch-photo { position: absolute; inset: 0; width: 100%; height: 100%;
+        object-fit: cover; object-position: 50% 50%; }
+      /* Android: системная заставка — только поле и знак (фото она не
+         умеет), поэтому фото проявляется уже здесь. Пока системная заставка
+         на экране, плагин не даёт веб-вью рисоваться — проявление запускает
+         launchReveal.ts (класс launch--photo) тем же кадром, что снимает её. */
+      #launch.launch--android .launch-photo { opacity: 0; }
+      #launch.launch--android.launch--photo .launch-photo { animation: launch-photo-in 450ms cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+      #launch.launch--android.launch--quick .launch-photo { opacity: 1; }
       #launch .launch-mark, #launch .launch-glow { position: absolute; left: 50%; top: 50%;
         transform: translate(-50%, -50%); will-change: transform, opacity; }
-      #launch .launch-mark { width: var(--launch-size, 160px); height: var(--launch-size, 160px); }
+      #launch .launch-mark { width: var(--launch-size, 160px); height: auto; }
       #launch .launch-glow { width: calc(var(--launch-size, 160px) * 2.6); height: calc(var(--launch-size, 160px) * 2.6);
         border-radius: 50%; opacity: 0;
         background: radial-gradient(closest-side, rgba(236, 200, 146, 0.30), rgba(236, 200, 146, 0.08) 55%, transparent 74%); }
       #launch .launch-name { position: absolute; left: 0; right: 0;
-        top: calc(50% + var(--launch-size, 160px) * 0.66); text-align: center;
+        top: calc(50% + var(--launch-size, 160px) * 0.46); text-align: center;
         font: 500 22px/1 'EB Garamond', Georgia, 'Times New Roman', serif;
         /* Разрядка статичная (анимация letter-spacing — перекладка текста
            каждый кадр); text-indent возвращает центр, сдвинутый хвостовым
@@ -59,6 +72,7 @@
 
       @keyframes launch-out { 0%, 54% { opacity: 1; } 100% { opacity: 0; } }
       @keyframes launch-out-quick { from { opacity: 1; } to { opacity: 0; } }
+      @keyframes launch-photo-in { from { opacity: 0; } to { opacity: 1; } }
       @keyframes launch-mark {
         0% { transform: translate(-50%, -50%) scale(1); }
         46% { transform: translate(-50%, -50%) scale(1.06); }
@@ -106,34 +120,40 @@
 
   </head>
   <body>
-    <!-- Копия системной заставки: тот же фон и тот же медальон в той же
+    <!-- Копия системной заставки: то же фото и тот же знак в той же
          точке, поэтому снятие заставки незаметно. Убирается из DOM после
          анимации (src/lib/launchReveal.ts). -->
     <div id="launch" aria-hidden="true">
+      <img class="launch-photo" src="/brand/launch-photo.webp" alt="" decoding="async" />
       <div class="launch-glow"></div>
-      <img class="launch-mark" src="/brand/medallion.webp" alt="" decoding="async" />
+      <img class="launch-mark" src="/brand/launch-mark.webp" alt="" decoding="async" />
       <div class="launch-name">Quran Ing</div>
     </div>
     <script>
-      /* Размер медальона = как на системной заставке.
-         iOS: LaunchScreen кладёт квадрат 1366 pt через aspectFill, медальон —
-         splashScale (0.26) его стороны → 0.26 × длинная сторона экрана.
-         Android: системная заставка (SplashScreen API) — медальон 192 dp.
-         Сайт: заставки нет — разумный размер, не больше 240 px. */
+      /* Ширина знака (launch-mark.webp вместе с полями под тень) = как на
+         системной заставке.
+         iOS: LaunchScreen кладёт портретное фото 9:16 со знаком через
+         aspectFill; знак — launchMarkScale (0.56, brand.json) ширины фото
+         после масштаба → 0.56 × max(W, H × 9/16).
+         Android: системная заставка (SplashScreen API) — знак, вписанный по
+         диагонали в круг 192 dp: буквы 153 dp, с полями ≈ 178 dp; в веб-вью
+         1 CSS px = 1 dp. Фото там проявляется уже в этой копии.
+         Сайт: заставки нет — как на iOS, но не шире 420 px. */
       (function () {
         try {
-          var W = window.innerWidth, H = window.innerHeight, S = 0.26;
+          var W = window.innerWidth, H = window.innerHeight, S = 0.56;
           var cap = window.Capacitor;
           var platform = cap && cap.getPlatform ? cap.getPlatform() : 'web';
+          var cover = Math.max(W, H * 9 / 16);
           var size;
           if (platform === 'ios') {
-            size = S * Math.max(W, H);
+            size = S * cover;
           } else if (platform === 'android') {
-            // Системная заставка Android: медальон 192 dp по центру
-            // (generate-brand-assets.py); в веб-вью 1 CSS px = 1 dp.
-            size = 192;
+            size = 178;
+            var launchEl = document.getElementById('launch');
+            if (launchEl) launchEl.classList.add('launch--android');
           } else {
-            size = Math.min(S * Math.max(W, H), 240);
+            size = Math.min(S * cover, 420);
           }
           document.documentElement.style.setProperty('--launch-size', Math.round(size) + 'px');
         } catch (e) { /* --launch-size по умолчанию 160px */ }

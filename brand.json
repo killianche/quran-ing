@@ -1,6 +1,8 @@
 {
-  "variant": "carpet",
-  "background": "#786747",
+  "variant": "qalb",
+  "background": "#221a11",
   "opticalLift": 0,
-  "splashScale": 0.26
+  "splashScale": 0.26,
+  "launchPhoto": "launch-photo.jpg",
+  "launchMarkScale": 0.56
 }
