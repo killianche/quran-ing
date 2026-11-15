@@ -1253,6 +1253,14 @@ body {
   .player-press, .player-press:active { transform: none; transition: opacity 120ms ease; }
 }
 
+/* Нижняя панель ленты азкаров (AzkarNavBar): вдавливание на нажатии —
+   отклик сразу на касании, а не после отпускания. */
+.azkar-nav-btn { transition: transform 140ms var(--ease-standard), opacity 140ms ease; }
+.azkar-nav-btn:active:not([aria-disabled="true"]) { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .azkar-nav-btn, .azkar-nav-btn:active { transform: none !important; transition: opacity 120ms ease; }
+}
+
 /* ─── Плитки «Утренние / Вечерние» (AzkarScreen) ────────────────
    Нажатие — пружинное «вдавливание» всей плитки, как у виджетов iOS.
    Свет времени суток медленно дышит (8 с), ореол иллюстрации — в такт,

@@ -3,7 +3,7 @@
  *
  *  • One azkar = one full-viewport card.  Horizontal CSS scroll-snap
  *    gives native finger-swipe on touch and 2-finger horizontal scroll
- *    on trackpads; the floating BottomDock's prev/next also scrolls
+ *    on trackpads; the bottom AzkarNavBar's prev/next also scrolls
  *    the carousel programmatically (so it works on plain mice too).
  *  • Each card has its own vertical scroll for overflow content — the
  *    horizontal swipe is owned by the OUTER container, the vertical
@@ -49,6 +49,7 @@ import {
   Appearance, ICON_SIZE, Play, Pause, Typography,
 } from '../components/icons';
 import { ScreenHeader, screenHeaderOffset } from '../components/ScreenHeader';
+import { AzkarNavBar, AZKAR_NAV_SPACE } from '../components/AzkarNavBar';
 
 type Props = {
   category: AzkarCategoryId;
@@ -527,12 +528,12 @@ export function AzkarCategoryScreen({ category, theme, setTheme, onBack }: Props
                   // воздух; раньше тут складывались вручную «56 + 56»
                   // под плавающую пилюлю и её отдельную плашку
                   // прогресса, и при правке высоты числа разъезжались.
-                  // Снизу 120 px под BottomDock — держим место всегда,
-                  // чтобы вёрстка не прыгала при старте аудио.
+                  // Снизу — место под нижней панелью (AzkarNavBar), чтобы
+                  // последняя строка не уходила под стекло.
                   paddingTop: screenHeaderOffset(28),
                   paddingLeft: '22px',
                   paddingRight: '22px',
-                  paddingBottom: '120px',
+                  paddingBottom: AZKAR_NAV_SPACE,
                   boxSizing: 'border-box',
                   // Tasbih press-feedback: card content slightly
                   // squishes and dims while the finger is held, then
@@ -754,6 +755,17 @@ export function AzkarCategoryScreen({ category, theme, setTheme, onBack }: Props
         </div>
       )}
 
+      {/* Нижняя панель: предыдущий / выход / следующий (владелец
+          2026-11-15). Только когда есть карточки. */}
+      {data && entries.length > 0 && (
+        <AzkarNavBar
+          index={currentIndex}
+          total={entries.length}
+          onPrev={() => scrollToIndex(currentIndex - 1)}
+          onNext={() => scrollToIndex(currentIndex + 1)}
+          onExit={onBack}
+        />
+      )}
     </div>
   );
 }
