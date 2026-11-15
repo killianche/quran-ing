@@ -40,10 +40,9 @@
  *
  * Подписи «Джуз N» над сурами давали «1 → 3 → 4 → 6»: джузы 2 и 5
  * начинаются посреди Аль-Бакары и Ан-Нисы. Переключатель «Суры / Джузы»
- * снят 10.08.2026 по решению владельца. 15.11.2026 владелец попросил
- * попробовать два столбца с делением по джузам — пробная раскладка
- * `juz` (см. listLayout) делит честно: сура, начатая в прошлом джузе,
- * приходит продолжением «аяты 142–252». Пока это эксперимент на выбор.
+ * снят 10.08.2026. 15.11.2026 пробовали два столбца с честным делением по
+ * джузам (продолжения сур диапазоном аятов) — владелец выбрал список B.
+ * Пробная раскладка лежит в коммите b60a8a3, если понадобится вернуть.
  *
  * ── Типографика ───────────────────────────────────────────────────────
  *
@@ -56,7 +55,6 @@ import { useState, useMemo, useRef, useDeferredValue, useLayoutEffect, useEffect
 import { FastScrubber } from '../components/FastScrubber';
 import { FAST_SCROLL } from '../lib/fastScroll';
 import { SURAHS, SURAH_BY_NUMBER, type SurahMeta } from '../content/surahs';
-import { firstGlobalOfSurah, juzRange } from '../lib/ayahNumbering';
 import { readRecents } from '../lib/recents';
 import { AYAH_LANG_LABEL, search, snippet, visibleSearchLangs, warmSearchIndex, type AyahHit } from '../lib/search';
 import { useQuranSources } from '../content/quran-sources-lazy';
@@ -184,8 +182,6 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
     () => new Map(recents.map(r => [r.surah, r.ayah] as const)),
     [recents],
   );
-  // Раскладка читается один раз: временный переключатель, см. listLayout.
-  const [layout] = useState(listLayout);
   // Попап оформления — портал в body: у припаркованной главной он остался
   // бы висеть над сурой.
   useEffect(() => { if (!active) setThemeOpen(false); }, [active]);
@@ -342,7 +338,7 @@ export function SurahPicker({ onSelectSurah, onBookmarks, onPrayer, onAccount, t
           )
           : (
             <>
-              <SurahList surahs={SURAHS} onSelect={onSelectSurah} readAyah={readAyah} layout={layout} />
+              <SurahList surahs={SURAHS} onSelect={onSelectSurah} readAyah={readAyah} />
               {/* Быстрая прокрутка: удержание на номере суры и протяжка
                   вверх-вниз. Только при полном списке — в результатах поиска номера
                   идут вразбивку, и прокрутка по ним была бы бессмыслицей. */}
@@ -572,69 +568,12 @@ function кСуре(n: number, scroller?: HTMLElement | null) {
   scroller.scrollTop += r.top - view.top - (scroller.clientHeight - r.height) / 2;
 }
 
-/** Как раскладывать полный список сур. */
-type ListLayout = 'list' | 'juz';
-
-/**
- * 🧪 Временно (15.11.2026): владелец выбрал вариант B и попросил
- * «попробовать список сур в два столбца с разделением по джузам». Обе
- * раскладки живут в коде, пока он не сравнит их; переключатель — ключ
- * `dev.surahList` в localStorage (`juz` — два столбца). После выбора
- * лишняя раскладка удаляется вместе с этой функцией.
- */
-function listLayout(): ListLayout {
-  try {
-    if (localStorage.getItem('dev.surahList') === 'juz') return 'juz';
-  } catch { /* нет хранилища */ }
-  return 'list';
-}
-
-/**
- * Часть суры внутри джуза: с какого по какой аят.
- *
- * Границы джузов не совпадают с границами сур: джуз 2 начинается с аята
- * 142 «Аль-Бакары», и прежний список с заголовками «Джуз N» над сурами шёл
- * «1 → 3 → 4 → 6». Здесь деление честное: каждый джуз показывает все суры,
- * которые в него попадают, а сура, начатая в прошлом джузе, приходит
- * продолжением «аяты 142–252» и открывается на первом аяте этой части.
- * Границы — `juzRange` (стандартное деление мусхафа King Fahd Complex).
- */
-type JuzPart = { meta: SurahMeta; from: number; to: number };
-
-function buildJuzParts(): { juz: number; parts: JuzPart[] }[] {
-  const out: { juz: number; parts: JuzPart[] }[] = [];
-  for (let juz = 1; juz <= 30; juz++) {
-    const [a, b] = juzRange(juz);
-    const parts: JuzPart[] = [];
-    for (const meta of SURAHS) {
-      const first = firstGlobalOfSurah(meta.number);
-      const last = first + meta.ayahs - 1;
-      if (last < a || first > b) continue;
-      parts.push({
-        meta,
-        from: Math.max(a, first) - first + 1,
-        to: Math.min(b, last) - first + 1,
-      });
-    }
-    out.push({ juz, parts });
-  }
-  return out;
-}
-
-function SurahList({ surahs, onSelect, grouped = true, readAyah, layout = 'list' }: {
+function SurahList({ surahs, onSelect, readAyah }: {
   surahs: SurahMeta[];
   onSelect: (n: number, ayah?: number) => void;
-  /** Группировать по джузам (только раскладка в два столбца). В результатах
-   *  поиска выключено: заголовки джузов над разрозненными находками мешают. */
-  grouped?: boolean;
   /** Сура → последний прочитанный аят (из «Продолжить чтение»). */
   readAyah?: ReadonlyMap<number, number>;
-  layout?: ListLayout;
 }) {
-  const juzParts = useMemo(
-    () => (layout === 'juz' && grouped ? buildJuzParts() : null),
-    [layout, grouped],
-  );
 
   // 🔴 Подписка на звук — ОДНА на весь список, а не в каждой строке.
   //
@@ -651,45 +590,6 @@ function SurahList({ surahs, onSelect, grouped = true, readAyah, layout = 'list'
   const selectRef = useRef(onSelect);
   selectRef.current = onSelect;
   const select = useCallback((n: number, ayah?: number) => selectRef.current(n, ayah), []);
-
-  if (juzParts) {
-    return (
-      <div style={{ display: 'grid', gap: 'var(--space-section)' }}>
-        {juzParts.map(({ juz, parts }) => {
-          const first = parts[0], last = parts[parts.length - 1];
-          return (
-            <section key={juz} style={{ display: 'grid', gap: 'var(--space-snug)' }}>
-              <JuzHeading
-                juz={juz}
-                range={`${first.meta.number}:${first.from} – ${last.meta.number}:${last.to}`}
-              />
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: 'var(--space-snug)',
-              }}>
-                {parts.map(part => {
-                  const read = readAyah?.get(part.meta.number);
-                  return (
-                    <SurahTile
-                      key={part.meta.number}
-                      meta={part.meta}
-                      from={part.from}
-                      to={part.to}
-                      onSelect={select}
-                      sounding={звучит === part.meta.number}
-                      hasRecording={reciterHasSurah(reciter, part.meta.number)}
-                      readAyah={read && read >= part.from && read <= part.to ? read : undefined}
-                    />
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -723,43 +623,6 @@ function SectionHeading({ text }: { text: string }) {
         {text}
       </span>
       <span aria-hidden style={{ flex: 1, height: '1px', background: 'var(--hairline)' }} />
-    </div>
-  );
-}
-
-function JuzHeading({ juz, range }: { juz: number; range?: string }) {
-  return (
-    <div style={{
-      // 🔴 Без черты справа. В сгруппированных списках iOS заголовок группы —
-      // это просто подпись капителью над группой; линия во всю ширину
-      // осталась от прежней вёрстки и выдавала «не системный» вид.
-      // Владелец 09.09.2026 попросил привести главную к языку iOS 26.
-      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-      gap: 'var(--space-snug)',
-      padding: '0 var(--space-hair) var(--space-tight)',
-    }}>
-      <h3 style={{
-        margin: 0,
-        fontSize: 'var(--font-headline)',
-        lineHeight: 'var(--leading-headline)',
-        fontWeight: 'var(--weight-semibold)',
-        letterSpacing: 'var(--tracking-tight)',
-        color: 'var(--text-primary)',
-      }}>
-        Джуз {juz}
-      </h3>
-      {range && (
-        // Диапазон «сура:аят – сура:аят» — где джуз начинается и кончается.
-        <span style={{
-          fontSize: 'var(--font-footnote)',
-          lineHeight: 'var(--leading-footnote)',
-          color: 'var(--text-tertiary)',
-          fontVariantNumeric: 'tabular-nums',
-          whiteSpace: 'nowrap',
-        }}>
-          {range}
-        </span>
-      )}
     </div>
   );
 }
@@ -981,113 +844,6 @@ const SurahRow = memo(function SurahRow({
           background: 'var(--hairline)',
         }} />
       )}
-    </div>
-  );
-});
-
-/**
- * SurahTile — плитка суры в раскладке «два столбца по джузам» (пробная,
- * 15.11.2026, см. `listLayout`).
- *
- * Тот же язык, что у строки B: «Сура N» акцентом, крупное арабское
- * название, русское имя. Если в джуз попала только часть суры, вместо
- * числа аятов подпись «аяты 142–252», и тап открывает суру на первом аяте
- * этой части.
- *
- * Плитка лежит на лёгкой подложке: без неё в два столбца имена висели бы
- * в воздухе, и глаз не понимал бы, где кончается одна сура и начинается
- * другая. Подложка та же, что у поля поиска, — новый слой не появляется.
- */
-const SurahTile = memo(function SurahTile({
-  meta, from, to, onSelect, sounding = false, hasRecording = true, readAyah,
-}: {
-  meta: SurahMeta;
-  /** Первый и последний аят суры внутри этого джуза. */
-  from: number;
-  to: number;
-  onSelect: (n: number, ayah?: number) => void;
-  sounding?: boolean;
-  hasRecording?: boolean;
-  /** Прочитанный аят, если он внутри этой части. */
-  readAyah?: number;
-}) {
-  const [pressed, setPressed] = useState(false);
-  const prefetch = usePressPrefetch(meta.number);
-  const whole = from === 1 && to === meta.ayahs;
-  const pct = readAyah ? readPercent(readAyah, from, to) : 0;
-  const span = whole
-    ? `${meta.ayahs} ${ayahWord(meta.ayahs)}`
-    : from === to ? `аят ${from}` : `аяты ${from}–${to}`;
-
-  return (
-    <div
-      data-surah={meta.number}
-      style={{
-        position: 'relative',
-        borderRadius: 'var(--radius-card)',
-        background: pressed ? 'rgb(var(--ink-rgb) / 0.09)' : 'rgb(var(--ink-rgb) / 0.045)',
-        transition: 'background var(--dur-fast) var(--ease-standard)',
-      }}
-    >
-      <button
-        onClick={() => onSelect(meta.number, from > 1 ? from : undefined)}
-        onPointerDown={() => { setPressed(true); prefetch.start(); }}
-        onPointerUp={() => { setPressed(false); prefetch.commit(); }}
-        onPointerLeave={() => { setPressed(false); prefetch.cancel(); }}
-        onPointerCancel={() => { setPressed(false); prefetch.cancel(); }}
-        aria-label={`${meta.number}. ${meta.transliteration}, ${meta.russian}, ${whole ? `${meta.ayahs} ${ayahWord(meta.ayahs)}` : `аяты с ${from} по ${to}`}${readAyah ? `, прочитано до аята ${readAyah}` : ''}`}
-        style={{
-          display: 'grid', gap: '2px', width: '100%', height: '100%',
-          alignContent: 'start',
-          padding: 'var(--space-cozy)',
-          border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
-          fontFamily: 'inherit', color: 'inherit', WebkitTapHighlightColor: 'transparent',
-        }}
-      >
-        <span aria-hidden data-surah-num="" style={{
-          justifySelf: 'start',
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
-          // Справа место под кнопку «слушать».
-          minHeight: '32px', paddingInlineEnd: '36px',
-          fontSize: 'var(--font-caption1)', lineHeight: 'var(--leading-caption1)',
-          fontWeight: 'var(--weight-semibold)', color: 'var(--brand)',
-          fontVariantNumeric: 'tabular-nums',
-        }}>
-          {sounding && <SoundingBars />}
-          Сура {meta.number}
-        </span>
-        <span dir="rtl" lang="ar" style={{
-          justifySelf: 'stretch', textAlign: 'right',
-          fontFamily: "'KFGQPC Uthmanic Hafs v22', serif",
-          fontSize: 'clamp(22px, 6.6vw, 28px)',
-          lineHeight: 1.45,
-          color: 'var(--text-primary)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {meta.arabic}
-        </span>
-        <span data-surah-title="" style={{
-          fontSize: 'var(--font-subhead)', lineHeight: 'var(--leading-subhead)',
-          fontWeight: 'var(--weight-semibold)', letterSpacing: 'var(--tracking-tight)',
-          color: 'var(--text-primary)',
-          ...TWO_LINES,
-        }}>
-          {meta.transliteration}
-        </span>
-        <span style={{
-          fontSize: 'var(--font-footnote)', lineHeight: 'var(--leading-footnote)',
-          color: 'var(--text-tertiary)',
-          fontVariantNumeric: 'tabular-nums',
-          ...TWO_LINES,
-        }}>
-          {`${meta.russian} · ${span}`}
-        </span>
-        {pct > 0 && <ReadBar pct={pct} width="100%" />}
-      </button>
-
-      <span style={{ position: 'absolute', top: 'var(--space-cozy)', right: 'var(--space-cozy)', display: 'inline-flex' }}>
-        <ListenButton meta={meta} sounding={sounding} hasRecording={hasRecording} size={32} />
-      </span>
     </div>
   );
 });
