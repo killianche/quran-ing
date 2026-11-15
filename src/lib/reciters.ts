@@ -45,6 +45,7 @@ export type ReciterId =
   | 'yasser'
   | 'luhaidan'
   | 'ajmi'
+  | 'husary'
   | 'merzhoev';
 
 export type Reciter = {
@@ -136,6 +137,24 @@ export const RECITERS: Reciter[] = [
     surahAudioPadded: true,
   },
   /**
+   * Махмуд Халиль Аль-Хусари, муратталь (просьба владельца 15.11.2026).
+   *
+   * Поаятные файлы — everyayah.com 128 кбит/с (как у Ясира и Аль-Аджми,
+   * без `slug`: islamic.network отдаёт его только в 64 кбит/с).
+   * Сплошная запись суры — та же, по которой quran.com (recitation 6)
+   * размечает границы аятов и пословные тайминги: границы
+   * (`qurancom-ayah-ranges.ts`) и караоке (`quran-segments.ts`) обязаны
+   * совпадать с этим файлом, поэтому базу менять только вместе с ними.
+   */
+  {
+    id: 'husary',
+    label: 'Махмуд Халиль Аль-Хусари',
+    arabic: 'محمود خليل الحصري',
+    bitrateKbps: 128,
+    everyayahDir: 'Husary_128kbps',
+    surahAudioBase: 'https://download.quranicaudio.com/qdc/khalil_al_husary/murattal',
+  },
+  /**
    * Хьусейн Мержоев — друг владельца (решение владельца 03–04.10.2026).
    *
    * Записи целых сур из его Telegram-канала t.me/khmerzhoev1111 (исходник
@@ -215,7 +234,7 @@ export const DEFAULT_RECITER: ReciterId = 'yasser';
  *  добавляешь нового — сперва
  *  прогони scripts/gen/fetch-quran-segments.mjs, потом впиши id сюда. */
 export const RECITERS_WITH_SEGMENTS: ReadonlySet<ReciterId> = new Set([
-  'alafasy', 'shaatree', 'yasser',
+  'alafasy', 'shaatree', 'yasser', 'husary',
 ]);
 
 /** У Люхайдана и Аль-Аджми есть точные границы каждого аята, но нет

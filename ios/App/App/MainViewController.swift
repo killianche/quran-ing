@@ -65,16 +65,41 @@ class MainViewController: CAPBridgeViewController {
     /// Заодно клавиатура в поле поиска следует теме приложения.
     /// `prefers-color-scheme` страница для темы не использует (только мета
     /// theme-color, которая в приложении ни на что не влияет).
+    ///
+    /// 🔴 Стиль ставится на ОКНО, а не только на этот контроллер (исправлено
+    /// 15.11.2026, жалоба владельца «нижнее меню неправильно в обеих темах»).
+    /// `CAPBridgeViewController.loadView` делает `view = webView`, а плагин
+    /// панели кладёт `UITabBar` в `webView.superview` — то есть прямо в окно,
+    /// мимо иерархии контроллера. Переопределение на контроллере до панели не
+    /// доходило: она брала тему системы, и на светлом iPhone под тёмной темой
+    /// приложения оставалась светлой (и наоборот). Окно наследуют все его
+    /// вьюшки, включая панель.
     override func setStatusBarStyle(_ statusBarStyle: UIStatusBarStyle) {
         super.setStatusBarStyle(statusBarStyle)
         switch statusBarStyle {
         case .lightContent:
-            overrideUserInterfaceStyle = .dark
+            appInterfaceStyle = .dark
         case .darkContent:
-            overrideUserInterfaceStyle = .light
+            appInterfaceStyle = .light
         default:
-            overrideUserInterfaceStyle = .unspecified
+            appInterfaceStyle = .unspecified
         }
+        applyAppInterfaceStyle()
+    }
+
+    /// Оформление по теме приложения; применяется к окну, как только оно есть.
+    private var appInterfaceStyle: UIUserInterfaceStyle = .unspecified
+
+    private func applyAppInterfaceStyle() {
+        overrideUserInterfaceStyle = appInterfaceStyle
+        viewIfLoaded?.window?.overrideUserInterfaceStyle = appInterfaceStyle
+    }
+
+    /// Тема могла прийти раньше, чем контроллер попал в окно, — тогда окно
+    /// получает стиль здесь.
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyAppInterfaceStyle()
     }
 
     /// Плагины самого приложения (не из npm) регистрируются здесь —

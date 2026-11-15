@@ -39,7 +39,7 @@
  * идут строками под плитками.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Theme } from '../hooks/useTheme';
 import { Appearance, ChevronRight, ICON_SIZE, Sparkle } from '../components/icons';
 import { ThemeSettings } from '../components/ReadingSettings';
@@ -316,46 +316,54 @@ function DawnArt() {
   const id = useId().replace(/:/g, '');
   const rays = [-70, -45, -22, 0, 22, 45, 70];
   return (
-    <svg width="132" height="132" viewBox="0 0 120 120" style={{ overflow: 'visible' }}>
-      <defs>
-        <radialGradient id={`${id}halo`} cx="50%" cy="72%" r="50%">
-          <stop offset="0%" stopColor="#ffc472" stopOpacity="0.75" />
-          <stop offset="100%" stopColor="#ffc472" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id={`${id}sun`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffe3a3" />
-          <stop offset="100%" stopColor="#f59a3c" />
-        </linearGradient>
-        <linearGradient id={`${id}ray`} x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0%" stopColor="#f7b259" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#ffd894" stopOpacity="0.15" />
-        </linearGradient>
-        <clipPath id={`${id}clip`}>
-          <rect x="0" y="0" width="120" height="84" />
-        </clipPath>
-        <clipPath id={`${id}sky`}>
-          <rect x="-20" y="-20" width="160" height="105" />
-        </clipPath>
-      </defs>
-      {/* Свет — только над горизонтом: под ним он рисовался шаром. */}
-      <g clipPath={`url(#${id}sky)`}>
-        <circle cx="60" cy="84" r="56" fill={`url(#${id}halo)`} className="azkar-art-pulse" />
-      </g>
-      <g transform="translate(60 84)">
-        {rays.map(a => (
-          <rect
-            key={a}
-            x="-2.2" y="-54" width="4.4" height="16" rx="2.2"
-            fill={`url(#${id}ray)`}
-            transform={`rotate(${a})`}
-          />
-        ))}
-      </g>
-      <circle cx="60" cy="84" r="26" fill={`url(#${id}sun)`} clipPath={`url(#${id}clip)`} />
-      <rect x="14" y="83" width="92" height="3" rx="1.5" fill="#f2a24d" opacity="0.9" />
-      <rect x="26" y="92" width="68" height="2.6" rx="1.3" fill="#f2a24d" opacity="0.45" />
-      <rect x="40" y="100" width="40" height="2.2" rx="1.1" fill="#f2a24d" opacity="0.22" />
-    </svg>
+    <ArtFrame>
+      {/* Свет — только над горизонтом (y ≤ 85 в координатах рисунка): под
+          ним он рисовался шаром. Обрезка — рамкой с overflow, а не
+          clipPath, чтобы сам свет оставался HTML-слоем (см. ArtFrame). */}
+      <span style={{
+        position: 'absolute',
+        left: px(-20), top: px(-20), width: px(160), height: px(105),
+        overflow: 'hidden',
+      }}>
+        <span className="azkar-art-pulse" style={{
+          position: 'absolute',
+          left: px(4 + 20), top: px(28 + 20), width: px(112), height: px(112),
+          borderRadius: '50%',
+          // Тот же градиент, что был у круга в SVG: центр на 72 % высоты
+          // круга, радиус — половина круга.
+          background: `radial-gradient(circle ${px(56)} at 50% 72%, rgba(255, 196, 114, 0.75), rgba(255, 196, 114, 0))`,
+        }} />
+      </span>
+      <svg width="132" height="132" viewBox="0 0 120 120" style={{ position: 'relative', overflow: 'visible' }}>
+        <defs>
+          <linearGradient id={`${id}sun`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ffe3a3" />
+            <stop offset="100%" stopColor="#f59a3c" />
+          </linearGradient>
+          <linearGradient id={`${id}ray`} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stopColor="#f7b259" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#ffd894" stopOpacity="0.15" />
+          </linearGradient>
+          <clipPath id={`${id}clip`}>
+            <rect x="0" y="0" width="120" height="84" />
+          </clipPath>
+        </defs>
+        <g transform="translate(60 84)">
+          {rays.map(a => (
+            <rect
+              key={a}
+              x="-2.2" y="-54" width="4.4" height="16" rx="2.2"
+              fill={`url(#${id}ray)`}
+              transform={`rotate(${a})`}
+            />
+          ))}
+        </g>
+        <circle cx="60" cy="84" r="26" fill={`url(#${id}sun)`} clipPath={`url(#${id}clip)`} />
+        <rect x="14" y="83" width="92" height="3" rx="1.5" fill="#f2a24d" opacity="0.9" />
+        <rect x="26" y="92" width="68" height="2.6" rx="1.3" fill="#f2a24d" opacity="0.45" />
+        <rect x="40" y="100" width="40" height="2.2" rx="1.1" fill="#f2a24d" opacity="0.22" />
+      </svg>
+    </ArtFrame>
   );
 }
 
@@ -363,39 +371,92 @@ function DawnArt() {
 function DuskArt() {
   const id = useId().replace(/:/g, '');
   return (
-    <svg width="132" height="132" viewBox="0 0 120 120" style={{ overflow: 'visible' }}>
-      <defs>
-        {/* Цвета луны — от темы (`--dusk-*` в index.css): светлая луна на
-            светлой плитке растворялась бы в ней. */}
-        <radialGradient id={`${id}halo`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" style={{ stopColor: 'var(--dusk-halo)', stopOpacity: 0.6 }} />
-          <stop offset="100%" style={{ stopColor: 'var(--dusk-halo)', stopOpacity: 0 }} />
-        </radialGradient>
-        <linearGradient id={`${id}moon`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" style={{ stopColor: 'var(--dusk-moon-a)' }} />
-          <stop offset="100%" style={{ stopColor: 'var(--dusk-moon-b)' }} />
-        </linearGradient>
-        <mask id={`${id}cut`}>
-          <rect width="120" height="120" fill="#fff" />
-          <circle cx="74" cy="46" r="27" fill="#000" />
-        </mask>
-      </defs>
-      <circle cx="58" cy="60" r="54" fill={`url(#${id}halo)`} className="azkar-art-pulse" />
-      <circle cx="58" cy="60" r="32" fill={`url(#${id}moon)`} mask={`url(#${id}cut)`} />
-      <Star x={92} y={30} r={8} />
-      <Star x={98} y={70} r={4.5} />
-      <Star x={30} y={26} r={5} />
-    </svg>
+    <ArtFrame>
+      {/* Ореол. Прозрачность 0.6 из прежнего градиента — на обёртке:
+          саму прозрачность круга меняет анимация. */}
+      <span style={{
+        position: 'absolute',
+        left: px(4), top: px(6), width: px(108), height: px(108),
+        opacity: 0.6,
+      }}>
+        <span className="azkar-art-pulse" style={{
+          position: 'absolute', inset: 0,
+          borderRadius: '50%',
+          background: 'radial-gradient(closest-side, var(--dusk-halo), transparent)',
+        }} />
+      </span>
+      <svg width="132" height="132" viewBox="0 0 120 120" style={{ position: 'relative', overflow: 'visible' }}>
+        <defs>
+          {/* Цвета луны — от темы (`--dusk-*` в index.css): светлая луна на
+              светлой плитке растворялась бы в ней. */}
+          <linearGradient id={`${id}moon`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" style={{ stopColor: 'var(--dusk-moon-a)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--dusk-moon-b)' }} />
+          </linearGradient>
+          <mask id={`${id}cut`}>
+            <rect width="120" height="120" fill="#fff" />
+            <circle cx="74" cy="46" r="27" fill="#000" />
+          </mask>
+        </defs>
+        <circle cx="58" cy="60" r="32" fill={`url(#${id}moon)`} mask={`url(#${id}cut)`} />
+      </svg>
+      <Star x={92} y={30} r={8} delay="0s" duration="3.2s" />
+      <Star x={98} y={70} r={4.5} delay="1.1s" duration="2.6s" />
+      <Star x={30} y={26} r={5} delay="0.5s" duration="3.8s" />
+    </ArtFrame>
+  );
+}
+
+/** Сторона рисунка на плитке, px; координаты внутри рисунка — 0…120. */
+const ART_SIZE = 132;
+/** Координата рисунка (0…120) → пиксели рамки. */
+const px = (v: number) => `${(v * ART_SIZE) / 120}px`;
+
+/**
+ * Рамка рисунка плитки: неподвижный SVG и поверх/под ним «живые» части
+ * отдельными HTML-слоями.
+ *
+ * 🔴 Почему не анимировать элементы внутри SVG (исправлено 15.11.2026,
+ * владелец: «при свайпе на Азкары лаг и дёрганье»). WebKit не выносит
+ * анимацию `<circle>`/`<path>` внутри SVG на отдельный слой: каждый кадр он
+ * заново рисует весь SVG с градиентами, а вместе с ним — слой прокрутки
+ * вкладки. Пока на экране азкары, это шло постоянно и отнимало кадры у
+ * системного листания вкладок. Анимация `opacity`/`transform` у HTML-элемента
+ * идёт в компоновщике без перерисовки. Замер в Chromium с замедлением ЦП ×6:
+ * без анимаций SVG доля кадров дольше 20 мс после прихода на «Азкары» падала
+ * примерно вдвое. Новые «живые» детали рисунков — тоже HTML-слоями.
+ */
+function ArtFrame({ children }: { children: ReactNode }) {
+  return (
+    <span style={{
+      position: 'relative', display: 'block',
+      width: `${ART_SIZE}px`, height: `${ART_SIZE}px`,
+    }}>
+      {children}
+    </span>
   );
 }
 
 /** Четырёхлучевая звезда с вогнутыми сторонами — тот же силуэт, что у
- *  звезды азкаров в наборе (`Sparkle`), но залитый и со светом. */
-function Star({ x, y, r }: { x: number; y: number; r: number }) {
+ *  звезды азкаров в наборе (`Sparkle`), но залитый и со светом. Своим
+ *  маленьким SVG в HTML-обёртке: мерцает обёртка (см. ArtFrame). */
+function Star({ x, y, r, delay, duration }: {
+  x: number; y: number; r: number; delay: string; duration: string;
+}) {
   const k = r * 0.28;
   const d = `M ${x} ${y - r} Q ${x + k} ${y - k} ${x + r} ${y} Q ${x + k} ${y + k} ${x} ${y + r} `
     + `Q ${x - k} ${y + k} ${x - r} ${y} Q ${x - k} ${y - k} ${x} ${y - r} Z`;
-  return <path d={d} style={{ fill: 'var(--dusk-star)' }} className="azkar-art-twinkle" />;
+  return (
+    <span className="azkar-art-twinkle" style={{
+      position: 'absolute',
+      left: px(x - r), top: px(y - r), width: px(2 * r), height: px(2 * r),
+      animationDelay: delay, animationDuration: duration,
+    }}>
+      <svg width="100%" height="100%" viewBox={`${x - r} ${y - r} ${2 * r} ${2 * r}`} style={{ display: 'block', overflow: 'visible' }}>
+        <path d={d} style={{ fill: 'var(--dusk-star)' }} />
+      </svg>
+    </span>
+  );
 }
 
 /** Россыпь мелких точек по вечерней плитке — едва заметная, только ради

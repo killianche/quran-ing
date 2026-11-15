@@ -194,9 +194,9 @@ group('Хьусейн Мержоев: записи целых сур, 80 из 11
 });
 
 group('Каталог чтецов и источники аудио', () => {
-  check('в каталоге шесть чтецов',
+  check('в каталоге семь чтецов',
     RECITERS.map(reciter => reciter.id),
-    ['alafasy', 'shaatree', 'yasser', 'luhaidan', 'ajmi', 'merzhoev']);
+    ['alafasy', 'shaatree', 'yasser', 'luhaidan', 'ajmi', 'husary', 'merzhoev']);
   check('Ясир Ад-Даусари подписан по-русски и по-арабски',
     [reciterById('yasser').label, reciterById('yasser').arabic],
     ['Ясир Ад-Даусари', 'ياسر الدوسري']);
@@ -263,6 +263,21 @@ group('Каталог чтецов и источники аудио', () => {
     RECITERS_WITH_SEGMENTS.has('ajmi'), false);
   check('Аль-Аджми подсвечивает целиком точный звучащий аят',
     usesWholeAyahHighlight('ajmi'), true);
+  check('Аль-Хусари подписан по-русски и по-арабски (арабское — как на quran.com)',
+    [reciterById('husary').label, reciterById('husary').arabic],
+    ['Махмуд Халиль Аль-Хусари', 'محمود خليل الحصري']);
+  check('URL Аль-Хусари использует отдельный 128 kbps файл аята',
+    ayahAudioUrl(2, 255, 'husary'),
+    'https://everyayah.com/data/Husary_128kbps/002255.mp3');
+  check('непрерывная запись Аль-Хусари — та, что размечена quran.com (recitation 6)',
+    surahAudioUrl('husary', 2),
+    'https://download.quranicaudio.com/qdc/khalil_al_husary/murattal/2.mp3');
+  check('Аль-Хусари доступен для поаятной офлайн-загрузки и стартует с файла аята',
+    [supportsAyahOffline('husary'), requiresSurahAudioStream('husary')], [true, false]);
+  check('у Аль-Хусари пословные тайминги и караоке, а не подсветка целого аята',
+    [RECITERS_WITH_SEGMENTS.has('husary'), usesWholeAyahHighlight('husary')], [true, false]);
+  check('Аль-Хусари начинает 1:2 по границе quran.com',
+    ayahAudioRange('husary', 1, 2), { startSeconds: 5.22, endSeconds: 11.57 });
   check('оценка офлайн-размера учитывает 128 kbps Ад-Даусари',
     reciterById('yasser').bitrateKbps / reciterById('alafasy').bitrateKbps, 2);
 
@@ -285,9 +300,9 @@ group('Каталог чтецов и источники аудио', () => {
       }
     }
   }
-  check('у всех пяти чтецов с поаятной разметкой есть валидные границы для 6236 аятов',
+  check('у всех шести чтецов с поаятной разметкой есть валидные границы для 6236 аятов',
     [ayahTimedReciters.length, continuousRangeCount, invalidContinuousRanges],
-    [5, TOTAL_AYAHS * 5, 0]);
+    [6, TOTAL_AYAHS * 6, 0]);
 });
 
 group('iOS: стабильная подсветка QCF-глифов', () => {

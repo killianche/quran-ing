@@ -17,7 +17,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '../..');
 const OUT = resolve(ROOT, 'src/content/qurancom-ayah-ranges.ts');
 const API = 'https://api.qurancdn.com/api/qdc/audio/reciters';
-const RECITERS = { alafasy: 7, shaatree: 4, yasser: 97, ajmi: 19 };
+const RECITERS = { alafasy: 7, shaatree: 4, yasser: 97, ajmi: 19, husary: 6 };
 const COUNTS = [
   7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,
   112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,

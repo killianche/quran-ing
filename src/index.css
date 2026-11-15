@@ -1224,10 +1224,11 @@ body {
 .azkar-tile:focus { outline: none; }
 .azkar-tile:focus-visible { box-shadow: inset 0 0 0 2px var(--ink) !important; }
 .azkar-tile-glow { animation: azkarGlow 8s ease-in-out infinite alternate; }
-.azkar-art-pulse { transform-box: fill-box; transform-origin: center; animation: azkarPulse 8s ease-in-out infinite alternate; }
+/* Свет и звёзды рисунков — HTML-слои, не элементы SVG: так анимация идёт в
+   компоновщике без перерисовки (AzkarScreen, ArtFrame). Задержки и
+   длительности звёзд — в разметке. */
+.azkar-art-pulse { transform-origin: center; animation: azkarPulse 8s ease-in-out infinite alternate; }
 .azkar-art-twinkle { animation: azkarTwinkle 3.2s ease-in-out infinite alternate; }
-.azkar-art-twinkle:nth-of-type(2) { animation-delay: 1.1s; animation-duration: 2.6s; }
-.azkar-art-twinkle:nth-of-type(3) { animation-delay: 0.5s; animation-duration: 3.8s; }
 /* Скрытая вкладка (TabPager, `data-tab-parked`) и вкладки под экраном
    «поверх» (`.app-screen-parked`) не видны — бесконечные анимации плиток на
    паузе, чтобы не крутить кадры впустую. На время свайпа соседняя вкладка
