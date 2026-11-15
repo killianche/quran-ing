@@ -84,6 +84,28 @@ export function isTabAligned(scrollLeft: number, step: number, tolerance = 1): b
   return Math.abs(r - Math.round(r)) * step < tolerance;
 }
 
+/** Сколько пикселей хвоста привязки досаживать на ходу — прыжок не виден. */
+export const TAB_TAIL_MAX_PX = 4;
+
+/**
+ * Куда поставить остановившуюся ленту, если она стоит не ровно на странице.
+ *
+ * Остановку признаёт допуск (tabSettleTolerance, до 16+ px), но стоять
+ * лента должна ровно: иначе страница остаётся сдвинутой вбок, как на снимке
+ * владельца 2026-11-15 (Коран встал на ~10 pt правее). Запись точной
+ * координаты безопасна и при запаздывании WebKit (−10…+7 px): положение
+ * абсолютное — если на экране лента уже стоит ровно, ничего не сдвинется,
+ * а запоздалое значение страницы сравняется с экраном. Возвращает координату
+ * страницы или null, если лента и так на месте (полпикселя — дрожь) или
+ * тянется резинкой за край — её обрывать нельзя.
+ */
+export function restTarget(scrollLeft: number, step: number, count: number): number | null {
+  if (!(step > 0) || !Number.isFinite(scrollLeft) || count <= 0) return null;
+  if (scrollLeft < 0 || scrollLeft > (count - 1) * step) return null;
+  const target = scrollLeftForTab(tabAtScrollLeft(scrollLeft, step, count), step);
+  return Math.abs(scrollLeft - target) > 0.5 ? target : null;
+}
+
 /**
  * Досадить ленту на страницу, пока она ещё доезжает после отпускания.
  *
@@ -97,7 +119,17 @@ export function isTabAligned(scrollLeft: number, step: number, tolerance = 1): b
  *
  * Поэтому, как только пальца нет и лента ДОЕЗЖАЕТ до ближайшей страницы —
  * осталось не больше хвоста и расстояние сокращается, — её ставят ровно на
- * страницу сразу. Именно «доезжает»: сразу после отпускания лента бывает
+ * страницу сразу.
+ *
+ * 🔴 Хвост — последние пиксели (TAB_TAIL_MAX_PX), не два десятка. Владелец
+ * 2026-11-15: «при свайпе дёргается, Коран встаёт не в середине, а сдвинут
+ * вбок». Стенд lab/tab-shift в iOS-симуляторе: прежний допуск (24 px)
+ * прыгал после отпускания на 11–35 px — это и было дёрганье; а запись
+ * положения поверх ещё идущей нативной привязки на iPhone может оставить
+ * ленту не на месте. Остаток в пару пикселей глазом не виден, точную
+ * постановку делает остановка (restTarget).
+ *
+ * Именно «доезжает»: сразу после отпускания лента бывает
  * в паре десятков пикселей от исходной страницы, но летит от неё по
  * инерции на соседнюю; оборвать такой бросок — значит отменить свайп
  * (поймано тем же стендом). `prevScrollLeft` — положение на прошлом
@@ -111,7 +143,7 @@ export function snapTailTarget(
   if (scrollLeft < 0 || scrollLeft > max) return null;
   const target = scrollLeftForTab(tabAtScrollLeft(scrollLeft, step, count), step);
   const d = Math.abs(scrollLeft - target);
-  if (d < 0.5 || d > Math.max(24, step * 0.06)) return null;
+  if (d < 0.5 || d > TAB_TAIL_MAX_PX) return null;
   // Приближается ли лента к странице (а не улетает от неё броском).
   if (!Number.isFinite(prevScrollLeft) || Math.abs(prevScrollLeft - target) <= d) return null;
   return target;

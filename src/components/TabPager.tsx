@@ -46,7 +46,10 @@
  *  • WebKit на iOS отдаёт положение прокрутки с запаздыванием (−10…+7 px)
  *    и не присылает `touchend`, когда жест забрала нативная прокрутка.
  *    Поэтому остановка — тишина событий плюс допуск (tabSettleTolerance),
- *    а не «палец убран» и не «до пикселя».
+ *    а не «палец убран» и не «до пикселя». Признав остановку, ленту
+ *    ставят ровно на страницу (restTarget); на ходу досаживают только
+ *    последние пиксели хвоста — прыжок в два десятка пикселей был виден
+ *    как дёрганье (2026-11-15).
  */
 
 import {
@@ -67,6 +70,7 @@ import {
   tabSettleTolerance,
   tabStep,
   snapTailTarget,
+  restTarget,
 } from '../lib/tabStrip';
 
 /** Через сколько после старта монтировать вкладки, где ещё не были, мс. */
@@ -153,6 +157,8 @@ export function TabPager({
    *  хранит; страховка — на случай возврата к скрытию (`display: none`
    *  сбрасывал её в 0, так было на iOS до 18 до 2026-10-05). */
   const savedTopRef = useRef<Partial<Record<TabId, number>>>({});
+  /** Палец на ленте — пока он держит, положение ленты не пишем. */
+  const fingerDownRef = useRef(false);
   /** С чем лента ставилась в прошлый раз — отличить тап от старта. */
   const placedRef = useRef<{ step: number; enabled: boolean } | null>(null);
 
@@ -266,8 +272,6 @@ export function TabPager({
       if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current);
       settleTimerRef.current = 0;
     };
-    /** Палец на ленте — пока он держит, хвост привязки не трогаем. */
-    let fingerDown = false;
     /** Положение ленты на прошлом событии — куда она едет (snapTailTarget). */
     let prevX = Number.NaN;
     /** Сколько раз остановка ждала цель нашей прокрутки (см. settle). */
@@ -276,9 +280,10 @@ export function TabPager({
     /**
      * Лента остановилась? Подтверждает тишина событий И положение в
      * допуске от страницы (см. tabSettleTolerance). Палец держит ленту
-     * посреди перелистывания — проверяем снова позже. Положение не
-     * дописываем: запись поверх системной привязки сдвинула бы страницу на
-     * эти пиксели уже по-настоящему.
+     * посреди перелистывания — проверяем снова позже. Признанную остановку
+     * ставим ровно на страницу (restTarget): допуск лишь отличает остановку
+     * от пальца, а стоять не ровно лента не должна — иначе страница так и
+     * остаётся сдвинутой вбок (владелец 2026-11-15).
      */
     const settle = () => {
       settleTimerRef.current = 0;
@@ -303,6 +308,11 @@ export function TabPager({
       waitedTarget = 0;
       programmaticRef.current = null;
       liveIndexRef.current = index;
+      // Под пальцем не пишем: палец, замерший в допуске от страницы, —
+      // тоже «остановка», а прыжок под ним — то же дёрганье. Ровно поставит
+      // остановка после отпускания (onTouchEnd проверит её снова).
+      const exact = fingerDownRef.current ? null : restTarget(x, w, tabs.length);
+      if (exact != null) root.scrollTo({ left: exact, behavior: 'instant' });
       const id = tabs[index];
       if (id !== activeTab) {
         // Подсветку и `inert` у прежней снимет смена вкладки, прозрачность
@@ -332,7 +342,7 @@ export function TabPager({
       // Хвост привязки после отпускания — ставим ленту на страницу сразу
       // (см. snapTailTarget: иначе первое касание списка уходит ленте).
       // Только без пальца и не во время нашей плавной прокрутки по тапу.
-      if (!fingerDown && programmaticRef.current == null) {
+      if (!fingerDownRef.current && programmaticRef.current == null) {
         const target = snapTailTarget(x, w, tabs.length, prevX);
         if (target != null) root.scrollTo({ left: target, behavior: 'instant' });
       }
@@ -351,8 +361,15 @@ export function TabPager({
 
     // Человек взялся за ленту посреди нашей прокрутки — подсветка снова
     // следует за пальцем.
-    const onTouchStart = () => { programmaticRef.current = null; fingerDown = true; };
-    const onTouchEnd = (event: TouchEvent) => { if (event.touches.length === 0) fingerDown = false; };
+    const onTouchStart = () => { programmaticRef.current = null; fingerDownRef.current = true; };
+    // Палец отпустил ленту, не сдвинув её дальше, — событий прокрутки не
+    // будет, и остановку, отложенную под пальцем, проверяем сами.
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length !== 0) return;
+      fingerDownRef.current = false;
+      clearSettle();
+      settleTimerRef.current = window.setTimeout(settle, SETTLE_QUIET_MS);
+    };
 
     // Прокрутка страниц — запоминаем на случай сброса парковкой. Событие
     // прокрутки не всплывает — ловим на погружении.
@@ -412,7 +429,11 @@ export function TabPager({
     placedRef.current = { step, enabled };
     if (there) {
       // Уже стоим (листали пальцем) — снять прозрачность панелей теперь,
-      // когда React переставил их видимость.
+      // когда React переставил их видимость. И стоять ровно, а не в
+      // допуске: пересчёт раскладки после смены вкладки не должен оставить
+      // страницу сдвинутой вбок.
+      const exact = fingerDownRef.current ? null : restTarget(x, step, order.length);
+      if (exact != null) root.scrollTo({ left: exact, behavior: 'instant' });
       programmaticRef.current = null;
       clearChrome();
       return;
