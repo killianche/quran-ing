@@ -96,10 +96,12 @@ export const TAB_TAIL_MAX_PX = 4;
  * координаты безопасна и при запаздывании WebKit (−10…+7 px): положение
  * абсолютное — если на экране лента уже стоит ровно, ничего не сдвинется,
  * а запоздалое значение страницы сравняется с экраном. Возвращает координату
- * страницы или null, если лента и так на месте (полпикселя — дрожь).
+ * страницы или null, если лента и так на месте (полпикселя — дрожь) или
+ * тянется резинкой за край — её обрывать нельзя.
  */
 export function restTarget(scrollLeft: number, step: number, count: number): number | null {
   if (!(step > 0) || !Number.isFinite(scrollLeft) || count <= 0) return null;
+  if (scrollLeft < 0 || scrollLeft > (count - 1) * step) return null;
   const target = scrollLeftForTab(tabAtScrollLeft(scrollLeft, step, count), step);
   return Math.abs(scrollLeft - target) > 0.5 ? target : null;
 }
@@ -125,7 +127,9 @@ export function restTarget(scrollLeft: number, step: number, count: number): num
  * прыгал после отпускания на 11–35 px — это и было дёрганье; а запись
  * положения поверх ещё идущей нативной привязки на iPhone может оставить
  * ленту не на месте. Остаток в пару пикселей глазом не виден, точную
- * постановку делает остановка (restTarget). Именно «доезжает»: сразу после отпускания лента бывает
+ * постановку делает остановка (restTarget).
+ *
+ * Именно «доезжает»: сразу после отпускания лента бывает
  * в паре десятков пикселей от исходной страницы, но летит от неё по
  * инерции на соседнюю; оборвать такой бросок — значит отменить свайп
  * (поймано тем же стендом). `prevScrollLeft` — положение на прошлом
