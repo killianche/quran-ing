@@ -14,7 +14,6 @@ import { RECITERS, type ReciterId } from '../lib/reciters';
 import {
   getAutoScroll, setAutoScrollPref,
   getHighlightEnabled, setHighlightEnabled,
-  getHighlightStyle, setHighlightStylePref, type HighlightStyle,
   getHighlightColor, setHighlightColorPref,
   HIGHLIGHT_COLORS, type HighlightColor,
   getGlowPalette, setGlowPalettePref, type GlowPalette,
@@ -1060,13 +1059,10 @@ function useRootDataTheme(): string {
 
 function HighlightCard({ reciter }: { reciter: ReciterId }) {
   const [on, setOnS]       = useState<boolean>(getHighlightEnabled);
-  const [style, setStyleS] = useState<HighlightStyle>(getHighlightStyle);
   const [color, setColorS] = useState<HighlightColor>(getHighlightColor);
   const [glow,  setGlowS]  = useState<GlowPalette>(getGlowPalette);
-  // Live theme — when it flips between light/dark/cosmic we re-render
-  // and either show or hide the style tabs. On the light theme glow is
-  // force-resolved to color by audioPrefs anyway, so showing a
-  // "Свечение" tab there would be a dead choice.
+  // Живая тема: при смене светлой на тёмную карточка показывает свои
+  // образцы — цвета на светлых, палитры свечения на тёмных.
   const themeAttr = useRootDataTheme();
   // Светлых тем две — «Светлая» и «Мусхаф».  Сравнение с одной строкой
   // тут уже приводило к багу: на «Мусхафе» показывались вкладки
@@ -1153,10 +1149,6 @@ function HighlightCard({ reciter }: { reciter: ReciterId }) {
     setGlowS(p);
     setGlowPalettePref(p);
   };
-  const onPickStyle = (s: HighlightStyle) => {
-    setStyleS(s);
-    setHighlightStylePref(s);
-  };
   return (
     // Секция-«футер»: никакого card-chrome (border / fill / большой
     // padding) — темы остаются основной площадью, подсветка
@@ -1196,51 +1188,11 @@ function HighlightCard({ reciter }: { reciter: ReciterId }) {
 
       {on && (
         <>
-          {/* Style tabs — only shown on dark/cosmic themes where both
-              modes make visual sense. On light themes the glow effect
-              is force-resolved to color (see audioPrefs.applyHighlightVars),
-              so we hide the picker entirely and just show the colour
-              swatches — same surface area as before the glow feature
-              landed. */}
-          {!isLight && (
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px',
-              background: 'var(--bg)', border: '1px solid var(--hairline)',
-              borderRadius: '10px', padding: '3px',
-              marginBottom: '12px',
-            }}>
-              {([
-                { id: 'color', label: 'Цвет'     },
-                { id: 'glow',  label: 'Свечение' },
-              ] as const).map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => onPickStyle(t.id)}
-                  style={{
-                    minHeight: '32px',
-                    padding: '7px 0', borderRadius: '7px',
-                    border: 'none',
-                    background: style === t.id
-                      ? 'linear-gradient(rgb(var(--ink-rgb) / 0.08), rgb(var(--ink-rgb) / 0.08)), var(--surface)'
-                      : 'transparent',
-                    color: style === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    fontSize: 'var(--font-caption1)',
-                    fontWeight: style === t.id ? 600 : 500,
-                    boxShadow: style === t.id
-                      ? 'inset 0 0 0 1.5px var(--text-primary), 0 0 0 3px rgb(var(--ink-rgb) / 0.1)'
-                      : 'none',
-                    transition: 'box-shadow 140ms ease, background 140ms ease',
-                  }}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {(isLight || style === 'color') && (
+          {/* На тёмных темах — только свечение и выбор его палитры, на
+              светлых — только цвет (владелец 2026-11-15: «уберём цвета,
+              только свечение»; audioPrefs.getEffectiveHighlightStyle).
+              Переключателя «Цвет / Свечение» больше нет. */}
+          {isLight && (
             // 6 colour swatches — same compact row as before.
             <div style={{
               display: 'grid',
@@ -1275,7 +1227,7 @@ function HighlightCard({ reciter }: { reciter: ReciterId }) {
             </div>
           )}
 
-          {!isLight && style === 'glow' && (
+          {!isLight && (
             // 6 glow-palette swatches. Each chip is taller (32px) than
             // the colour swatches so the radial-gradient inside can
             // breathe — a 24px flat-paint square is enough for a hue,
@@ -1283,7 +1235,7 @@ function HighlightCard({ reciter }: { reciter: ReciterId }) {
             // The chip preview is the palette's own ayahGlow gradient
             // on a dark backdrop so the user sees the actual visual,
             // not just the swatch hex. Hidden on light themes where
-            // glow is force-resolved away — see the !isLight tab gate.
+            // glow is force-resolved to color.
             <div style={{
               display: 'grid',
               // От длины списка, а не жёстко шесть: после снятия золота

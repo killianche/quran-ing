@@ -257,7 +257,11 @@ export function getEffectiveHighlightStyle(theme?: string | null): HighlightStyl
   // isLightTheme(); дублировать список здесь нельзя, на этом уже
   // споткнулись в HighlightCard.
   if (isLightTheme(t as Theme)) return 'color';
-  return getHighlightStyle();
+  // Тёмные темы — только свечение. Владелец 2026-11-15: «в тёмных темах
+  // подсветку слов можно переключать между свечением и цветом — давай
+  // уберём цвета, только свечение». Сохранённый когда-то выбор 'color'
+  // на тёмной теме больше не действует; светлые по-прежнему 'color'.
+  return 'glow';
 }
 export function setHighlightStylePref(s: HighlightStyle) {
   localStorage.setItem(KEY_HIGHLIGHT_STYLE, s);
@@ -346,6 +350,25 @@ export function applyHighlightVars(theme?: string | null): void {
   const pal = AURORA_PALETTES[getGlowPalette()];
   root.style.setProperty('--ayah-word-shadow', pal.wordShadow);
   root.style.setProperty('--ayah-glow-bg',     pal.ayahGlow);
+  root.style.setProperty('--qcf-glow-bg',      qcfGlow(pal.swatch));
+}
+
+/**
+ * Свечение под активным словом мусхафа (QPC V4) — мягкое пятно цвета
+ * выбранной палитры, которое сходит на нет к краям.
+ *
+ * Шрифт мусхафа на iOS нельзя подсвечивать text-shadow (WebKit теряет части
+ * глифа), поэтому раньше под словом лежала сплошная плашка — владелец
+ * 2026-11-15: «свечение аята в тёмной теме работает неправильно» (на снимке
+ * зелёный прямоугольник). Теперь это градиент на отдельном слое позади
+ * слова (index.css, `.qcf-word-glyph[data-active-word]::before`): сам глиф
+ * не меняется. Значения — готовая rgba-строка, без color-mix: старый
+ * WebKit отбрасывает color-mix внутри градиента.
+ */
+function qcfGlow(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const rgb = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  return `radial-gradient(closest-side, rgba(${rgb},0.50) 0%, rgba(${rgb},0.30) 45%, rgba(${rgb},0.10) 75%, rgba(${rgb},0) 100%)`;
 }
 
 export function subscribeAudioPrefs(cb: () => void): () => void {

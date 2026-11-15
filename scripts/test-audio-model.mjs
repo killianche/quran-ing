@@ -316,6 +316,30 @@ group('iOS: стабильная подсветка QCF-глифов', () => {
     cssSource.includes(
       '[data-highlight-style="glow"] .qcf-word-glyph[data-active-word] {'
     ) && cssSource.includes('text-shadow: none !important;'), true);
+  // Владелец 2026-11-15: вместо свечения была сплошная плашка. Свечение —
+  // неподвижное пятно на ::before позади слова, без transform и анимации.
+  const glowRule = cssSource.slice(
+    cssSource.indexOf('.qcf-word-glyph[data-active-word]::before {'),
+  );
+  const glowBody = glowRule.slice(0, glowRule.indexOf('}'));
+  check('свечение QCF — пятно позади слова (::before, z-index -1, градиент)',
+    glowBody.includes('z-index: -1') && glowBody.includes('--qcf-glow-bg'), true);
+  check('пятно свечения QCF неподвижно (нет transform, animation, filter)',
+    /transform|animation|filter|will-change/.test(glowBody), false);
+  check('сплошной плашки под QCF-словом больше нет',
+    /qcf-word-glyph\[data-active-word\]\s*\{[^}]*background:/.test(cssSource), false);
+});
+
+group('Подсветка слов: на тёмных темах только свечение', () => {
+  const prefs = readFileSync(resolve(ROOT, 'src/lib/audioPrefs.ts'), 'utf8');
+  const fn = prefs.slice(prefs.indexOf('export function getEffectiveHighlightStyle'));
+  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  check('светлые темы — цвет, остальные — свечение без учёта сохранённого выбора',
+    body.includes("if (isLightTheme(t as Theme)) return 'color';")
+      && body.includes("return 'glow';") && !body.includes('getHighlightStyle()'), true);
+  const settings = readFileSync(resolve(ROOT, 'src/components/ReadingSettings.tsx'), 'utf8');
+  check('в настройках нет переключателя «Цвет / Свечение»',
+    settings.includes("label: 'Свечение'"), false);
 });
 
 group('iOS: основной штрих цветного таджвида следует теме', () => {

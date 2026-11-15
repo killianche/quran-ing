@@ -1390,21 +1390,29 @@ body {
   color: var(--qcf-text, var(--text-primary)) !important;
   text-shadow: none !important;
   /* QCF нельзя подсвечивать text-shadow на iOS: WebKit теряет части
-     сложного глифа. Поэтому усиливаем только неподвижную подложку — она
-     теперь примерно в четыре раза контрастнее прежней, но не затрагивает
-     сам арабский знак и его геометрию. */
-  background: color-mix(in srgb, var(--qcf-active) 38%, transparent);
-  box-shadow:
-    0 0 0 0.10em color-mix(in srgb, var(--qcf-active) 24%, transparent),
-    0 0 0.68em color-mix(in srgb, var(--qcf-active) 32%, transparent);
-  border-radius: 0.3em;
+     сложного глифа. Прежде вместо свечения была сплошная плашка — на
+     тёмной теме читалась зелёным прямоугольником (владелец 2026-11-15).
+     Теперь свечение — неподвижное пятно-градиент на псевдоэлементе позади
+     слова: сам знак, его цвет и геометрия строки не меняются, слоя с
+     transform и анимации нет. `isolation` держит пятно над фоном экрана,
+     но под буквами. */
+  position: relative;
+  isolation: isolate;
   transition: none !important;
+}
+[data-highlight-style="glow"] .qcf-word-glyph[data-active-word]::before {
+  content: '';
+  position: absolute;
+  inset: -0.32em -0.42em;
+  z-index: -1;
+  background: var(--qcf-glow-bg,
+    radial-gradient(closest-side, rgba(72,190,170,0.5) 0%, rgba(72,190,170,0.3) 45%, rgba(72,190,170,0.1) 75%, rgba(72,190,170,0) 100%));
+  pointer-events: none;
 }
 
 :root[style*="--highlight-disabled: 1"]
-  .qcf-word-glyph[data-active-word] {
-  background: transparent;
-  box-shadow: none;
+  .qcf-word-glyph[data-active-word]::before {
+  display: none;
 }
 
 /* When the user disables the highlight entirely, both signals go away. */
