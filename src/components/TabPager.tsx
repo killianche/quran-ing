@@ -332,7 +332,7 @@ export function TabPager({
       // Хвост привязки после отпускания — ставим ленту на страницу сразу
       // (см. snapTailTarget: иначе первое касание списка уходит ленте).
       // Только без пальца и не во время нашей плавной прокрутки по тапу.
-      if (!fingerDown && programmaticRef.current == null) {
+      if (!fingerDown && programmaticRef.current == null && !(window as unknown as { __labNoTail?: boolean }).__labNoTail) {
         const target = snapTailTarget(x, w, tabs.length, prevX);
         if (target != null) root.scrollTo({ left: target, behavior: 'instant' });
       }

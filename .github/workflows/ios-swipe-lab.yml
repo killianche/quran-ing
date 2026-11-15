@@ -1,0 +1,94 @@
+# Лабораторный стенд вкладок (ветка lab/tab-shift, в main не идёт).
+name: iOS swipe lab
+on:
+  push:
+    branches: [lab/tab-shift]
+  workflow_dispatch:
+jobs:
+  lab:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - run: npm ci
+      - name: Сборка с зондом
+        run: |
+          set -euo pipefail
+          npm run build
+          cp lab/swipe-probe.js dist/lab-probe.js
+          python3 - <<'PY'
+          p = 'dist/index.html'
+          s = open(p).read()
+          s = s.replace('</body>', '<script src="/lab-probe.js"></script></body>', 1)
+          open(p, 'w').write(s)
+          PY
+      - run: npx cap sync ios
+      - name: Сборка под симулятор
+        run: |
+          set -euo pipefail
+          xcodebuild build -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "${RUNNER_TEMP}/dd" CODE_SIGNING_ALLOWED=NO | tail -5
+      - name: idb
+        run: |
+          brew tap facebook/fb
+          brew trust facebook/fb || true
+          brew install facebook/fb/idb-companion
+          python3 -m pip install --break-system-packages fb-idb || python3 -m pip install --user fb-idb
+      - name: Прогон
+        run: |
+          set +e
+          export PATH="$PATH:$(ls -d ~/Library/Python/*/bin 2>/dev/null | head -1)"
+          APP=ing.quran.app
+          DEV=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; c=[(k,x) for k,v in d.items() if "iOS" in k for x in v if x["name"].startswith("iPhone")]; pm=[p for p in c if "Pro" in p[1]["name"] and "Max" not in p[1]["name"]]; p=(pm or c)[0]; print(p[1]["udid"])')
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b > /dev/null 2>&1
+          xcrun simctl install "$DEV" "${RUNNER_TEMP}/dd/Build/Products/Debug-iphonesimulator/App.app"
+          idb_companion --udid "$DEV" > "${RUNNER_TEMP}/companion.log" 2>&1 &
+          sleep 8
+          idb connect localhost 10882 || true
+          xcrun simctl launch --console-pty "$DEV" "$APP" > "${RUNNER_TEMP}/a.log" 2>&1 &
+          for i in $(seq 1 60); do sleep 2; grep -q 'LAB|READY' "${RUNNER_TEMP}/a.log" && break; done
+          sleep 6
+          mark() { echo "LABMARK $1 $(date +%s.%N)"; }
+          shot() { xcrun simctl io "$DEV" screenshot "shot-$1.png" > /dev/null 2>&1; echo "LABMARK shot $1"; }
+          run_variant() {
+            v=$1
+            for i in 1 2 3; do
+              mark "$v fast-$i"; idb ui swipe --udid "$DEV" --duration 0.12 330 520 60 520; sleep 1.5
+              idb ui swipe --udid "$DEV" --duration 0.12 60 520 330 520; sleep 2; shot "$v-fast-$i"
+              mark "$v slow-$i"; idb ui swipe --udid "$DEV" --duration 0.8 340 520 50 520; sleep 1.5
+              idb ui swipe --udid "$DEV" --duration 0.8 50 520 340 520; sleep 2; shot "$v-slow-$i"
+              mark "$v mid-$i"; idb ui swipe --udid "$DEV" --duration 0.3 300 520 120 520; sleep 1.5
+              idb ui swipe --udid "$DEV" --duration 0.3 120 520 300 520; sleep 2; shot "$v-mid-$i"
+              mark "$v short-$i"; idb ui swipe --udid "$DEV" --duration 0.7 260 520 170 520; sleep 2; shot "$v-short-$i"
+            done
+          }
+          run_variant tail
+          sleep 2
+          cp "${RUNNER_TEMP}/a.log" console-tail.log
+          xcrun simctl terminate "$DEV" "$APP" || true
+          # Вариант без досадки хвоста: та же сборка, флаг в зонде.
+          APPDIR="${RUNNER_TEMP}/dd/Build/Products/Debug-iphonesimulator/App.app"
+          sed -i '' 's/window.__labNoTail = false;/window.__labNoTail = true;/' "$APPDIR/public/lab-probe.js"
+          grep -c "__labNoTail = true" "$APPDIR/public/lab-probe.js"
+          xcrun simctl install "$DEV" "$APPDIR"
+          xcrun simctl launch --console-pty "$DEV" "$APP" > "${RUNNER_TEMP}/b.log" 2>&1 &
+          for i in $(seq 1 60); do sleep 2; grep -q 'LAB|READY' "${RUNNER_TEMP}/b.log" && break; done
+          sleep 6
+          run_variant notail
+          sleep 2
+          cp "${RUNNER_TEMP}/b.log" console-notail.log
+          sleep 2
+          xcrun simctl terminate "$DEV" "$APP" || true
+          grep -cE 'LAB\|' console-tail.log console-notail.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: swipe-lab-console
+          path: |
+            console-*.log
+            shot-*.png
