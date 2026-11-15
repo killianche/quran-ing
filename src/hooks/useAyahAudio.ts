@@ -4,7 +4,7 @@ import { ayahAudioRange } from '../lib/ayahAudioRange';
 import { localAyahSrc, localSurahSrc, unmarkSurahFile } from '../lib/audioStore';
 import {
   DEFAULT_RECITER, RECITERS_WITH_SEGMENTS, TIMELINE_SEEK_STEP_SECONDS, hasSurahAudio,
-  nextAvailableSurah, reciterHasSurah, requiresSurahAudioStream, surahAudioUrl,
+  nextAvailableSurah, reciterById, reciterHasSurah, requiresSurahAudioStream, surahAudioUrl,
   usesTimelineSeek, type ReciterId,
 } from '../lib/reciters';
 import {
@@ -864,7 +864,10 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
         // У чтеца без границ аятов номер аята неизвестен — «Аят 1» на замке
         // всю суру был бы неправдой.
         album:      usesTimelineSeek(r) ? undefined : `Аят ${ayah}`,
-        artist:     reciterRef.current,
+        // Имя человека, а не служебный id («husarymuallim», «yasser»):
+        // карточка на замке многострочная, поэтому полное `label` с
+        // пометкой «(обучение)», а не короткая подпись мини-плеера.
+        artist:     reciterById(r).label,
         // PNG надёжнее SVG на Android — некоторые WebView версии
         // не рендерят SVG в Lock Screen artwork.
         artworkUrl: '/icons/icon-512.png',
