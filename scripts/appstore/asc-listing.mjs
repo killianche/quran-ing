@@ -11,7 +11,7 @@
  *   • copyright версии, описание, ключевые слова, промо-текст, Support URL;
  *   • контакт для App Review (тот же, что у бета-проверки TestFlight) и
  *     заметки для ревьюера;
- *   • цена «бесплатно» и доступность во всех странах;
+ *   • цена «бесплатно» и доступность во всех странах, кроме материкового Китая;
  *   • скриншоты iPhone 6.9″ и iPad 13″ из app-store/screenshots/.
  *
  * ── Чего НЕ ставит ────────────────────────────────────────────────────────
@@ -198,7 +198,12 @@ if (!hasSchedule) {
 }
 console.log('✓ цена: бесплатно');
 
-// ── Доступность: все страны ──────────────────────────────────────────────
+// ── Доступность: все страны, кроме материкового Китая ───────────────────
+// CHN исключён намеренно: 19.10.2026 App Review отклонил 1.0 по Guideline
+// 2.1 — для «книжного» контента в Китае нужна Internet Publishing License,
+// которой у приложения нет. Владелец снял Китай вручную 15.11.2026; при
+// пересоздании доступности он не должен вернуться.
+const EXCLUDED_TERRITORIES = new Set(['CHN']);
 let hasAvailability = false;
 try {
   const av = await ascGet(`/v1/apps/${APP}/appAvailabilityV2`, C);
@@ -209,7 +214,7 @@ if (!hasAvailability) {
   let next = '/v1/territories?limit=200';
   while (next) {
     const page = await ascGet(next, C);
-    territories.push(...page.data.map(t => t.id));
+    territories.push(...page.data.map(t => t.id).filter(t => !EXCLUDED_TERRITORIES.has(t)));
     next = page.links?.next ?? null;
   }
   await ascSend('POST', '/v2/appAvailabilities', {
@@ -229,7 +234,7 @@ if (!hasAvailability) {
       relationships: { territory: { data: { type: 'territories', id: t } } },
     })),
   }, C);
-  console.log(`✓ доступность: ${territories.length} стран, новые — автоматически`);
+  console.log(`✓ доступность: ${territories.length} стран (без Китая), новые — автоматически`);
 } else {
   console.log('✓ доступность уже задана');
 }

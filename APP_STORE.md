@@ -51,7 +51,7 @@ copyright — `2026 Victoria Hester` (правило `APPLE_ACCOUNT_CHECKLIST.md
 
 ### Promotional Text
 
-Коран с ингушским и русским переводами, толкованием ас-Саади и шестью
+Коран с ингушским и русским переводами, толкованием ас-Саади и семью
 чтецами — в спокойном приложении без рекламы и регистрации.
 
 ### Description
@@ -67,8 +67,8 @@ Quran Ing — приложение для чтения Корана с пере�
 - полный арабский текст Корана, шрифты мединского мусхафа;
 - ингушский и русский переводы под каждым аятом;
 - толкование ас-Саади к каждому аяту;
-- шесть чтецов, среди них Хьусейн Мержоев; фоновое воспроизведение и
-  управление с экрана блокировки;
+- семь чтецов, среди них Хьусейн Мержоев и Махмуд Халиль Аль-Хусари;
+  фоновое воспроизведение и управление с экрана блокировки;
 - загрузка записей для прослушивания без интернета;
 - «Продолжить чтение» — приложение помнит, где вы остановились;
 - поиск по номеру и названию суры и по тексту перевода;
@@ -125,6 +125,10 @@ from the lock screen. Location is optional — prayer times and the qibla work
 with a manually chosen city. Prayer reminders are local notifications created
 only after the user enables the bell. The app shows the Quran in Arabic with
 Ingush and Russian translations and the tafsir of as-Sa'di.
+
+Regarding the previous review (Guideline 2.1, China mainland): the app has
+been removed from sale in China mainland in Pricing and Availability, so no
+Internet Publishing License is required.
 
 ## Скриншоты
 
