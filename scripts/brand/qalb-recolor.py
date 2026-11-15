@@ -22,8 +22,12 @@ qalb-logo-original.jpg); векторного файла нет. Каждый п
 
 ── Что пишет ───────────────────────────────────────────────────────────────
 
-  logo.png            — непрозрачная плитка 1024×1024 (иконка iOS, PWA,
-                        Android legacy), фон с мягким светом к центру;
+  logo.png            — непрозрачная плитка 1024×1024, фон с мягким светом
+                        к центру. С 2026-11-15 (позже в тот же день) иконкой
+                        стал квадрат из середины заставки: brand.json
+                        "icon": "launch", и generate-brand-assets.py
+                        перезаписывает logo.png этим квадратом. Плитка
+                        остаётся вариантом на случай отказа от фото;
   logo-wordmark.png   — только знак на прозрачном фоне, обрезанный по
                         краям (адаптивная иконка Android, знак заставки);
   launch-photo.jpg    — фото заставки (ряды молящихся, решение владельца
@@ -191,6 +195,7 @@ def main() -> None:
     data = json.loads(brand_path.read_text(encoding="utf-8")) if brand_path.is_file() else {}
     data.update({
         "variant": "qalb",
+        "icon": "launch",
         "background": "#%02x%02x%02x" % BG_EDGE,
         "launchPhoto": "launch-photo.jpg",
         "launchMarkScale": LAUNCH_MARK_SCALE,

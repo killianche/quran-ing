@@ -144,6 +144,24 @@ def save_adaptive_foreground(wordmark: Image.Image, target: Path, size: int) -> 
     canvas.save(target, "PNG", optimize=True)
 
 
+def save_launch_adaptive(photo: Image.Image, mark: Image.Image, folder: Path, size: int) -> None:
+    """Адаптивная иконка Android из заставки: фон — фото, передний слой — знак.
+
+    Лаунчер показывает центральные 72 из 108 dp (2/3 слоя). Чтобы иконка
+    выглядела как iOS-плитка, знак занимает 0,56 видимой части — то есть
+    0,56 × 2/3 слоя; полудиагональ знака при этом ~0,24 стороны, внутри
+    круглой маски (0,33) с запасом. Фон — квадрат фото по cover без знака.
+    """
+    folder.mkdir(parents=True, exist_ok=True)
+    background = compose_launch(photo, Image.new("RGBA", (1, 1), (0, 0, 0, 0)), (size, size))
+    background.save(folder / "ic_launcher_background.png", "PNG", optimize=True)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    width = round(float(brand()["launchMarkScale"]) * size * 2 / 3)
+    sized = mark.resize((width, round(mark.height * width / mark.width)), RESAMPLE)
+    canvas.alpha_composite(sized, ((size - sized.width) // 2, (size - sized.height) // 2))
+    canvas.save(folder / "ic_launcher_foreground.png", "PNG", optimize=True)
+
+
 def save_splash(wordmark: Image.Image, target: Path, size: tuple[int, int]) -> None:
     width, height = size
     canvas = splash_background(size)
@@ -176,14 +194,22 @@ def main() -> None:
     if not SOURCE.is_file():
         raise SystemExit(f"Missing canonical logo: {SOURCE}")
 
-    source = opaque_rgb(Image.open(SOURCE))
-    if source.width != source.height:
-        raise SystemExit(f"Logo must be square, got {source.size}")
-
     wordmark = load_wordmark()
 
     photo = launch_photo()
     mark = launch_mark(wordmark)
+
+    # Иконка = квадрат из середины заставки (решение владельца 2026-11-15:
+    # «заставку обрежь квадратно и сделай из неё иконку»). Та же геометрия,
+    # что у заставки: фото по cover, знак 0,56 ширины. Результат пишется в
+    # logo.png, чтобы канонический файл иконки всегда совпадал с выданной.
+    icon_from_launch = brand().get("icon") == "launch"
+    if icon_from_launch:
+        compose_launch(photo, mark, (1024, 1024)).save(SOURCE, "PNG", optimize=True)
+
+    source = opaque_rgb(Image.open(SOURCE))
+    if source.width != source.height:
+        raise SystemExit(f"Logo must be square, got {source.size}")
 
     # Предпросмотр заставки (ничем не читается, только для глаз).
     for stale in ("assets/splash.png", "assets/splash-dark.png"):
@@ -241,10 +267,12 @@ def main() -> None:
         folder = ROOT / f"android/app/src/main/res/mipmap-{density}"
         save_square(source, folder / "ic_launcher.png", legacy_size)
         save_square(source, folder / "ic_launcher_round.png", legacy_size)
-        save_adaptive_foreground(wordmark, folder / "ic_launcher_foreground.png", adaptive_size)
-
-        background = Image.new("RGB", (adaptive_size, adaptive_size), brand_background())
-        background.save(folder / "ic_launcher_background.png", "PNG", optimize=True)
+        if icon_from_launch:
+            save_launch_adaptive(photo, mark, folder, adaptive_size)
+        else:
+            save_adaptive_foreground(wordmark, folder / "ic_launcher_foreground.png", adaptive_size)
+            background = Image.new("RGB", (adaptive_size, adaptive_size), brand_background())
+            background.save(folder / "ic_launcher_background.png", "PNG", optimize=True)
 
     # Цвет фонового слоя адаптивной иконки (mipmap-anydpi-v26 ссылается на
     # @color/ic_launcher_background). У an-Nur он оставался белым шаблонным:

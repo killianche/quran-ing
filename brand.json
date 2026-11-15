@@ -4,5 +4,6 @@
   "opticalLift": 0,
   "splashScale": 0.26,
   "launchPhoto": "launch-photo.jpg",
-  "launchMarkScale": 0.56
+  "launchMarkScale": 0.56,
+  "icon": "launch"
 }
