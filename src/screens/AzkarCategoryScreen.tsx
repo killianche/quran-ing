@@ -221,6 +221,15 @@ export function AzkarCategoryScreen({ category, theme, setTheme, onBack }: Props
   // ── Carousel state ───────────────────────────────────────────────────
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  /** Карусель стоит на карточке (не едет). Пока едет, нижняя панель не
+   *  превращает «Следующий» в «Готово»: иначе второе быстрое нажатие на
+   *  предпоследней карточке попало бы в «Готово» и вывело из ленты вместе
+   *  со всеми отсчитанными тасбихами (ревью 2026-11-15). */
+  const [carouselSettled, setCarouselSettled] = useState(true);
+  const settledRef = useRef(true);
+  /** Куда едет карусель по кнопке панели: быстрые нажатия шагают от цели,
+   *  а не от карточки, мимо которой лента ещё проезжает. */
+  const navTargetRef = useRef<number | null>(null);
 
   // Track current visible card via scroll position.  Read scrollLeft
   // and divide by container width; rAF-throttled so fast swipes don't
@@ -229,7 +238,30 @@ export function AzkarCategoryScreen({ category, theme, setTheme, onBack }: Props
     const el = scrollerRef.current;
     if (!el) return;
     let raf = 0;
+    // Остановка — тишина событий прокрутки и положение ровно на карточке.
+    // setTimeout, а не rAF: rAF не тикает в скрытой вкладке (CLAUDE.md,
+    // грабли № 5).
+    let settleTimer = 0;
+    const checkSettled = () => {
+      settleTimer = 0;
+      const w = el.clientWidth;
+      if (w <= 0) return;
+      const r = el.scrollLeft / w;
+      if (Math.abs(r - Math.round(r)) * w > 1) {
+        settleTimer = window.setTimeout(checkSettled, 160);
+        return;
+      }
+      navTargetRef.current = null;
+      settledRef.current = true;
+      setCarouselSettled(true);
+    };
     const onScroll = () => {
+      if (settledRef.current) {
+        settledRef.current = false;
+        setCarouselSettled(false);
+      }
+      if (settleTimer) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(checkSettled, 160);
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
@@ -243,8 +275,18 @@ export function AzkarCategoryScreen({ category, theme, setTheme, onBack }: Props
     return () => {
       el.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
+      if (settleTimer) window.clearTimeout(settleTimer);
     };
   }, [entries.length]);
+
+  /** Шаг кнопкой панели: от цели прошлого нажатия, если лента ещё едет. */
+  const stepCard = (delta: number) => {
+    const base = navTargetRef.current ?? currentIndex;
+    const target = Math.max(0, Math.min(entries.length - 1, base + delta));
+    if (target === base) return;
+    navTargetRef.current = target;
+    scrollToIndex(target);
+  };
 
   // Helper: scroll to a card index programmatically.  Used by prev/next
   // buttons, by keyboard arrows, and when audio queue advances.
@@ -470,10 +512,8 @@ export function AzkarCategoryScreen({ category, theme, setTheme, onBack }: Props
             height: '100dvh',
             width: '100%',
             // Desktop cap: centre the carousel inside a 1200-px column
-            // so the floating bottom controls (whose `left`/`right` are
-            // also pinned to this column via leftEdge/rightEdge) align
-            // with the card edges and nothing flies to the viewport
-            // corners on wide displays.
+            // so cards don't stretch to the viewport corners on wide
+            // displays.
             maxWidth: '1200px',
             marginInline: 'auto',
             position: 'relative',
@@ -761,8 +801,9 @@ export function AzkarCategoryScreen({ category, theme, setTheme, onBack }: Props
         <AzkarNavBar
           index={currentIndex}
           total={entries.length}
-          onPrev={() => scrollToIndex(currentIndex - 1)}
-          onNext={() => scrollToIndex(currentIndex + 1)}
+          settled={carouselSettled}
+          onPrev={() => stepCard(-1)}
+          onNext={() => stepCard(1)}
           onExit={onBack}
         />
       )}

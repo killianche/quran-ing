@@ -328,6 +328,10 @@ group('iOS: стабильная подсветка QCF-глифов', () => {
     /transform|animation|filter|will-change/.test(glowBody), false);
   check('сплошной плашки под QCF-словом больше нет',
     /qcf-word-glyph\[data-active-word\]\s*\{[^}]*background:/.test(cssSource), false);
+  // isolation на самом слове подняло бы пятно поверх соседних слов.
+  check('пятно уходит под все слова строки: isolation на строке, не на слове',
+    /\[data-highlight-style="glow"\] \.qcf-ayah-line \{\s*isolation: isolate;/.test(cssSource)
+      && !/qcf-word-glyph\[data-active-word\]\s*\{[^}]*isolation:/.test(cssSource), true);
 });
 
 group('Подсветка слов: на тёмных темах только свечение', () => {

@@ -171,7 +171,7 @@ export function ScreenHeader({
             className="display-serif"
             style={{
               // Title 3 — ближайшая ступень iOS к прежним 19px.  Nav-bar
-              // Headline (17) в панели высотой 64 читался бы потерянно.
+              // Headline (17) в строке панели читался бы потерянно.
               fontSize: 'var(--font-title3)',
               lineHeight: 'var(--leading-title3)',
               fontWeight: 'var(--weight-semibold)',

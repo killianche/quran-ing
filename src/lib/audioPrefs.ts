@@ -6,10 +6,11 @@
  *     advances. Default true.
  *   - highlightEnabled: word-by-word marker under the active word
  *     during playback. Default true.
- *   - highlightStyle: 'color' (default) — repaints the active word in
- *     a picked colour; 'glow' — keeps the base text colour and adds a
- *     vertical aurora-style text-shadow + a soft radial-gradient
- *     "dome" under the word (rendered by AyahGlowLayer).
+ *   - highlight style is not a stored pick any more: light themes get
+ *     'color' (repaints the active word in a picked colour), dark themes
+ *     'glow' (base text colour + aurora text-shadow and a soft dome under
+ *     the word; on the mushaf font — a still glow spot behind it). See
+ *     getEffectiveHighlightStyle.
  *   - highlightColor: which colour the active-word TEXT becomes in
  *     'color' mode. 6 picks (rose/green/teal/blue/violet/grey), each
  *     with a deeper light-theme shade and a brighter dark-theme shade
@@ -29,7 +30,6 @@ import { isLightTheme, type Theme } from '../hooks/useTheme';
 
 const KEY_AUTO_SCROLL       = 'audio.autoScroll';
 const KEY_HIGHLIGHT_ENABLED = 'highlight.enabled';
-const KEY_HIGHLIGHT_STYLE   = 'highlight.style';
 const KEY_HIGHLIGHT_COLOR   = 'highlight.color';
 const KEY_GLOW_PALETTE      = 'highlight.glowPalette';
 const EVENT = 'audio-prefs-changed';
@@ -228,24 +228,12 @@ export function setHighlightEnabled(on: boolean) {
   window.dispatchEvent(new Event(EVENT));
 }
 
-export function getHighlightStyle(): HighlightStyle {
-  // Raw user preference — the "what the user picked in settings" value.
-  // Default 'glow' so first-run users on dark/cosmic themes get the
-  // signature aurora effect right away. On light themes this value is
-  // overridden by applyHighlightVars() to 'color' for legibility — soft
-  // glows against a near-white page read as dirty smudges, not light.
-  // Use getEffectiveHighlightStyle(theme) when you need the resolved
-  // value that's actually painted to :root.
-  const v = localStorage.getItem(KEY_HIGHLIGHT_STYLE);
-  if (v === 'color' || v === 'glow') return v;
-  return 'glow';
-}
 
 /**
  * Resolved highlight style, accounting for theme.  Светлая тема всегда
  * сводится к 'color', какой бы ни была сохранённая настройка: свечение
- * на белой бумаге читается как грязное пятно, а не как сияние.  Тёмная
- * и «Аврора 2» используют выбор пользователя как есть.
+ * на белой бумаге читается как грязное пятно, а не как сияние.  Тёмные
+ * темы — всегда 'glow' (владелец 2026-11-15, выбор «Цвет» убран).
  *
  * Pass `theme` explicitly (from useTheme) when known — falls back to
  * reading the data-theme attribute on :root when not.
@@ -262,11 +250,6 @@ export function getEffectiveHighlightStyle(theme?: string | null): HighlightStyl
   // уберём цвета, только свечение». Сохранённый когда-то выбор 'color'
   // на тёмной теме больше не действует; светлые по-прежнему 'color'.
   return 'glow';
-}
-export function setHighlightStylePref(s: HighlightStyle) {
-  localStorage.setItem(KEY_HIGHLIGHT_STYLE, s);
-  applyHighlightVars();
-  window.dispatchEvent(new Event(EVENT));
 }
 
 export function getHighlightColor(): HighlightColor {

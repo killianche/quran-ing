@@ -41,17 +41,20 @@ function tap() {
 }
 
 export function AzkarNavBar({
-  index, total, onPrev, onNext, onExit,
+  index, total, settled, onPrev, onNext, onExit,
 }: {
   /** Номер видимой карточки, с нуля. */
   index: number;
   total: number;
+  /** Лента стоит на карточке. Пока едет, «Готово» не показываем: второе
+   *  быстрое нажатие «Следующий» не должно выводить из ленты. */
+  settled: boolean;
   onPrev: () => void;
   onNext: () => void;
   onExit: () => void;
 }) {
   const atStart = index <= 0;
-  const atEnd = index >= total - 1;
+  const atEnd = settled && index >= total - 1;
 
   const pill: React.CSSProperties = {
     flex: 1,
