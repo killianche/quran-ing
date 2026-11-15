@@ -67,7 +67,7 @@ import { ayahRepeatLabel } from '../lib/ayahRepeat';
 import { useTightRow } from '../hooks/useTightRow';
 import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
 import {
-  RECITERS, TIMELINE_SEEK_STEP_SECONDS, availableSurahCount, reciterById,
+  RECITERS, TIMELINE_SEEK_STEP_SECONDS, availableSurahCount, reciterById, reciterShortLabel,
   reciterHasSurah, usesTimelineSeek, type ReciterId,
 } from '../lib/reciters';
 import { TOTAL_SURAHS } from '../lib/ayahNumbering';
@@ -662,7 +662,7 @@ function ReciterTrigger({ reciter, open, onOpen }: {
       }}
     >
       <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {reciterById(reciter).label}
+        {reciterShortLabel(reciter)}
       </span>
       <span aria-hidden style={{
         display: 'inline-flex', flexShrink: 0,

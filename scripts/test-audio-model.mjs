@@ -194,9 +194,9 @@ group('Хьусейн Мержоев: записи целых сур, 80 из 11
 });
 
 group('Каталог чтецов и источники аудио', () => {
-  check('в каталоге шесть чтецов',
+  check('в каталоге семь чтецов',
     RECITERS.map(reciter => reciter.id),
-    ['alafasy', 'shaatree', 'yasser', 'ajmi', 'husary', 'merzhoev']);
+    ['alafasy', 'shaatree', 'yasser', 'ajmi', 'husary', 'husarymuallim', 'merzhoev']);
   check('Люхайдан отключён (решение владельца 15.11.2026)',
     RECITERS.some(reciter => String(reciter.id) === 'luhaidan'), false);
   check('ни один чтец не грузит звук с сервера an-Nur (l.asrbook.ru)',
@@ -251,6 +251,33 @@ group('Каталог чтецов и источники аудио', () => {
     [RECITERS_WITH_SEGMENTS.has('husary'), usesWholeAyahHighlight('husary')], [true, false]);
   check('Аль-Хусари начинает 1:2 по границе quran.com',
     ayahAudioRange('husary', 1, 2), { startSeconds: 5.22, endSeconds: 11.57 });
+  check('короткая подпись: у обучающего Аль-Хусари своя, у остальных — полное имя',
+    [recitersMod.reciterShortLabel('husarymuallim'), recitersMod.reciterShortLabel('husary')],
+    ['Аль-Хусари (обучение)', 'Махмуд Халиль Аль-Хусари']);
+  check('обучающее чтение Аль-Хусари подписано отдельно от муратталя',
+    [reciterById('husarymuallim').label, reciterById('husarymuallim').arabic],
+    ['Махмуд Халиль Аль-Хусари (обучение)', 'محمود خليل الحصري']);
+  check('URL обучающего Аль-Хусари — 128 kbps файл аята everyayah (Muallim)',
+    ayahAudioUrl(2, 255, 'husarymuallim'),
+    'https://everyayah.com/data/Husary_Muallim_128kbps/002255.mp3');
+  check('сплошная запись обучающего Аль-Хусари — размеченная quran.com (recitation 12)',
+    surahAudioUrl('husarymuallim', 2),
+    'https://download.quranicaudio.com/qdc/khalil_al_husary/muallim/2.mp3');
+  check('обучающий Аль-Хусари: поаятный офлайн, старт с файла аята, караоке',
+    [supportsAyahOffline('husarymuallim'), requiresSurahAudioStream('husarymuallim'),
+      RECITERS_WITH_SEGMENTS.has('husarymuallim'), usesWholeAyahHighlight('husarymuallim')],
+    [true, false, true, false]);
+  check('обучающий Аль-Хусари: 1:1 и 1:2 по границам quran.com (поаятные файлы 7,84 с и 8,25 с)',
+    [ayahAudioRange('husarymuallim', 1, 1), ayahAudioRange('husarymuallim', 1, 2)],
+    [{ startSeconds: 0, endSeconds: 7.84 }, { startSeconds: 7.84, endSeconds: 16.09 }]);
+  {
+    const r = RECITERS.find(x => x.id === 'husarymuallim');
+    const sized = Object.keys(r.surahBytes).map(Number).sort((x, y) => x - y);
+    check('у обучающего Аль-Хусари известны размеры всех 114 сур, около 2,55 ГБ',
+      [sized.length, sized[0], sized[113],
+        Math.round(Object.values(r.surahBytes).reduce((x, y) => x + y, 0) / 1024 ** 3 * 100) / 100],
+      [114, 1, 114, 2.55]);
+  }
   check('оценка офлайн-размера учитывает 128 kbps Ад-Даусари',
     reciterById('yasser').bitrateKbps / reciterById('alafasy').bitrateKbps, 2);
 
@@ -273,9 +300,9 @@ group('Каталог чтецов и источники аудио', () => {
       }
     }
   }
-  check('у всех пяти чтецов с поаятной разметкой есть валидные границы для 6236 аятов',
+  check('у всех шести чтецов с поаятной разметкой есть валидные границы для 6236 аятов',
     [ayahTimedReciters.length, continuousRangeCount, invalidContinuousRanges],
-    [5, TOTAL_AYAHS * 5, 0]);
+    [6, TOTAL_AYAHS * 6, 0]);
 });
 
 group('iOS: стабильная подсветка QCF-глифов', () => {

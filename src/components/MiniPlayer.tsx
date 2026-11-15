@@ -40,7 +40,7 @@ import {
 } from './icons';
 import { useAudioActions, useAudioState, useAudioTick } from '../hooks/AudioProvider';
 import { SURAH_BY_NUMBER } from '../content/surahs';
-import { reciterById, usesTimelineSeek } from '../lib/reciters';
+import { reciterShortLabel, usesTimelineSeek } from '../lib/reciters';
 import { GLASS_BLUR } from '../lib/glass';
 import { accessoryBottom, type AccessoryPlacement } from './TabBar';
 
@@ -195,7 +195,7 @@ export function MiniPlayer({ onOpen, placement = 'tabs', hidden = false }: {
               : `${currentAyah && !timeline ? `Аят ${currentAyah} · ` : ''}${
                 !timeline && ayahRepeat === 'three' ? '×3 · '
                 : !timeline && ayahRepeat === 'loop' ? 'по кругу · ' : ''
-              }${reciterById(reciter).label}`}
+              }${reciterShortLabel(reciter)}`}
           </span>
         </span>
       </button>

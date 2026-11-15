@@ -50,6 +50,7 @@ const RECITER_MAP = {
   alafasy:    7,    // Mishari Rashid al-`Afasy (Murattal)
   shaatree:   4,    // Abu Bakr al-Shatri
   husary:     6,    // Mahmoud Khalil Al-Husary (Murattal)
+  husarymuallim: 12, // Mahmoud Khalil Al-Husary (Muallim, обучающее)
   abdulbasit: 2,    // AbdulBaset AbdulSamad (Murattal)
   hanirifai:  5,    // Hani ar-Rifai
   shuraim:   10,    // Sa'ud ash-Shuraim
