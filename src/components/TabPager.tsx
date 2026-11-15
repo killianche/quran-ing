@@ -46,7 +46,10 @@
  *  • WebKit на iOS отдаёт положение прокрутки с запаздыванием (−10…+7 px)
  *    и не присылает `touchend`, когда жест забрала нативная прокрутка.
  *    Поэтому остановка — тишина событий плюс допуск (tabSettleTolerance),
- *    а не «палец убран» и не «до пикселя».
+ *    а не «палец убран» и не «до пикселя». Признав остановку, ленту
+ *    ставят ровно на страницу (restTarget); на ходу досаживают только
+ *    последние пиксели хвоста — прыжок в два десятка пикселей был виден
+ *    как дёрганье (2026-11-15).
  */
 
 import {
@@ -67,6 +70,7 @@ import {
   tabSettleTolerance,
   tabStep,
   snapTailTarget,
+  restTarget,
 } from '../lib/tabStrip';
 
 /** Через сколько после старта монтировать вкладки, где ещё не были, мс. */
@@ -276,9 +280,10 @@ export function TabPager({
     /**
      * Лента остановилась? Подтверждает тишина событий И положение в
      * допуске от страницы (см. tabSettleTolerance). Палец держит ленту
-     * посреди перелистывания — проверяем снова позже. Положение не
-     * дописываем: запись поверх системной привязки сдвинула бы страницу на
-     * эти пиксели уже по-настоящему.
+     * посреди перелистывания — проверяем снова позже. Признанную остановку
+     * ставим ровно на страницу (restTarget): допуск лишь отличает остановку
+     * от пальца, а стоять не ровно лента не должна — иначе страница так и
+     * остаётся сдвинутой вбок (владелец 2026-11-15).
      */
     const settle = () => {
       settleTimerRef.current = 0;
@@ -303,6 +308,8 @@ export function TabPager({
       waitedTarget = 0;
       programmaticRef.current = null;
       liveIndexRef.current = index;
+      const exact = restTarget(x, w, tabs.length);
+      if (exact != null) root.scrollTo({ left: exact, behavior: 'instant' });
       const id = tabs[index];
       if (id !== activeTab) {
         // Подсветку и `inert` у прежней снимет смена вкладки, прозрачность
@@ -332,7 +339,7 @@ export function TabPager({
       // Хвост привязки после отпускания — ставим ленту на страницу сразу
       // (см. snapTailTarget: иначе первое касание списка уходит ленте).
       // Только без пальца и не во время нашей плавной прокрутки по тапу.
-      if (!fingerDown && programmaticRef.current == null && !(window as unknown as { __labNoTail?: boolean }).__labNoTail) {
+      if (!fingerDown && programmaticRef.current == null) {
         const target = snapTailTarget(x, w, tabs.length, prevX);
         if (target != null) root.scrollTo({ left: target, behavior: 'instant' });
       }
@@ -412,7 +419,11 @@ export function TabPager({
     placedRef.current = { step, enabled };
     if (there) {
       // Уже стоим (листали пальцем) — снять прозрачность панелей теперь,
-      // когда React переставил их видимость.
+      // когда React переставил их видимость. И стоять ровно, а не в
+      // допуске: пересчёт раскладки после смены вкладки не должен оставить
+      // страницу сдвинутой вбок.
+      const exact = restTarget(x, step, order.length);
+      if (exact != null) root.scrollTo({ left: exact, behavior: 'instant' });
       programmaticRef.current = null;
       clearChrome();
       return;

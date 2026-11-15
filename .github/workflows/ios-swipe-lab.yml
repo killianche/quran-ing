@@ -66,24 +66,12 @@ jobs:
               mark "$v short-$i"; idb ui swipe --udid "$DEV" --duration 0.7 260 520 170 520; sleep 2; shot "$v-short-$i"
             done
           }
-          run_variant tail
+          run_variant fix
           sleep 2
-          cp "${RUNNER_TEMP}/a.log" console-tail.log
-          xcrun simctl terminate "$DEV" "$APP" || true
-          # Вариант без досадки хвоста: та же сборка, флаг в зонде.
-          APPDIR="${RUNNER_TEMP}/dd/Build/Products/Debug-iphonesimulator/App.app"
-          sed -i '' 's/window.__labNoTail = false;/window.__labNoTail = true;/' "$APPDIR/public/lab-probe.js"
-          grep -c "__labNoTail = true" "$APPDIR/public/lab-probe.js"
-          xcrun simctl install "$DEV" "$APPDIR"
-          xcrun simctl launch --console-pty "$DEV" "$APP" > "${RUNNER_TEMP}/b.log" 2>&1 &
-          for i in $(seq 1 60); do sleep 2; grep -q 'LAB|READY' "${RUNNER_TEMP}/b.log" && break; done
-          sleep 6
-          run_variant notail
-          sleep 2
-          cp "${RUNNER_TEMP}/b.log" console-notail.log
+          cp "${RUNNER_TEMP}/a.log" console-fix.log
           sleep 2
           xcrun simctl terminate "$DEV" "$APP" || true
-          grep -cE 'LAB\|' console-tail.log console-notail.log
+          grep -cE 'LAB\|' console-fix.log
           exit 0
       - uses: actions/upload-artifact@v4
         if: always()
