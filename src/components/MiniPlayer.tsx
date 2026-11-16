@@ -43,6 +43,7 @@ import { SURAH_BY_NUMBER } from '../content/surahs';
 import { reciterShortLabel, usesTimelineSeek } from '../lib/reciters';
 import { GLASS_BLUR } from '../lib/glass';
 import { accessoryBottom, type AccessoryPlacement } from './TabBar';
+import { ayahRepeatBadge } from '../lib/ayahRepeat';
 
 /** Высота капсулы и её зазор до панели вкладок. */
 const HEIGHT = 64;
@@ -60,6 +61,7 @@ export function MiniPlayer({ onOpen, placement = 'tabs', hidden = false }: {
   hidden?: boolean;
 }) {
   const { currentSurah, currentAyah, audioState, ayahRepeat, reciter } = useAudioState();
+  const repeatBadge = ayahRepeatBadge(ayahRepeat);
   const audio = useAudioActions();
 
   // Капсула перекрывает низ экрана, а её высота известна только ей. Чтобы
@@ -193,8 +195,7 @@ export function MiniPlayer({ onOpen, placement = 'tabs', hidden = false }: {
               // Повтор аята — сразу после номера: в капсуле нет его кнопки,
               // а без пометки «аят не сменяется» выглядело бы зависанием.
               : `${currentAyah && !timeline ? `Аят ${currentAyah} · ` : ''}${
-                !timeline && ayahRepeat === 'three' ? '×3 · '
-                : !timeline && ayahRepeat === 'loop' ? 'по кругу · ' : ''
+                !timeline && repeatBadge ? `${repeatBadge} · ` : ''
               }${reciterShortLabel(reciter)}`}
           </span>
         </span>

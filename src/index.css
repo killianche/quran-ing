@@ -1253,6 +1253,236 @@ body {
   .player-press, .player-press:active { transform: none; transition: opacity 120ms ease; }
 }
 
+/* ─── Полный плеер, раскладка G1 «Михраб» (владелец 2026-11-16) ─────────
+ * Компоненты — src/components/PlayerControls.tsx, экран —
+ * src/screens/PlayerScreen.tsx, макет — docs/design/player-redesign/
+ * mihrab-G1.png. Только смысловые токены: работает во всех пяти темах.
+ * Размеры главного — от высоты экрана, чтобы плеер помещался без
+ * прокрутки и на iPhone SE, и на Pro Max. */
+.player-g1 {
+  --mihrab-h: clamp(150px, 26dvh, 228px);
+  --side-btn: clamp(52px, 15vw, 60px);
+}
+
+/* Арка — единственное золотое пятно экрана. Зона нажатия — весь её
+   прямоугольник. */
+.mihrab-btn {
+  position: relative;
+  flex-shrink: 0;
+  height: var(--mihrab-h);
+  aspect-ratio: 180 / 220;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--on-brand);
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* Тень с отступом и мягким размытием, окрашенная тоном золота: на
+     светлых темах чёрная тень выглядела бы грязной. */
+  filter: drop-shadow(0 12px 22px rgb(var(--brand-rgb) / 0.28)) drop-shadow(0 3px 6px rgb(0 0 0 / 0.18));
+  transition: transform 160ms var(--ease-standard), filter 160ms var(--ease-standard);
+}
+.mihrab-btn:active { transform: scale(0.97); }
+.mihrab-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 24px; }
+.mihrab-shape { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.mihrab-stop-top    { stop-color: color-mix(in srgb, var(--brand) 78%, #fff); }
+.mihrab-stop-mid    { stop-color: var(--brand); }
+.mihrab-stop-bottom { stop-color: color-mix(in srgb, var(--brand) 86%, #000); }
+.mihrab-edge  { stroke: color-mix(in srgb, var(--brand) 55%, #fff); stroke-width: 1; }
+.mihrab-inner { stroke: var(--on-brand); stroke-opacity: 0.2; stroke-width: 1; }
+.mihrab-face {
+  position: absolute; left: 0; right: 0; top: 30%; bottom: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px;
+}
+.mihrab-icon { display: inline-flex; transition: opacity 200ms ease; }
+.mihrab-icon svg { fill: currentColor; }
+.mihrab-icon.is-loading { animation: mihrab-breathe 1.2s ease-in-out infinite; }
+@keyframes mihrab-breathe { 50% { opacity: 0.45; } }
+.mihrab-label {
+  font-size: var(--font-callout, 16px);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.01em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mihrab-btn, .mihrab-btn:active { transform: none; transition: none; }
+  .mihrab-icon.is-loading { animation: none; opacity: 0.6; }
+}
+
+/* Соседние аяты — по бокам арки. */
+.side-btn-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.side-btn {
+  width: var(--side-btn); height: var(--side-btn);
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--text-primary);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.side-btn:disabled { opacity: 0.35; cursor: default; }
+.side-btn-caption {
+  font-size: var(--font-caption2);
+  line-height: var(--leading-caption2);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Соседние суры — капсулы под аркой. */
+.surah-step {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: rgb(var(--ink-rgb) / 0.05);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-footnote);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.surah-step:disabled { opacity: 0.35; cursor: default; }
+.surah-step svg { flex-shrink: 0; color: var(--text-tertiary); }
+.surah-step-num { flex-shrink: 0; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.surah-step-title { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Строки выбора «Повтор аята» и «Повтор суры». */
+.choice { display: grid; gap: 6px; }
+.choice-label {
+  display: flex; align-items: center; gap: 6px;
+  padding-left: 2px;
+  font-size: var(--font-caption2);
+  line-height: var(--leading-caption2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.choice-label-icon { display: inline-flex; }
+.choice-track {
+  display: flex; gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: rgb(var(--ink-rgb) / 0.04);
+}
+.choice-opt {
+  flex: 1; min-width: 0;
+  min-height: 44px;
+  padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--font-footnote);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.choice-opt-icon { display: inline-flex; flex-shrink: 0; }
+.choice-opt:active { background: rgb(var(--ink-rgb) / 0.08); }
+.choice-opt:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.choice-opt[aria-checked="true"] {
+  background: rgb(var(--ink-rgb) / 0.13);
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+.choice-track[data-tone="brand"] .choice-opt[aria-checked="true"] {
+  background: rgb(var(--brand-rgb) / 0.18);
+  color: var(--brand);
+}
+.choice-hint {
+  margin: 0;
+  padding-left: 2px;
+  font-size: var(--font-caption1);
+  line-height: var(--leading-caption1);
+  color: var(--text-tertiary);
+}
+
+/* Клавиша чтеца и лист выбора (вариант E3). */
+.reciter-key {
+  flex: 1; min-width: 0;
+  min-height: 52px;
+  padding: 0 12px 0 8px;
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid rgb(var(--brand-rgb) / 0.3);
+  border-radius: 16px;
+  background: rgb(var(--brand-rgb) / 0.1) !important;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.reciter-key:active { background: rgb(var(--brand-rgb) / 0.18) !important; }
+.reciter-mono {
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--font-caption1);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+  background: rgb(var(--ink-rgb) / 0.1);
+  color: var(--text-primary);
+}
+.reciter-mono[data-on] { background: var(--brand); color: var(--on-brand); }
+.reciter-key-text { flex: 1; min-width: 0; display: grid; }
+.reciter-key-cap {
+  display: inline-flex; align-items: center; gap: 0;
+  white-space: pre;
+  font-size: var(--font-caption2);
+  line-height: var(--leading-caption2);
+  color: var(--text-tertiary);
+}
+.reciter-key-done { display: inline-flex; color: var(--brand); }
+.reciter-key-name {
+  letter-spacing: var(--tracking-tight);
+  font-size: var(--font-subhead);
+  line-height: var(--leading-subhead);
+  font-weight: var(--weight-semibold);
+  color: var(--brand);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reciter-key-chevron { display: inline-flex; flex-shrink: 0; color: var(--brand); }
+.reciter-list { display: grid; padding-bottom: 8px; }
+.reciter-row {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 60px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.reciter-row:active { background: rgb(var(--ink-rgb) / 0.08); }
+.reciter-row[data-on] { background: rgb(var(--brand-rgb) / 0.12); }
+.reciter-row-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.reciter-row-name {
+  font-size: var(--font-body);
+  line-height: var(--leading-body);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reciter-row[data-on] .reciter-row-name { color: var(--brand); font-weight: var(--weight-semibold); }
+.reciter-row-detail {
+  font-size: var(--font-footnote);
+  line-height: var(--leading-footnote);
+  color: var(--text-tertiary);
+}
+.reciter-row-check { display: inline-flex; flex-shrink: 0; color: var(--brand); }
+
 /* Нижняя панель ленты азкаров (AzkarNavBar): вдавливание на нажатии —
    отклик сразу на касании, а не после отпускания. */
 .azkar-nav-btn { transition: transform 140ms var(--ease-standard), opacity 140ms ease; }

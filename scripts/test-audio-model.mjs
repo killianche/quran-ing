@@ -1945,28 +1945,30 @@ await groupAsync('Возврат из поаятного режима на сп�
 });
 
 // ─── Повтор аята (src/lib/ayahRepeat.ts) ──────────────────────────────
-// Владелец 2026-11-15: кнопка с тремя режимами — выключено (как раньше,
-// каждый аят один раз), каждый аят три раза и дальше, один аят по кругу.
+// Владелец 2026-11-15: повтор аята; 2026-11-16 (плеер G1 «Михраб») — строка
+// выбора «1 · 2 · 3 · 5 · ∞» вместо кнопки, листающей три режима.
 const repeatMod = await import(pathToFileURL(resolve(ROOT, 'src/lib/ayahRepeat.ts')).href);
 group('Повтор аята: режимы и решение «ещё раз или дальше»', () => {
   const {
-    AYAH_REPEAT_MODES, AYAH_REPEAT_TIMES, nextAyahRepeatMode, shouldRepeatAyah,
-    countFinishedPlay, parseStoredAyahRepeat, ayahRepeatLabel,
+    AYAH_REPEAT_MODES, AYAH_REPEAT_TIMES, shouldRepeatAyah,
+    countFinishedPlay, parseStoredAyahRepeat, ayahRepeatLabel, ayahRepeatShort, ayahRepeatBadge,
   } = repeatMod;
 
-  check('три режима в порядке кнопки', AYAH_REPEAT_MODES, ['off', 'three', 'loop']);
-  check('повторов — три', AYAH_REPEAT_TIMES, 3);
-  check('выкл → три раза', nextAyahRepeatMode('off'), 'three');
-  check('три раза → по кругу', nextAyahRepeatMode('three'), 'loop');
-  check('по кругу → выкл', nextAyahRepeatMode('loop'), 'off');
+  check('пять режимов в порядке строки', AYAH_REPEAT_MODES, ['off', 'two', 'three', 'five', 'loop']);
+  check('подписи строки', AYAH_REPEAT_MODES.map(ayahRepeatShort), ['1', '2', '3', '5', '∞']);
+  check('«3» — три прочтения', AYAH_REPEAT_TIMES.three, 3);
 
-  check('выкл: после первого прочтения — дальше', shouldRepeatAyah('off', 1), false);
-  check('три раза: после 1-го — ещё раз', shouldRepeatAyah('three', 1), true);
-  check('три раза: после 2-го — ещё раз', shouldRepeatAyah('three', 2), true);
-  check('три раза: после 3-го — дальше', shouldRepeatAyah('three', 3), false);
-  check('три раза: счёт сверх трёх (сменили режим посреди) — дальше', shouldRepeatAyah('three', 7), false);
-  check('по кругу: после 1-го — ещё раз', shouldRepeatAyah('loop', 1), true);
-  check('по кругу: и после сотого — ещё раз', shouldRepeatAyah('loop', 100), true);
+  check('1: после первого прочтения — дальше', shouldRepeatAyah('off', 1), false);
+  check('2: после 1-го — ещё раз', shouldRepeatAyah('two', 1), true);
+  check('2: после 2-го — дальше', shouldRepeatAyah('two', 2), false);
+  check('3: после 1-го — ещё раз', shouldRepeatAyah('three', 1), true);
+  check('3: после 2-го — ещё раз', shouldRepeatAyah('three', 2), true);
+  check('3: после 3-го — дальше', shouldRepeatAyah('three', 3), false);
+  check('3: счёт сверх трёх (сменили режим посреди) — дальше', shouldRepeatAyah('three', 7), false);
+  check('5: после 4-го — ещё раз', shouldRepeatAyah('five', 4), true);
+  check('5: после 5-го — дальше', shouldRepeatAyah('five', 5), false);
+  check('∞: после 1-го — ещё раз', shouldRepeatAyah('loop', 1), true);
+  check('∞: и после сотого — ещё раз', shouldRepeatAyah('loop', 100), true);
 
   // Счёт прочтений привязан к аяту: на другом аяте начинается заново.
   let t = countFinishedPlay(null, 'a:2:5');
@@ -1978,16 +1980,46 @@ group('Повтор аята: режимы и решение «ещё раз и�
   t = countFinishedPlay(t, 'b:2:6');
   check('другой чтец — тоже заново', t.done, 1);
 
-  // Сохраняется только «три раза». «По кругу» — на один сеанс: иначе после
+  // Сохраняются счётные режимы. «∞» — на один сеанс: иначе после
   // перезапуска «слушать суру» навсегда застревало бы на первом аяте.
-  check('сохранённое «три раза» читается', parseStoredAyahRepeat('three'), 'three');
-  check('сохранённое «по кругу» не переживает перезапуск', parseStoredAyahRepeat('loop'), 'off');
-  check('пусто — выкл', parseStoredAyahRepeat(null), 'off');
-  check('мусор — выкл', parseStoredAyahRepeat('x3'), 'off');
+  check('сохранённое «3» читается', parseStoredAyahRepeat('three'), 'three');
+  check('сохранённое «2» читается', parseStoredAyahRepeat('two'), 'two');
+  check('сохранённое «5» читается', parseStoredAyahRepeat('five'), 'five');
+  check('сохранённое «∞» не переживает перезапуск', parseStoredAyahRepeat('loop'), 'off');
+  check('пусто — 1', parseStoredAyahRepeat(null), 'off');
+  check('мусор — 1', parseStoredAyahRepeat('x3'), 'off');
 
-  check('подпись: выкл', ayahRepeatLabel('off'), 'Повтор аята выключен');
-  check('подпись: три раза', ayahRepeatLabel('three'), 'Каждый аят 3 раза');
-  check('подпись: по кругу', ayahRepeatLabel('loop'), 'Один аят по кругу');
+  check('подпись: 1', ayahRepeatLabel('off'), 'Каждый аят один раз');
+  check('подпись: 2', ayahRepeatLabel('two'), 'Каждый аят 2 раза');
+  check('подпись: 3', ayahRepeatLabel('three'), 'Каждый аят 3 раза');
+  check('подпись: 5', ayahRepeatLabel('five'), 'Каждый аят 5 раз');
+  check('подпись: ∞', ayahRepeatLabel('loop'), 'Один аят по кругу');
+  check('пометка: 1 — нет', ayahRepeatBadge('off'), null);
+  check('пометка: 5', ayahRepeatBadge('five'), '×5');
+  check('пометка: ∞', ayahRepeatBadge('loop'), 'по кругу');
+});
+
+// ─── Повтор суры (src/lib/surahEnd.ts) ────────────────────────────────
+// Владелец 2026-11-16: что делать, когда сура дочитана — стоп / дальше /
+// заново. «Дальше» — как плеер работал раньше, режим по умолчанию.
+const surahEndMod = await import(pathToFileURL(resolve(ROOT, 'src/lib/surahEnd.ts')).href);
+group('Повтор суры: режимы, хранение, подсказка', () => {
+  const {
+    SURAH_END_MODES, DEFAULT_SURAH_END, parseStoredSurahEnd, surahEndShort, surahEndHint,
+  } = surahEndMod;
+  check('три режима в порядке строки', SURAH_END_MODES, ['stop', 'next', 'again']);
+  check('по умолчанию — дальше, как раньше', DEFAULT_SURAH_END, 'next');
+  check('слова на кнопках', SURAH_END_MODES.map(surahEndShort), ['Стоп', 'Дальше', 'Заново']);
+  check('сохранённое «заново» читается', parseStoredSurahEnd('again'), 'again');
+  check('сохранённое «стоп» читается', parseStoredSurahEnd('stop'), 'stop');
+  check('пусто — дальше', parseStoredSurahEnd(null), 'next');
+  check('мусор — дальше', parseStoredSurahEnd('loop'), 'next');
+  check('подсказка: дальше', surahEndHint('next', 'Саба'), 'Сура закончится — включится следующая, Саба');
+  check('подсказка: дальше, а сур больше нет', surahEndHint('next', null), 'Это последняя сура у чтеца — чтение остановится');
+  check('подсказка: стоп', surahEndHint('stop', 'Саба'), 'Сура закончится — чтение остановится');
+  check('подсказка: заново', surahEndHint('again', 'Саба'), 'Сура закончится — начнётся сначала');
+  check('подсказка: включено с аята в ленте — режим не действует',
+    surahEndHint('again', 'Саба', false), 'Включено с аята в тексте — в конце суры чтение остановится');
 });
 
 // ─── Итог ─────────────────────────────────────────────────────────────

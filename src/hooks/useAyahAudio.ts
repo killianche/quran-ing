@@ -14,9 +14,10 @@ import {
 import { SURAH_BY_NUMBER } from '../content/surahs';
 import { RECOVERY_PROBE_TIMEOUT_MS, recoveryDelayMs } from '../lib/audioRecovery';
 import {
-  countFinishedPlay, nextAyahRepeatMode, readStoredAyahRepeat, shouldRepeatAyah, storeAyahRepeat,
+  countFinishedPlay, readStoredAyahRepeat, shouldRepeatAyah, storeAyahRepeat,
   type AyahRepeatMode, type AyahRepeatTally,
 } from '../lib/ayahRepeat';
+import { DEFAULT_SURAH_END, readStoredSurahEnd, storeSurahEnd, type SurahEndMode } from '../lib/surahEnd';
 
 // Lazy-import: quran-segments.ts ~4 МБ.  Раньше sync-импорт тащил
 // в main bundle всю карту word-timings 8 чтецов × 6236 аятов.  Теперь
@@ -236,11 +237,26 @@ function уходитВСледующуюСуру(
   ayah: number,
   reciter: ReciterId,
 ): boolean {
-  if (!startedWholeSurah || !q || q.surah !== surah) return false;
+  // «Стоп» и «Заново» в следующую суру не уходят — и прогревать её незачем.
+  if (!startedWholeSurah || surahEndNow !== 'next' || !q || q.surah !== surah) return false;
   const конец = Math.min(q.last, SURAH_BY_NUMBER[surah]?.ayahs ?? q.last);
   // «Следующая» — следующая, которая ЕСТЬ у чтеца: у Мержоева после 9-й
   // идёт 12-я, а не несуществующая запись 10-й.
   return ayah >= конец && nextAvailableSurah(reciter, surah) !== null;
+}
+
+/**
+ * Этот аят — последний, и после него сура начнётся заново («Повтор суры» →
+ * «Заново»). Как и переход в следующую — только при «слушать суру целиком».
+ */
+function сураНачнётсяЗаново(
+  q: { surah: number; last: number } | null,
+  surah: number,
+  ayah: number,
+): boolean {
+  if (!startedWholeSurah || surahEndNow !== 'again' || !q || q.surah !== surah) return false;
+  const конец = Math.min(q.last, SURAH_BY_NUMBER[surah]?.ayahs ?? q.last);
+  return ayah >= конец;
 }
 
 /** Прогретые элементы — чтобы не звать `load()` на каждом кадре. */
@@ -299,6 +315,14 @@ let playbackMode: PlaybackMode = 'ayah';
  * тап по первому аяту обязан дать именно первый аят, без вступления.
  */
 let startedWholeSurah = false;
+
+/**
+ * «Повтор суры» (lib/surahEnd.ts): что делать после последнего аята —
+ * стоп / дальше / заново. Глобальный по той же причине, что `playbackMode`:
+ * его читают функции модуля (`уходитВСледующуюСуру`, `сураНачнётсяЗаново`),
+ * а хранит выбор хук. Хук переписывает значение при каждом рендере.
+ */
+let surahEndNow: SurahEndMode = DEFAULT_SURAH_END;
 
 function usesContinuousAudio(reciter: ReciterId) {
   if (playbackMode === 'surah' && hasSurahAudio(reciter)) return true;
@@ -627,12 +651,15 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
    */
   const [duration, setDuration]     = useState(0);
   const [playbackRate, setPlaybackRateS] = useState<PlaybackRate>(readStoredRate);
-  /** Повтор аята (lib/ayahRepeat.ts): выкл / каждый 3 раза / один по кругу. */
+  /** Повтор аята (lib/ayahRepeat.ts): 1 / 2 / 3 / 5 раз / один по кругу. */
   const [ayahRepeat, setAyahRepeatS] = useState<AyahRepeatMode>(readStoredAyahRepeat);
   const ayahRepeatRef = useRef(ayahRepeat);
   ayahRepeatRef.current = ayahRepeat;
   /** Сколько раз дочитан текущий аят. Сбрасывается ручным выбором аята. */
   const repeatTallyRef = useRef<AyahRepeatTally | null>(null);
+  /** Повтор суры (lib/surahEnd.ts): стоп / дальше / заново. */
+  const [surahEnd, setSurahEndS] = useState<SurahEndMode>(readStoredSurahEnd);
+  surahEndNow = surahEnd;
   // 1-based word position inside the active ayah, or null if no segment data
   // exists for it / nothing is playing. Driven by the same rAF that powers
   // the progress bar, so we don't pay for two loops.
@@ -680,12 +707,21 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     });
   }, []);
 
-  /** Выкл → каждый аят 3 раза → один аят по кругу → выкл. Действует сразу,
-   *  на текущем аяте: счёт его прочтений не сбрасывается. */
-  const cycleAyahRepeat = useCallback(() => {
-    setAyahRepeatS(prev => nextAyahRepeatMode(prev));
+  /** Выбор в строке «1 · 2 · 3 · 5 · ∞». Действует сразу, на текущем аяте:
+   *  счёт его прочтений не сбрасывается. */
+  const setAyahRepeat = useCallback((mode: AyahRepeatMode) => {
+    ayahRepeatRef.current = mode;
+    setAyahRepeatS(mode);
   }, []);
   useEffect(() => { storeAyahRepeat(ayahRepeat); }, [ayahRepeat]);
+
+  /** Выбор в строке «Стоп · Дальше · Заново». Модульное значение меняем
+   *  сразу: сура может закончиться раньше, чем дойдёт до рендера. */
+  const setSurahEnd = useCallback((mode: SurahEndMode) => {
+    surahEndNow = mode;
+    setSurahEndS(mode);
+  }, []);
+  useEffect(() => { storeSurahEnd(surahEnd); }, [surahEnd]);
 
   /**
    * Аят дочитан: отметить прочтение и, если режим велит, читать его снова.
@@ -933,7 +969,51 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
       //
       // Новая сура начинается с НУЛЯ записи, а не с границы первого аята:
       // иначе срезалась бы истиаза и басмала.
-      if (!startedWholeSurah) { остановить(); return; }
+      if (!startedWholeSurah || surahEndNow === 'stop') { остановить(); return; }
+
+      // «Повтор суры» → «Заново»: эта же сура с первого аята.
+      //
+      // 🔴 В сплошной записи — перемоткой ТОГО ЖЕ элемента на ноль, без
+      // `pause()`: ветка конца суры в `step` его не глушит
+      // (`сураНачнётсяЗаново`). Тот же приём, что у повтора аята: звук не
+      // обрывается, и iOS в фоне не примет перезапуск за автозапуск в
+      // тишине. С нуля, а не с границы первого аята, — чтобы не срезать
+      // истиазу и басмалу. Если элемент уже стоит (конец файла, поаятный
+      // режим), `playOne` сам начнёт с нуля: `atSurahStart`.
+      if (surahEndNow === 'again') {
+        const r = reciterRef.current;
+        снятьАварийныйРежим();
+        playbackMode = hasSurahAudio(r) ? 'surah' : 'ayah';
+        // `first: 1`: очередь могла начаться с середины («Продолжить» с
+        // аята 50) — иначе «назад» на втором круге прыгнул бы на аят 50.
+        queueRef.current = { ...q, first: 1, current: 1 };
+        const тот = activeAudioRef.current;
+        const тотЖе = тот !== null && audioCache.get(mediaCacheKey(r, q.surah, 1)) === тот;
+        if (тот && тотЖе) {
+          completedRange.delete(тот);
+          finishingTail.delete(тот);
+          seekAudio(тот, 0);
+        }
+        // Чтец без границ аятов: «аят» — вся запись, и элемент уже перемотан
+        // на начало и звучит. `playOne` здесь не зовём: без границ аятов он
+        // не считает переход бесшовным и сделал бы `pause()` + новый
+        // `play()` — тот самый перезапуск, который iOS в фоне отклоняет
+        // (ревью 2026-11-16). Обработчики элемента остаются прежними: ключ
+        // аята не изменился.
+        if (тот && тотЖе && usesTimelineSeek(r)) {
+          if (тот.paused) {
+            тот.playbackRate = playbackRateRef.current;
+            void тот.play().catch(err => {
+              if (err instanceof DOMException && err.name === 'AbortError') return;
+              тот.onerror?.(new Event('error'));
+            });
+          }
+          setProgress(0);
+          return;
+        }
+        playOne(q.surah, 1, 'automatic');
+        return;
+      }
 
       const r = reciterRef.current;
       // Сура, которой у чтеца нет, пропускается — чтение идёт дальше.
@@ -1479,10 +1559,12 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
                   finishingTail.delete(audio);
                   audio.pause();
                 }, { once: true });
-            } else {
+            } else if (!сураНачнётсяЗаново(q, Number(surahPart), Number(ayahPart))) {
               audio.pause();
               seekAudio(audio, range.endSeconds);
             }
+            // «Заново»: элемент не глушим — `advanceOrStop` перемотает его
+            // на начало суры, не прерывая звук.
           }
           const ended = new Event('ended');
           repeatDecided.add(ended);
@@ -1648,7 +1730,13 @@ export function useAyahAudio(reciter: ReciterId = DEFAULT_RECITER) {
     playbackRate,
     cyclePlaybackRate,
     ayahRepeat,
-    cycleAyahRepeat,
+    setAyahRepeat,
+    surahEnd,
+    setSurahEnd,
+    /** Звучит ли сура целиком (а не отдельный аят): «Повтор суры» действует
+     *  только тогда. Модульный флаг меняется вместе с `activeKey`, поэтому
+     *  чтение при рендере актуально. */
+    wholeSurah: startedWholeSurah,
     currentSurah: queueRef.current?.surah ?? null,
     currentAyah:  queueRef.current?.current ?? null,
     currentWordPos,                                          // 1-based word in active ayah

@@ -206,6 +206,23 @@ export const Repeat = ({ size = ICON_SIZE.md, className, style }: Props) => (
   </svg>
 );
 
+/** «Стоп» в выборе «Повтор суры»: круг с чертой, как дорожный знак «въезд
+ *  запрещён» (владелец 2026-11-16). */
+export const NoEntry = ({ size = ICON_SIZE.md, className, style }: Props) => (
+  <svg {...stroke(size, className, style)}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M7.75 12h8.5" />
+  </svg>
+);
+
+/** «Дальше» в выборе «Повтор суры»: стрелка вправо — следующая сура. */
+export const ArrowRight = ({ size = ICON_SIZE.md, className, style }: Props) => (
+  <svg {...stroke(size, className, style)}>
+    <path d="M4.5 12h14" />
+    <path d="m13 6.5 5.5 5.5-5.5 5.5" />
+  </svg>
+);
+
 /**
  * Перемотка на 10 секунд — круговая стрелка с числом внутри, как у
  * системных плееров. Нужна чтецу без границ аятов: у него «соседний аят»

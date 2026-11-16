@@ -43,6 +43,7 @@ import {
 } from 'react';
 import { useAyahAudio, type AudioFailure, type PlaybackMode, type PlaybackRate } from './useAyahAudio';
 import type { AyahRepeatMode } from '../lib/ayahRepeat';
+import type { SurahEndMode } from '../lib/surahEnd';
 import {
   DEFAULT_RECITER, RECITERS, TIMELINE_SEEK_STEP_SECONDS, reciterHasSurah, usesTimelineSeek,
   type ReciterId,
@@ -60,8 +61,12 @@ export type AudioSession = {
   activeKey: string | null;
   audioState: 'idle' | 'loading' | 'playing' | 'paused';
   playbackRate: PlaybackRate;
-  /** Повтор аята: выкл / каждый аят 3 раза / один аят по кругу. */
+  /** Повтор аята: 1 / 2 / 3 / 5 раз / один аят по кругу. */
   ayahRepeat: AyahRepeatMode;
+  /** Повтор суры — что после последнего аята: стоп / дальше / заново. */
+  surahEnd: SurahEndMode;
+  /** Звучит сура целиком: только тогда действует «Повтор суры». */
+  wholeSurah: boolean;
   currentSurah: number | null;
   currentAyah: number | null;
   reciter: ReciterId;
@@ -98,7 +103,8 @@ export type AudioActions = {
   resume: () => void;
   stopAll: () => void;
   cyclePlaybackRate: () => void;
-  cycleAyahRepeat: () => void;
+  setAyahRepeat: (mode: AyahRepeatMode) => void;
+  setSurahEnd: (mode: SurahEndMode) => void;
   dismissFailure: () => void;
   currentMode: () => PlaybackMode;
   getRemainingSeconds: () => number;
@@ -284,7 +290,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     resume: () => live.current.resume(),
     stopAll: () => live.current.stopAll(),
     cyclePlaybackRate: () => live.current.cyclePlaybackRate(),
-    cycleAyahRepeat: () => live.current.cycleAyahRepeat(),
+    setAyahRepeat: (mode) => live.current.setAyahRepeat(mode),
+    setSurahEnd: (mode) => live.current.setSurahEnd(mode),
     dismissFailure: () => live.current.dismissFailure(),
     currentMode: () => live.current.currentMode(),
     getRemainingSeconds: () => live.current.getRemainingSeconds(),
@@ -297,11 +304,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     failure: audio.failure,
     playbackRate: audio.playbackRate,
     ayahRepeat: audio.ayahRepeat,
+    surahEnd: audio.surahEnd,
+    wholeSurah: audio.wholeSurah,
     currentSurah: audio.currentSurah,
     currentAyah: audio.currentAyah,
     reciter,
   }), [
-    audio.activeKey, audio.audioState, audio.playbackRate, audio.ayahRepeat, audio.failure,
+    audio.activeKey, audio.audioState, audio.playbackRate, audio.ayahRepeat, audio.surahEnd, audio.wholeSurah, audio.failure,
     audio.currentSurah, audio.currentAyah, reciter,
   ]);
 
