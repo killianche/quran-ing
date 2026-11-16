@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<title>Плеер «Пульт» — варианты (2026-11-16)</title>
+<!--
+  Владелец (голосовое 2026-11-16): из макетов A–D нравится «Пульт» (D),
+  доделать и показать разные варианты пульта. Здесь D1–D4. Общие стили и
+  иконки — копия mockups.html. Статичные картинки, не код приложения.
+  Рендер: node render-pult.mjs <путь к playwright/index.mjs>
+  Арабские названия сур — те же строки, что в mockups.html.
+-->
+<style>
+@font-face{font-family:Inter;src:url(../../../public/latin-fonts/inter/Inter-400-cyrillic.woff2);font-weight:400}
+@font-face{font-family:Inter;src:url(../../../public/latin-fonts/inter/Inter-400-latin.woff2);font-weight:400;unicode-range:U+0000-00FF}
+@font-face{font-family:'EB Garamond';src:url(../../../public/latin-fonts/EBGaramond-VariableFont_wght.woff2) format('woff2-variations');font-weight:400 800}
+@font-face{font-family:Hafs;src:url(../../../public/qcf-text-fonts/UthmanicHafs_v22.woff2)}
+:root{--bg:#000;--ink:#ececec;--ink2:rgba(236,236,236,.62);--ink3:rgba(236,236,236,.40);--fill:rgba(236,236,236,.08);--fill2:rgba(236,236,236,.13);--line:rgba(236,236,236,.10);--brand:#d8b98a;--brand-soft:rgba(216,185,138,.16)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a1a;font-family:Inter,system-ui,sans-serif;color:var(--ink);display:flex;gap:40px;padding:40px;flex-wrap:wrap}
+.phone{width:393px;height:852px;position:relative;overflow:hidden;border-radius:0;background:radial-gradient(120% 70% at 50% 28%,#16181c 0%,#060607 60%,#000 100%)}
+.status{height:59px;display:flex;align-items:center;justify-content:space-between;padding:0 34px 0 46px;font-weight:600;font-size:17px}
+.status i{font-style:normal;font-size:12px;letter-spacing:2px;opacity:.9}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 20px;height:56px;margin-top:2px}
+.ttl{font-family:'EB Garamond',serif;font-size:34px;letter-spacing:-.03em}
+.circ{width:44px;height:44px;border-radius:50%;background:var(--fill);display:grid;place-items:center;border:1px solid var(--line)}
+.ar{font-family:Hafs,serif;direction:rtl}
+.c{text-align:center}
+.muted{color:var(--ink2)}.faint{color:var(--ink3)}
+.brand{color:var(--brand)}
+.tabbar{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;width:272px;height:62px;border-radius:31px;background:rgba(40,40,44,.72);border:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:space-around;padding:4px}
+.tab{flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;color:var(--ink2)}
+.tab.on{background:rgba(255,255,255,.08);color:var(--brand)}
+.tab svg{width:22px;height:22px}
+.prog{height:5px;border-radius:3px;background:var(--fill2);position:relative}
+.prog b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink)}
+.play{width:84px;height:84px;border-radius:50%;background:var(--ink);display:grid;place-items:center}
+.play svg{width:30px;height:30px;margin-left:4px}
+.btn{display:grid;place-items:center}
+.pill{height:44px;border-radius:22px;background:var(--fill);display:inline-flex;align-items:center;gap:8px;padding:0 16px;font-size:15px;border:1px solid var(--line)}
+.pill.on{background:var(--brand-soft);color:var(--brand);border-color:rgba(216,185,138,.28)}
+.seg{display:flex;background:var(--fill);border-radius:12px;padding:3px;gap:2px}
+.seg span{flex:1;text-align:center;height:34px;line-height:34px;border-radius:9px;font-size:14px;color:var(--ink2)}
+.seg span.on{background:rgba(236,236,236,.16);color:var(--ink);font-weight:600}
+.seg.gold span.on{background:var(--brand-soft);color:var(--brand)}
+.label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.card{background:rgba(236,236,236,.05);border:1px solid var(--line);border-radius:22px}
+.tag{position:absolute;top:66px;right:16px;font-size:12px;color:#000;background:var(--brand);padding:4px 10px;border-radius:10px;font-weight:600;display:none}
+svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fillsvg{fill:currentColor;stroke:none}
+</style></head><body>
+
+<!-- Иконки -->
+<svg width="0" height="0" style="position:absolute">
+ <symbol id="play" viewBox="0 0 24 24"><path class="fillsvg" d="M7 4.5v15a1 1 0 0 0 1.5.86l12.4-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></symbol>
+ <symbol id="prevA" viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 5.5v13L9.5 12z"/></symbol>
+ <symbol id="nextA" viewBox="0 0 24 24"><path d="M18 5v14"/><path d="M5 5.5v13L14.5 12z"/></symbol>
+ <symbol id="rep1" viewBox="0 0 24 24"><path d="M17 2.5l3 3-3 3"/><path d="M4 11v-1.5a4 4 0 0 1 4-4h12"/><path d="M7 21.5l-3-3 3-3"/><path d="M20 13v1.5a4 4 0 0 1-4 4H4"/></symbol>
+ <symbol id="book" viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></symbol>
+ <symbol id="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+ <symbol id="circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path class="fillsvg" d="M10 8.5v7l5.5-3.5z"/></symbol>
+ <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/></symbol>
+ <symbol id="contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="fillsvg" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/></symbol>
+ <symbol id="chevL" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+ <symbol id="chevR" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+ <symbol id="down" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+ <symbol id="check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.3 4.6-4.8"/></symbol>
+</svg>
+
+<template id="chrome">
+ <div class="status"><span>00:13</span><svg width="70" height="14" viewBox="0 0 70 14" style="stroke:none"><rect x="0" y="9" width="3.5" height="5" rx="1" fill="#ececec"/><rect x="5.5" y="6" width="3.5" height="8" rx="1" fill="#ececec"/><rect x="11" y="3" width="3.5" height="11" rx="1" fill="#ececec"/><rect x="16.5" y="0" width="3.5" height="14" rx="1" fill="#ececec" opacity=".35"/><rect x="40" y="1" width="25" height="12" rx="3.5" fill="none" stroke="#ececec" stroke-opacity=".5"/><rect x="42" y="3" width="15" height="8" rx="2" fill="#ececec"/></svg></div>
+ <div class="hdr"><div class="ttl">Плеер</div><div class="circ"><svg width="22" height="22"><use href="#contrast"/></svg></div></div>
+</template>
+<template id="tabs">
+ <div class="tabbar"><div class="tab on"><svg><use href="#circle"/></svg>Плеер</div><div class="tab"><svg><use href="#book"/></svg>Коран</div><div class="tab"><svg><use href="#moon"/></svg>Азкары</div></div>
+</template>
+
+<!-- Дополнения к общим стилям: только для вариантов «Пульта» -->
+<style>
+.key{background:rgba(236,236,236,.06);border:1px solid var(--line);border-radius:22px;display:flex;align-items:center;gap:10px}
+.key.col{flex-direction:column;justify-content:center;gap:6px;text-align:center}
+.key.gold{background:var(--brand-soft);border-color:rgba(216,185,138,.30)}
+.key.white{background:var(--ink);color:#000;border-color:transparent}
+.cap{font-size:11px;color:var(--ink3);display:block;letter-spacing:.01em}
+.val{font-size:15px}
+.dots{display:flex;gap:4px;margin-top:5px}
+.dots i{font-style:normal;font-size:10px;line-height:16px;min-width:18px;height:16px;padding:0 4px;border-radius:8px;text-align:center;background:var(--fill);color:var(--ink3)}
+.dots i.on{background:var(--brand);color:#000;font-weight:600}
+.dots.w i.on{background:var(--ink);color:#000}
+.ticks{position:relative;height:5px;border-radius:3px;background:var(--fill2)}
+.ticks b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink)}
+.ticks s{position:absolute;top:-4px;width:2px;height:13px;border-radius:1px;background:var(--brand)}
+.blockhd{display:flex;align-items:center;justify-content:space-between;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.hint{font-size:12px;color:var(--ink3);text-align:center;line-height:1.4}
+</style>
+
+<!-- ───── D1 «Пульт 2.0»: тот же пульт, управление внизу под большим пальцем ───── -->
+<div class="phone" id="D1">
+ <div class="chrome"></div>
+ <div class="c" style="margin-top:26px"><div class="ar" style="font-size:58px;line-height:1.25">الأحزاب</div>
+  <div style="font-size:21px;font-weight:600">Аль-Ахзаб</div>
+  <div class="muted" style="font-size:14px;margin-top:3px">Союзники · 33-я сура</div>
+  <div class="brand" style="font-size:15px;margin-top:8px">Ясир Ад-Даусари ⌄</div></div>
+ <div style="padding:0 20px;margin-top:24px"><div class="ticks"><b style="width:26%"></b><s style="left:25.6%"></s></div>
+  <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:9px" class="muted"><span>Аят <b style="color:var(--ink);font-weight:600">19</b> из 73</span><span>2-й раз из 3</span></div></div>
+
+ <div style="position:absolute;left:0;right:0;bottom:100px;padding:0 16px">
+  <div class="hint" style="margin-bottom:10px">Аят 19 звучит 3 раза, затем аят 20</div>
+  <div style="display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:10px">
+   <div class="key col" style="height:100px"><svg width="26" height="26"><use href="#prevA"/></svg><span style="font-size:13px">Аят 18</span></div>
+   <div class="key col white" style="height:100px"><svg width="32" height="32"><use href="#play"/></svg><span style="font-size:14px;font-weight:600">Слушать</span></div>
+   <div class="key col" style="height:100px"><svg width="26" height="26"><use href="#nextA"/></svg><span style="font-size:13px">Аят 20</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+   <div class="key" style="height:64px;padding:0 12px"><svg width="20" height="20"><use href="#chevL"/></svg><span style="line-height:1.15"><span class="cap">Пред. сура · 32</span><span class="val">Ас-Саджда</span></span></div>
+   <div class="key" style="height:64px;padding:0 12px;justify-content:flex-end;text-align:right"><span style="line-height:1.15"><span class="cap">След. сура · 34</span><span class="val">Саба</span></span><svg width="20" height="20"><use href="#chevR"/></svg></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+   <div class="key gold" style="height:78px;padding:0 12px"><svg width="22" height="22" class="brand"><use href="#rep1"/></svg><span style="line-height:1.15"><span class="cap">Повтор аята</span><span class="val brand" style="font-weight:600">3 раза</span><span class="dots"><i>1</i><i>2</i><i class="on">3</i><i>∞</i></span></span></div>
+   <div class="key" style="height:78px;padding:0 12px"><svg width="22" height="22"><use href="#book"/></svg><span style="line-height:1.15"><span class="cap">Повтор суры</span><span class="val">Выкл</span><span class="dots w"><i class="on">—</i><i>2</i><i>3</i><i>∞</i></span></span></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px"><div class="pill">1×</div><div class="pill"><svg width="18" height="18"><use href="#check"/></svg>Скачано</div><div class="pill" style="margin-left:auto"><svg width="18" height="18"><use href="#list"/></svg>Все суры</div></div>
+ </div>
+ <div class="tabs"></div>
+</div>
+
+<!-- ───── D2 «Два блока»: «Аят» и «Сура» — отдельные панели со своим повтором ───── -->
+<div class="phone" id="D2">
+ <div class="chrome"></div>
+ <div class="c" style="margin-top:26px"><div class="ar" style="font-size:56px;line-height:1.25">الأحزاب</div>
+  <div style="font-size:20px;font-weight:600">Аль-Ахзаб</div>
+  <div class="muted" style="font-size:14px;margin-top:3px">Союзники · 33-я сура</div>
+  <div class="brand" style="font-size:15px;margin-top:6px">Ясир Ад-Даусари ⌄</div></div>
+
+ <div style="position:absolute;left:0;right:0;bottom:100px;padding:0 16px">
+  <!-- блок аята -->
+  <div class="card" style="padding:14px 14px 14px;border-color:rgba(216,185,138,.22)">
+   <div class="blockhd"><span class="brand" style="font-weight:600">Аят 19 из 73</span><span>2-й раз из 3</span></div>
+   <div class="ticks" style="margin-top:10px"><b style="width:26%"></b></div>
+   <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+    <div class="key col" style="width:96px;height:72px;gap:4px"><svg width="24" height="24"><use href="#prevA"/></svg><span style="font-size:12px">Аят 18</span></div>
+    <div class="play" style="width:80px;height:80px"><svg style="color:#000"><use href="#play"/></svg></div>
+    <div class="key col" style="width:96px;height:72px;gap:4px"><svg width="24" height="24"><use href="#nextA"/></svg><span style="font-size:12px">Аят 20</span></div>
+   </div>
+   <div style="display:flex;align-items:center;gap:10px;margin-top:14px"><svg width="20" height="20" class="brand"><use href="#rep1"/></svg><span style="font-size:13px;width:70px;line-height:1.15">Повтор аята</span><div class="seg gold" style="flex:1"><span>1</span><span>2</span><span class="on">3</span><span>∞</span></div></div>
+  </div>
+  <!-- блок суры -->
+  <div class="card" style="padding:14px;margin-top:10px">
+   <div class="blockhd"><span style="color:var(--ink2);font-weight:600">Сура 33</span><span>после суры — стоп</span></div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+    <div class="key" style="height:58px;padding:0 10px"><svg width="20" height="20"><use href="#chevL"/></svg><span style="line-height:1.15"><span class="cap">32</span><span class="val">Ас-Саджда</span></span></div>
+    <div class="key" style="height:58px;padding:0 10px;justify-content:flex-end;text-align:right"><span style="line-height:1.15"><span class="cap">34</span><span class="val">Саба</span></span><svg width="20" height="20"><use href="#chevR"/></svg></div>
+   </div>
+   <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><svg width="20" height="20"><use href="#book"/></svg><span style="font-size:13px;width:70px;line-height:1.15">Повтор суры</span><div class="seg" style="flex:1"><span class="on">Выкл</span><span>2</span><span>3</span><span>∞</span></div></div>
+  </div>
+ </div>
+ <div class="tabs"></div>
+</div>
+
+<!-- ───── D3 «Крестовина»: как пульт телевизора — влево/вправо аят, вверх/вниз сура ───── -->
+<div class="phone" id="D3">
+ <div class="chrome"></div>
+ <div class="c" style="margin-top:10px"><div class="ar" style="font-size:48px;line-height:1.25">الأحزاب</div>
+  <div style="font-size:19px;font-weight:600">Аль-Ахзаб · <span class="muted" style="font-weight:400">аят 19 из 73</span></div>
+  <div class="brand" style="font-size:14px;margin-top:5px">Ясир Ад-Даусари ⌄</div></div>
+ <div style="padding:0 20px;margin-top:16px"><div class="ticks"><b style="width:26%"></b></div></div>
+
+ <div style="position:relative;width:286px;height:286px;margin:22px auto 0">
+  <svg width="286" height="286" viewBox="0 0 286 286" style="position:absolute;inset:0;stroke:none">
+   <circle cx="143" cy="143" r="142" fill="rgba(236,236,236,.06)" stroke="rgba(236,236,236,.10)" stroke-width="1"/>
+   <!-- верхний сектор — выделен как «нажатый» для показа -->
+   <path d="M143 143 L42.6 42.6 A142 142 0 0 1 243.4 42.6 Z" fill="rgba(236,236,236,.04)"/>
+   <line x1="42.6" y1="42.6" x2="243.4" y2="243.4" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+   <line x1="243.4" y1="42.6" x2="42.6" y2="243.4" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+  </svg>
+  <!-- центр -->
+  <div style="position:absolute;left:88px;top:88px;width:110px;height:110px;border-radius:50%;background:var(--ink);color:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 0 0 8px #0b0c0e"><svg width="30" height="30" style="margin-left:4px"><use href="#play"/></svg><span style="font-size:12px;font-weight:600">Слушать</span></div>
+  <!-- вверх: следующая сура -->
+  <div class="c" style="position:absolute;left:0;right:0;top:16px;line-height:1.15"><svg width="18" height="18" style="transform:rotate(-90deg)"><use href="#chevR"/></svg><span class="cap">След. сура · 34</span><span class="val">Саба</span></div>
+  <!-- вниз: предыдущая сура -->
+  <div class="c" style="position:absolute;left:0;right:0;bottom:12px;line-height:1.15"><span class="cap">Пред. сура · 32</span><span class="val">Ас-Саджда</span><br><svg width="18" height="18" style="transform:rotate(90deg)"><use href="#chevR"/></svg></div>
+  <!-- влево / вправо: аяты -->
+  <div class="c" style="position:absolute;left:10px;top:118px;width:72px;line-height:1.2"><svg width="24" height="24"><use href="#prevA"/></svg><span class="cap" style="color:var(--ink2);font-size:12px">аят 18</span></div>
+  <div class="c" style="position:absolute;right:10px;top:118px;width:72px;line-height:1.2"><svg width="24" height="24"><use href="#nextA"/></svg><span class="cap" style="color:var(--ink2);font-size:12px">аят 20</span></div>
+ </div>
+
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px;margin-top:22px">
+  <div class="key gold" style="height:74px;padding:0 12px"><svg width="22" height="22" class="brand"><use href="#rep1"/></svg><span style="line-height:1.15"><span class="cap">Повтор аята</span><span class="val brand" style="font-weight:600">3 раза</span><span class="dots"><i>1</i><i>2</i><i class="on">3</i><i>∞</i></span></span></div>
+  <div class="key" style="height:74px;padding:0 12px"><svg width="22" height="22"><use href="#book"/></svg><span style="line-height:1.15"><span class="cap">Повтор суры</span><span class="val">Выкл</span><span class="dots w"><i class="on">—</i><i>2</i><i>3</i><i>∞</i></span></span></div>
+ </div>
+ <div style="display:flex;gap:8px;padding:0 16px;margin-top:10px"><div class="pill">1×</div><div class="pill"><svg width="18" height="18"><use href="#check"/></svg>Скачано</div><div class="pill" style="margin-left:auto"><svg width="18" height="18"><use href="#list"/></svg>Все суры</div></div>
+ <div class="tabs"></div>
+</div>
+
+<!-- ───── D4 «Крупные клавиши»: всё большими кнопками, читается без очков ───── -->
+<div class="phone" id="D4">
+ <div class="chrome"></div>
+ <div style="display:flex;align-items:center;gap:14px;padding:0 20px;margin-top:8px">
+  <div class="ar" style="font-size:40px;line-height:1.3">الأحزاب</div>
+  <div style="line-height:1.25"><div style="font-size:20px;font-weight:600">Аль-Ахзаб</div><div class="muted" style="font-size:15px">аят 19 из 73</div><div class="brand" style="font-size:15px">Ясир Ад-Даусари ⌄</div></div>
+ </div>
+ <div style="padding:0 20px;margin-top:14px"><div class="ticks"><b style="width:26%"></b></div></div>
+ <div style="display:flex;gap:8px;padding:0 16px;margin-top:12px"><div class="pill">1×</div><div class="pill"><svg width="18" height="18"><use href="#check"/></svg>Скачано</div><div class="pill" style="margin-left:auto"><svg width="18" height="18"><use href="#list"/></svg>Все суры</div></div>
+
+ <div style="position:absolute;left:0;right:0;bottom:100px;padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div class="key white" style="grid-column:1/3;height:104px;justify-content:center;gap:14px"><svg width="40" height="40"><use href="#play"/></svg><span style="font-size:22px;font-weight:600">Слушать</span></div>
+  <div class="key col" style="height:96px"><svg width="30" height="30"><use href="#prevA"/></svg><span style="font-size:17px">Пред. аят</span></div>
+  <div class="key col" style="height:96px"><svg width="30" height="30"><use href="#nextA"/></svg><span style="font-size:17px">След. аят</span></div>
+  <div class="key col" style="height:96px;gap:2px"><span style="font-size:13px;color:var(--ink3)">‹ Пред. сура</span><span style="font-size:18px">Ас-Саджда</span><span style="font-size:13px;color:var(--ink3)">32</span></div>
+  <div class="key col" style="height:96px;gap:2px"><span style="font-size:13px;color:var(--ink3)">След. сура ›</span><span style="font-size:18px">Саба</span><span style="font-size:13px;color:var(--ink3)">34</span></div>
+  <div class="key col gold" style="height:96px;gap:4px"><span style="font-size:13px;color:var(--ink2)">Повтор аята</span><span class="brand" style="font-size:24px;font-weight:600">×3</span><span class="dots" style="margin:0"><i>1</i><i>2</i><i class="on">3</i><i>∞</i></span></div>
+  <div class="key col" style="height:96px;gap:4px"><span style="font-size:13px;color:var(--ink2)">Повтор суры</span><span style="font-size:24px">Выкл</span><span class="dots w" style="margin:0"><i class="on">—</i><i>2</i><i>3</i><i>∞</i></span></div>
+ </div>
+ <div class="tabs"></div>
+</div>
+
+<script>
+for (const p of document.querySelectorAll('.phone')) {
+  p.querySelector('.chrome')?.replaceWith(document.getElementById('chrome').content.cloneNode(true));
+  p.querySelector('.tabs')?.replaceWith(document.getElementById('tabs').content.cloneNode(true));
+}
+</script>
+</body></html>
