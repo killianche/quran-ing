@@ -146,9 +146,12 @@ svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-l
 </template>
 <!-- Повторы и пилюли для E3 — компактнее, чтобы не спорить с «Слушать» -->
 <template id="repssm">
+ <!-- 16.11 владелец: «Повтор суры» по логике неверен. Это выбор, что делать, когда сура дочитана:
+      «стоп» — тишина; «далее» — следующая сура (так плеер работает сейчас); «снова» — эта же сура по кругу.
+      Обе клавиши листают свой режим касанием; мелкие метки показывают все варианты сразу. -->
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px">
-  <div class="key gold" style="height:54px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18" class="brand"><use href="#rep1"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">Повтор аята</span><span class="brand" style="font-size:13px;font-weight:600">3 раза</span></span></div>
-  <div class="key" style="height:54px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18"><use href="#book"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">Повтор суры</span><span style="font-size:13px">Выкл</span></span></div>
+  <div class="key gold" style="height:62px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18" class="brand" style="flex:none"><use href="#rep1"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">Повтор аята</span><span class="brand" style="font-size:13px;font-weight:600">3 раза</span><span class="dots" style="margin-top:4px"><i>—</i><i class="on">3</i><i>∞</i></span></span></div>
+  <div class="key" style="height:62px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18" style="flex:none"><use href="#book"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">После суры</span><span style="font-size:13px">Следующая сура</span><span class="dots w" style="margin-top:4px"><i>стоп</i><i class="on">далее</i><i>снова</i></span></span></div>
  </div>
  <div style="display:flex;gap:6px;padding:0 16px;margin-top:8px"><div class="pill" style="height:36px;font-size:13px">1×</div><div class="pill" style="height:36px;font-size:13px"><svg width="16" height="16"><use href="#check"/></svg>Скачано</div><div class="pill" style="height:36px;font-size:13px;margin-left:auto"><svg width="16" height="16"><use href="#list"/></svg>Все суры</div></div>
 </template>
