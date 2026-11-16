@@ -8,7 +8,7 @@ const p = await b.newPage({ viewport: { width: 1800, height: 1000 }, deviceScale
 await p.goto('file://' + resolve(here, 'reciter.html'));
 await p.evaluate(() => document.fonts.ready);
 await p.waitForTimeout(500);
-for (const id of ["E1","E2","E3","E4"]) {
+for (const id of ["E1","E2","E3","E3L","E4"]) {
   await p.locator('#' + id).screenshot({ path: resolve(here, `reciter-${id}.png`) });
 }
 await b.close();

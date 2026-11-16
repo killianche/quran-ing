@@ -128,6 +128,33 @@ svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-l
  </div>
  <div style="display:flex;gap:8px;padding:0 16px;margin-top:10px"><div class="pill">1×</div><div class="pill"><svg width="18" height="18"><use href="#check"/></svg>Скачано</div><div class="pill" style="margin-left:auto"><svg width="18" height="18"><use href="#list"/></svg>Все суры</div></div>
 </template>
+<!-- Крестовина E3 после правки владельца 16.11: «Слушать» намного крупнее (172 px вместо 96),
+     кольцо с остальными кнопками тоньше, подписи и значки мельче — главный акцент на воспроизведении -->
+<template id="padbig">
+ <div style="position:relative;width:316px;height:316px;margin:0 auto">
+  <svg width="316" height="316" viewBox="0 0 316 316" style="position:absolute;inset:0;stroke:none">
+   <circle cx="158" cy="158" r="157" fill="rgba(236,236,236,.05)" stroke="rgba(236,236,236,.09)" stroke-width="1"/>
+   <line x1="47" y1="47" x2="269" y2="269" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+   <line x1="269" y1="47" x2="47" y2="269" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+  </svg>
+  <div style="position:absolute;left:72px;top:72px;width:172px;height:172px;border-radius:50%;background:var(--ink);color:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:0 0 0 7px #0b0c0e,0 18px 40px rgba(0,0,0,.45)"><svg width="54" height="54" style="margin-left:8px"><use href="#play"/></svg><span style="font-size:17px;font-weight:600;letter-spacing:-.01em">Слушать</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;top:9px;line-height:1.1"><svg width="14" height="14" style="transform:rotate(-90deg);opacity:.8"><use href="#chevR"/></svg><span class="cap" style="font-size:10px">След. сура · 34</span><span style="font-size:13px;color:var(--ink2)">Саба</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;bottom:8px;line-height:1.1"><span class="cap" style="font-size:10px">Пред. сура · 32</span><span style="font-size:13px;color:var(--ink2)">Ас-Саджда</span><br><svg width="14" height="14" style="transform:rotate(90deg);opacity:.8"><use href="#chevR"/></svg></div>
+  <div class="c" style="position:absolute;left:4px;top:136px;width:62px;line-height:1.2"><svg width="18" height="18" style="opacity:.85"><use href="#prevA"/></svg><span class="cap" style="font-size:11px">аят 18</span></div>
+  <div class="c" style="position:absolute;right:4px;top:136px;width:62px;line-height:1.2"><svg width="18" height="18" style="opacity:.85"><use href="#nextA"/></svg><span class="cap" style="font-size:11px">аят 20</span></div>
+ </div>
+</template>
+<!-- Повторы и пилюли для E3 — компактнее, чтобы не спорить с «Слушать» -->
+<template id="repssm">
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px">
+  <div class="key gold" style="height:54px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18" class="brand"><use href="#rep1"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">Повтор аята</span><span class="brand" style="font-size:13px;font-weight:600">3 раза</span></span></div>
+  <div class="key" style="height:54px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18"><use href="#book"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">Повтор суры</span><span style="font-size:13px">Выкл</span></span></div>
+ </div>
+ <div style="display:flex;gap:6px;padding:0 16px;margin-top:8px"><div class="pill" style="height:36px;font-size:13px">1×</div><div class="pill" style="height:36px;font-size:13px"><svg width="16" height="16"><use href="#check"/></svg>Скачано</div><div class="pill" style="height:36px;font-size:13px;margin-left:auto"><svg width="16" height="16"><use href="#list"/></svg>Все суры</div></div>
+</template>
+<template id="reciterkey">
+ <div style="padding:0 16px;margin-top:12px"><div class="key gold" style="height:48px;padding:0 10px 0 8px;border-radius:16px"><span class="mono gold" style="width:30px;height:30px;font-size:11px">ЯД</span><span style="line-height:1.1;flex:1"><span class="cap" style="font-size:10px">Чтец</span><span class="brand" style="font-size:14px;font-weight:600">Ясир Ад-Даусари</span></span><svg width="18" height="18" class="brand"><use href="#down"/></svg></div></div>
+</template>
 <template id="title">
  <div class="c" style="margin-top:6px"><div class="ar" style="font-size:44px;line-height:1.25">الأحزاب</div>
   <div style="font-size:19px;font-weight:600">Аль-Ахзаб · <span class="muted" style="font-weight:400">аят 19 из 73</span></div></div>
@@ -172,8 +199,18 @@ svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-l
 <div class="phone" id="E3">
  <div class="chrome"></div>
  <div class="title"></div>
- <div style="padding:0 16px;margin-top:14px"><div class="key gold" style="height:58px;padding:0 10px 0 12px"><span class="mono gold">ЯД</span><span style="line-height:1.15;flex:1"><span class="cap">Чтец</span><span class="val brand" style="font-weight:600">Ясир Ад-Даусари</span></span><svg width="20" height="20" class="brand"><use href="#down"/></svg></div></div>
- <div style="margin-top:14px"><div class="pad"></div></div>
+ <div class="reciterkey"></div>
+ <div style="margin-top:14px"><div class="padbig"></div></div>
+ <div style="margin-top:14px"><div class="repssm"></div></div>
+ <div class="tabs"></div>
+</div>
+
+<!-- E3, открытый список чтецов (по нажатию на клавишу «Чтец») -->
+<div class="phone" id="E3L">
+ <div class="chrome"></div>
+ <div class="title"></div>
+ <div class="reciterkey"></div>
+ <div style="margin-top:14px"><div class="padbig"></div></div>
  <!-- затемнение и открытый список -->
  <div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>
  <div style="position:absolute;left:8px;right:8px;bottom:8px;height:500px;border-radius:34px;background:rgba(30,30,34,.98);border:1px solid rgba(255,255,255,.10);padding:10px 16px 0">
@@ -208,7 +245,7 @@ svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-l
 <script>
 const put = (p, cls, id) => p.querySelectorAll('.' + cls).forEach(n => n.replaceWith(document.getElementById(id).content.cloneNode(true)));
 for (const p of document.querySelectorAll('.phone')) {
-  put(p, 'chrome', 'chrome'); put(p, 'tabs', 'tabs'); put(p, 'title', 'title'); put(p, 'pad', 'pad'); put(p, 'reps', 'reps');
+  put(p, 'chrome', 'chrome'); put(p, 'tabs', 'tabs'); put(p, 'title', 'title'); put(p, 'pad', 'pad'); put(p, 'reps', 'reps'); put(p, 'padbig', 'padbig'); put(p, 'repssm', 'repssm'); put(p, 'reciterkey', 'reciterkey');
 }
 </script>
 </body></html>
