@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<title>Плеер «Крестовина» — смена чтеца (2026-11-16)</title>
+<!--
+  Владелец (голосовое 2026-11-16): из вариантов пульта нравится
+  «Крестовина» (D3); чтеца сейчас переключать тяжело — нужны варианты
+  удобной смены чтеца. Здесь E1–E4 на основе D3. Стили и иконки — копия
+  pult.html. Статичные картинки, не код приложения.
+  Рендер: node render-reciter.mjs <путь к playwright/index.mjs>
+  Имена чтецов — как в src/lib/reciters.ts; инициалы в кружках вместо фото.
+  Арабские названия сур — те же строки, что в mockups.html.
+-->
+<style>
+@font-face{font-family:Inter;src:url(../../../public/latin-fonts/inter/Inter-400-cyrillic.woff2);font-weight:400}
+@font-face{font-family:Inter;src:url(../../../public/latin-fonts/inter/Inter-400-latin.woff2);font-weight:400;unicode-range:U+0000-00FF}
+@font-face{font-family:'EB Garamond';src:url(../../../public/latin-fonts/EBGaramond-VariableFont_wght.woff2) format('woff2-variations');font-weight:400 800}
+@font-face{font-family:Hafs;src:url(../../../public/qcf-text-fonts/UthmanicHafs_v22.woff2)}
+:root{--bg:#000;--ink:#ececec;--ink2:rgba(236,236,236,.62);--ink3:rgba(236,236,236,.40);--fill:rgba(236,236,236,.08);--fill2:rgba(236,236,236,.13);--line:rgba(236,236,236,.10);--brand:#d8b98a;--brand-soft:rgba(216,185,138,.16)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a1a;font-family:Inter,system-ui,sans-serif;color:var(--ink);display:flex;gap:40px;padding:40px;flex-wrap:wrap}
+.phone{width:393px;height:852px;position:relative;overflow:hidden;border-radius:0;background:radial-gradient(120% 70% at 50% 28%,#16181c 0%,#060607 60%,#000 100%)}
+.status{height:59px;display:flex;align-items:center;justify-content:space-between;padding:0 34px 0 46px;font-weight:600;font-size:17px}
+.status i{font-style:normal;font-size:12px;letter-spacing:2px;opacity:.9}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 20px;height:56px;margin-top:2px}
+.ttl{font-family:'EB Garamond',serif;font-size:34px;letter-spacing:-.03em}
+.circ{width:44px;height:44px;border-radius:50%;background:var(--fill);display:grid;place-items:center;border:1px solid var(--line)}
+.ar{font-family:Hafs,serif;direction:rtl}
+.c{text-align:center}
+.muted{color:var(--ink2)}.faint{color:var(--ink3)}
+.brand{color:var(--brand)}
+.tabbar{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;width:272px;height:62px;border-radius:31px;background:rgba(40,40,44,.72);border:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:space-around;padding:4px}
+.tab{flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;color:var(--ink2)}
+.tab.on{background:rgba(255,255,255,.08);color:var(--brand)}
+.tab svg{width:22px;height:22px}
+.prog{height:5px;border-radius:3px;background:var(--fill2);position:relative}
+.prog b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink)}
+.play{width:84px;height:84px;border-radius:50%;background:var(--ink);display:grid;place-items:center}
+.play svg{width:30px;height:30px;margin-left:4px}
+.btn{display:grid;place-items:center}
+.pill{height:44px;border-radius:22px;background:var(--fill);display:inline-flex;align-items:center;gap:8px;padding:0 16px;font-size:15px;border:1px solid var(--line)}
+.pill.on{background:var(--brand-soft);color:var(--brand);border-color:rgba(216,185,138,.28)}
+.seg{display:flex;background:var(--fill);border-radius:12px;padding:3px;gap:2px}
+.seg span{flex:1;text-align:center;height:34px;line-height:34px;border-radius:9px;font-size:14px;color:var(--ink2)}
+.seg span.on{background:rgba(236,236,236,.16);color:var(--ink);font-weight:600}
+.seg.gold span.on{background:var(--brand-soft);color:var(--brand)}
+.label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.card{background:rgba(236,236,236,.05);border:1px solid var(--line);border-radius:22px}
+.tag{position:absolute;top:66px;right:16px;font-size:12px;color:#000;background:var(--brand);padding:4px 10px;border-radius:10px;font-weight:600;display:none}
+svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fillsvg{fill:currentColor;stroke:none}
+</style></head><body>
+
+<!-- Иконки -->
+<svg width="0" height="0" style="position:absolute">
+ <symbol id="play" viewBox="0 0 24 24"><path class="fillsvg" d="M7 4.5v15a1 1 0 0 0 1.5.86l12.4-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></symbol>
+ <symbol id="prevA" viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 5.5v13L9.5 12z"/></symbol>
+ <symbol id="nextA" viewBox="0 0 24 24"><path d="M18 5v14"/><path d="M5 5.5v13L14.5 12z"/></symbol>
+ <symbol id="rep1" viewBox="0 0 24 24"><path d="M17 2.5l3 3-3 3"/><path d="M4 11v-1.5a4 4 0 0 1 4-4h12"/><path d="M7 21.5l-3-3 3-3"/><path d="M20 13v1.5a4 4 0 0 1-4 4H4"/></symbol>
+ <symbol id="book" viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></symbol>
+ <symbol id="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+ <symbol id="circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path class="fillsvg" d="M10 8.5v7l5.5-3.5z"/></symbol>
+ <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/></symbol>
+ <symbol id="contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="fillsvg" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/></symbol>
+ <symbol id="chevL" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+ <symbol id="chevR" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+ <symbol id="down" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+ <symbol id="check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.3 4.6-4.8"/></symbol>
+</svg>
+
+<template id="chrome">
+ <div class="status"><span>00:13</span><svg width="70" height="14" viewBox="0 0 70 14" style="stroke:none"><rect x="0" y="9" width="3.5" height="5" rx="1" fill="#ececec"/><rect x="5.5" y="6" width="3.5" height="8" rx="1" fill="#ececec"/><rect x="11" y="3" width="3.5" height="11" rx="1" fill="#ececec"/><rect x="16.5" y="0" width="3.5" height="14" rx="1" fill="#ececec" opacity=".35"/><rect x="40" y="1" width="25" height="12" rx="3.5" fill="none" stroke="#ececec" stroke-opacity=".5"/><rect x="42" y="3" width="15" height="8" rx="2" fill="#ececec"/></svg></div>
+ <div class="hdr"><div class="ttl">Плеер</div><div class="circ"><svg width="22" height="22"><use href="#contrast"/></svg></div></div>
+</template>
+<template id="tabs">
+ <div class="tabbar"><div class="tab on"><svg><use href="#circle"/></svg>Плеер</div><div class="tab"><svg><use href="#book"/></svg>Коран</div><div class="tab"><svg><use href="#moon"/></svg>Азкары</div></div>
+</template>
+
+<!-- Дополнения к общим стилям: только для вариантов «Пульта» -->
+<style>
+.key{background:rgba(236,236,236,.06);border:1px solid var(--line);border-radius:22px;display:flex;align-items:center;gap:10px}
+.key.col{flex-direction:column;justify-content:center;gap:6px;text-align:center}
+.key.gold{background:var(--brand-soft);border-color:rgba(216,185,138,.30)}
+.key.white{background:var(--ink);color:#000;border-color:transparent}
+.cap{font-size:11px;color:var(--ink3);display:block;letter-spacing:.01em}
+.val{font-size:15px}
+.dots{display:flex;gap:4px;margin-top:5px}
+.dots i{font-style:normal;font-size:10px;line-height:16px;min-width:18px;height:16px;padding:0 4px;border-radius:8px;text-align:center;background:var(--fill);color:var(--ink3)}
+.dots i.on{background:var(--brand);color:#000;font-weight:600}
+.dots.w i.on{background:var(--ink);color:#000}
+.ticks{position:relative;height:5px;border-radius:3px;background:var(--fill2)}
+.ticks b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink)}
+.ticks s{position:absolute;top:-4px;width:2px;height:13px;border-radius:1px;background:var(--brand)}
+.blockhd{display:flex;align-items:center;justify-content:space-between;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.hint{font-size:12px;color:var(--ink3);text-align:center;line-height:1.4}
+</style>
+
+<!-- Стили для вариантов выбора чтеца -->
+<style>
+.mono{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:600;letter-spacing:.02em;background:rgba(236,236,236,.12);color:var(--ink)}
+.mono.gold{background:var(--brand);color:#000}
+.chip{height:50px;border-radius:25px;display:flex;align-items:center;gap:9px;padding:0 16px 0 8px;background:rgba(236,236,236,.06);border:1px solid var(--line);font-size:15px;white-space:nowrap;flex:none}
+.chip.on{background:var(--brand-soft);border-color:rgba(216,185,138,.35);color:var(--brand);font-weight:600}
+.scrollrow{display:flex;gap:8px;overflow:hidden;padding:0 16px;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 82%,transparent 100%);mask-image:linear-gradient(90deg,#000 0,#000 82%,transparent 100%)}
+.row{display:flex;align-items:center;gap:12px;height:56px;padding:0 4px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.small{font-size:12px;color:var(--ink3)}
+</style>
+
+<!-- Крестовина (из D3), общая для всех вариантов; размер — 252 px -->
+<template id="pad">
+ <div style="position:relative;width:252px;height:252px;margin:0 auto">
+  <svg width="252" height="252" viewBox="0 0 252 252" style="position:absolute;inset:0;stroke:none">
+   <circle cx="126" cy="126" r="125" fill="rgba(236,236,236,.06)" stroke="rgba(236,236,236,.10)" stroke-width="1"/>
+   <line x1="37.6" y1="37.6" x2="214.4" y2="214.4" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+   <line x1="214.4" y1="37.6" x2="37.6" y2="214.4" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+  </svg>
+  <div style="position:absolute;left:78px;top:78px;width:96px;height:96px;border-radius:50%;background:var(--ink);color:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 0 0 7px #0b0c0e"><svg width="28" height="28" style="margin-left:4px"><use href="#play"/></svg><span style="font-size:11px;font-weight:600">Слушать</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;top:10px;line-height:1.12"><svg width="16" height="16" style="transform:rotate(-90deg)"><use href="#chevR"/></svg><span class="cap">След. сура · 34</span><span class="val" style="font-size:14px">Саба</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;bottom:8px;line-height:1.12"><span class="cap">Пред. сура · 32</span><span class="val" style="font-size:14px">Ас-Саджда</span><br><svg width="16" height="16" style="transform:rotate(90deg)"><use href="#chevR"/></svg></div>
+  <div class="c" style="position:absolute;left:6px;top:102px;width:64px;line-height:1.2"><svg width="22" height="22"><use href="#prevA"/></svg><span class="cap" style="color:var(--ink2);font-size:12px">аят 18</span></div>
+  <div class="c" style="position:absolute;right:6px;top:102px;width:64px;line-height:1.2"><svg width="22" height="22"><use href="#nextA"/></svg><span class="cap" style="color:var(--ink2);font-size:12px">аят 20</span></div>
+ </div>
+</template>
+<template id="reps">
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">
+  <div class="key gold" style="height:70px;padding:0 12px"><svg width="22" height="22" class="brand"><use href="#rep1"/></svg><span style="line-height:1.15"><span class="cap">Повтор аята</span><span class="val brand" style="font-weight:600">3 раза</span><span class="dots"><i>1</i><i>2</i><i class="on">3</i><i>∞</i></span></span></div>
+  <div class="key" style="height:70px;padding:0 12px"><svg width="22" height="22"><use href="#book"/></svg><span style="line-height:1.15"><span class="cap">Повтор суры</span><span class="val">Выкл</span><span class="dots w"><i class="on">—</i><i>2</i><i>3</i><i>∞</i></span></span></div>
+ </div>
+ <div style="display:flex;gap:8px;padding:0 16px;margin-top:10px"><div class="pill">1×</div><div class="pill"><svg width="18" height="18"><use href="#check"/></svg>Скачано</div><div class="pill" style="margin-left:auto"><svg width="18" height="18"><use href="#list"/></svg>Все суры</div></div>
+</template>
+<template id="title">
+ <div class="c" style="margin-top:6px"><div class="ar" style="font-size:44px;line-height:1.25">الأحزاب</div>
+  <div style="font-size:19px;font-weight:600">Аль-Ахзаб · <span class="muted" style="font-weight:400">аят 19 из 73</span></div></div>
+ <div style="padding:0 20px;margin-top:12px"><div class="ticks"><b style="width:26%"></b></div></div>
+</template>
+
+<!-- ───── E1 «Лента чтецов»: все чтецы в одну строку, смена одним касанием ───── -->
+<div class="phone" id="E1">
+ <div class="chrome"></div>
+ <div class="title"></div>
+ <div class="label" style="padding:0 20px;margin-top:16px;margin-bottom:8px">Чтец · листайте</div>
+ <div class="scrollrow">
+  <div class="chip on"><span class="mono gold">ЯД</span>Ад-Даусари</div>
+  <div class="chip"><span class="mono">МХ</span>Аль-Хусари</div>
+  <div class="chip"><span class="mono">ХМ</span>Мержоев</div>
+  <div class="chip"><span class="mono">МА</span>Аляфаси</div>
+ </div>
+ <div style="margin-top:16px"><div class="pad"></div></div>
+ <div style="margin-top:16px"><div class="reps"></div></div>
+ <div class="tabs"></div>
+</div>
+
+<!-- ───── E2 «Карусель чтеца»: имя крупно, стрелки и свайп по имени ───── -->
+<div class="phone" id="E2">
+ <div class="chrome"></div>
+ <div class="title"></div>
+ <div style="display:flex;align-items:center;gap:8px;padding:0 16px;margin-top:16px">
+  <div class="circ" style="width:48px;height:48px;flex:none"><svg width="20" height="20"><use href="#chevL"/></svg></div>
+  <div class="card c" style="flex:1;height:64px;display:flex;flex-direction:column;justify-content:center;background:var(--brand-soft);border-color:rgba(216,185,138,.30);line-height:1.2">
+   <span class="small">Чтец 3 из 7 · листайте</span>
+   <span class="brand" style="font-size:18px;font-weight:600">Ясир Ад-Даусари</span>
+  </div>
+  <div class="circ" style="width:48px;height:48px;flex:none"><svg width="20" height="20"><use href="#chevR"/></svg></div>
+ </div>
+ <div style="display:flex;justify-content:space-between;padding:6px 22px 0" class="small"><span>‹ Аш-Шатри</span><span>Аль-Аджми ›</span></div>
+ <div style="margin-top:12px"><div class="pad"></div></div>
+ <div style="margin-top:16px"><div class="reps"></div></div>
+ <div class="tabs"></div>
+</div>
+
+<!-- ───── E3 «Клавиша и список»: большая кнопка «Чтец», список снизу крупными строками ───── -->
+<div class="phone" id="E3">
+ <div class="chrome"></div>
+ <div class="title"></div>
+ <div style="padding:0 16px;margin-top:14px"><div class="key gold" style="height:58px;padding:0 10px 0 12px"><span class="mono gold">ЯД</span><span style="line-height:1.15;flex:1"><span class="cap">Чтец</span><span class="val brand" style="font-weight:600">Ясир Ад-Даусари</span></span><svg width="20" height="20" class="brand"><use href="#down"/></svg></div></div>
+ <div style="margin-top:14px"><div class="pad"></div></div>
+ <!-- затемнение и открытый список -->
+ <div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>
+ <div style="position:absolute;left:8px;right:8px;bottom:8px;height:500px;border-radius:34px;background:rgba(30,30,34,.98);border:1px solid rgba(255,255,255,.10);padding:10px 16px 0">
+  <div style="width:36px;height:5px;border-radius:3px;background:var(--fill2);margin:0 auto 12px"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span style="font-size:19px;font-weight:600">Чтец</span><span class="small">одно касание — и звучит</span></div>
+  <div class="row"><span class="mono">МА</span><span style="flex:1;line-height:1.2"><span class="val">Мишари Аляфаси</span><span class="cap">все 114 сур</span></span></div>
+  <div class="row"><span class="mono">АШ</span><span style="flex:1;line-height:1.2"><span class="val">Абу Бакр Аш-Шатри</span><span class="cap">все 114 сур</span></span></div>
+  <div class="row" style="background:var(--brand-soft);border-radius:14px;margin:0 -8px;padding:0 12px;border:0"><span class="mono gold">ЯД</span><span style="flex:1;line-height:1.2"><span class="val brand" style="font-weight:600">Ясир Ад-Даусари</span><span class="cap">все 114 сур · скачано</span></span><svg width="22" height="22" class="brand"><use href="#check"/></svg></div>
+  <div class="row"><span class="mono">АА</span><span style="flex:1;line-height:1.2"><span class="val">Ахмад Аль-Аджми</span><span class="cap">все 114 сур</span></span></div>
+  <div class="row"><span class="mono">МХ</span><span style="flex:1;line-height:1.2"><span class="val">Махмуд Халиль Аль-Хусари</span><span class="cap">все 114 сур</span></span></div>
+  <div class="row"><span class="mono">МХ</span><span style="flex:1;line-height:1.2"><span class="val">Аль-Хусари (обучение)</span><span class="cap">медленно, для заучивания</span></span></div>
+  <div class="row"><span class="mono">ХМ</span><span style="flex:1;line-height:1.2"><span class="val">Хьусейн Мержоев</span><span class="cap">80 сур из 114</span></span></div>
+ </div>
+</div>
+
+<!-- ───── E4 «Избранные чтецы»: три своих кнопки, как станции в автомагнитоле ───── -->
+<div class="phone" id="E4">
+ <div class="chrome"></div>
+ <div class="title"></div>
+ <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 20px;margin-top:16px;margin-bottom:8px"><span class="label">Мои чтецы</span><span class="small">удерживайте кнопку — заменить</span></div>
+ <div style="display:grid;grid-template-columns:1fr 1fr 1fr 58px;gap:8px;padding:0 16px">
+  <div class="key col gold" style="height:74px;gap:5px"><span class="mono gold" style="width:30px;height:30px;font-size:11px">ЯД</span><span class="brand" style="font-size:13px;font-weight:600">Ад-Даусари</span></div>
+  <div class="key col" style="height:74px;gap:5px"><span class="mono" style="width:30px;height:30px;font-size:11px">МХ</span><span style="font-size:13px">Аль-Хусари</span></div>
+  <div class="key col" style="height:74px;gap:5px"><span class="mono" style="width:30px;height:30px;font-size:11px">ХМ</span><span style="font-size:13px">Мержоев</span></div>
+  <div class="key col" style="height:74px;gap:4px"><svg width="22" height="22"><use href="#list"/></svg><span style="font-size:12px">Все</span></div>
+ </div>
+ <div style="margin-top:16px"><div class="pad"></div></div>
+ <div style="margin-top:16px"><div class="reps"></div></div>
+ <div class="tabs"></div>
+</div>
+
+<script>
+const put = (p, cls, id) => p.querySelectorAll('.' + cls).forEach(n => n.replaceWith(document.getElementById(id).content.cloneNode(true)));
+for (const p of document.querySelectorAll('.phone')) {
+  put(p, 'chrome', 'chrome'); put(p, 'tabs', 'tabs'); put(p, 'title', 'title'); put(p, 'pad', 'pad'); put(p, 'reps', 'reps');
+}
+</script>
+</body></html>
