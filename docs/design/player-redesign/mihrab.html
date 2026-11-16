@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<title>Плеер «Крестовина» — смена чтеца (2026-11-16)</title>
+<!--
+  Владелец (голосовое 2026-11-16): из вариантов пульта нравится
+  «Крестовина» (D3); чтеца сейчас переключать тяжело — нужны варианты
+  удобной смены чтеца. Здесь E1–E4 на основе D3. Стили и иконки — копия
+  pult.html. Статичные картинки, не код приложения.
+  Михраб — три доработки варианта F3 (G1–G3). Рендер: node render-mihrab.mjs <путь к playwright/index.mjs>
+  Имена чтецов — как в src/lib/reciters.ts; инициалы в кружках вместо фото.
+  Арабские названия сур — те же строки, что в mockups.html.
+-->
+<style>
+@font-face{font-family:Inter;src:url(../../../public/latin-fonts/inter/Inter-400-cyrillic.woff2);font-weight:400}
+@font-face{font-family:Inter;src:url(../../../public/latin-fonts/inter/Inter-400-latin.woff2);font-weight:400;unicode-range:U+0000-00FF}
+@font-face{font-family:Inter;src:url(fonts/Inter-600.ttf);font-weight:500 700}
+@font-face{font-family:'EB Garamond';src:url(../../../public/latin-fonts/EBGaramond-VariableFont_wght.woff2) format('woff2-variations');font-weight:400 800}
+@font-face{font-family:Hafs;src:url(../../../public/qcf-text-fonts/UthmanicHafs_v22.woff2)}
+:root{--bg:#000;--ink:#ececec;--ink2:rgba(236,236,236,.62);--ink3:rgba(236,236,236,.40);--fill:rgba(236,236,236,.08);--fill2:rgba(236,236,236,.13);--line:rgba(236,236,236,.10);--brand:#d8b98a;--brand-soft:rgba(216,185,138,.16)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a1a;font-family:Inter,system-ui,sans-serif;color:var(--ink);display:flex;gap:40px;padding:40px;flex-wrap:wrap}
+.phone{width:393px;height:852px;position:relative;overflow:hidden;border-radius:0;background:radial-gradient(120% 70% at 50% 28%,#16181c 0%,#060607 60%,#000 100%)}
+.status{height:59px;display:flex;align-items:center;justify-content:space-between;padding:0 34px 0 46px;font-weight:600;font-size:17px}
+.status i{font-style:normal;font-size:12px;letter-spacing:2px;opacity:.9}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 20px;height:56px;margin-top:2px}
+.ttl{font-family:'EB Garamond',serif;font-size:34px;letter-spacing:-.03em}
+.circ{width:44px;height:44px;border-radius:50%;background:var(--fill);display:grid;place-items:center;border:1px solid var(--line)}
+.ar{font-family:Hafs,serif;direction:rtl}
+.c{text-align:center}
+.muted{color:var(--ink2)}.faint{color:var(--ink3)}
+.brand{color:var(--brand)}
+.tabbar{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;width:272px;height:62px;border-radius:31px;background:rgba(40,40,44,.72);border:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:space-around;padding:4px}
+.tab{flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;color:var(--ink2)}
+.tab.on{background:rgba(255,255,255,.08);color:var(--brand)}
+.tab svg{width:22px;height:22px}
+.prog{height:5px;border-radius:3px;background:var(--fill2);position:relative}
+.prog b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink)}
+.play{width:84px;height:84px;border-radius:50%;background:var(--ink);display:grid;place-items:center}
+.play svg{width:30px;height:30px;margin-left:4px}
+.btn{display:grid;place-items:center}
+.pill{height:44px;border-radius:22px;background:var(--fill);display:inline-flex;align-items:center;gap:8px;padding:0 16px;font-size:15px;border:1px solid var(--line)}
+.pill.on{background:var(--brand-soft);color:var(--brand);border-color:rgba(216,185,138,.28)}
+.seg{display:flex;background:var(--fill);border-radius:12px;padding:3px;gap:2px}
+.seg span{flex:1;text-align:center;height:34px;line-height:34px;border-radius:9px;font-size:14px;color:var(--ink2)}
+.seg span.on{background:rgba(236,236,236,.16);color:var(--ink);font-weight:600}
+.seg.gold span.on{background:var(--brand-soft);color:var(--brand)}
+.label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.card{background:rgba(236,236,236,.05);border:1px solid var(--line);border-radius:22px}
+.tag{position:absolute;top:66px;right:16px;font-size:12px;color:#000;background:var(--brand);padding:4px 10px;border-radius:10px;font-weight:600;display:none}
+svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fillsvg{fill:currentColor;stroke:none}
+</style></head><body>
+
+<!-- Иконки -->
+<svg width="0" height="0" style="position:absolute">
+ <symbol id="play" viewBox="0 0 24 24"><path class="fillsvg" d="M7 4.5v15a1 1 0 0 0 1.5.86l12.4-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></symbol>
+ <symbol id="prevA" viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 5.5v13L9.5 12z"/></symbol>
+ <symbol id="nextA" viewBox="0 0 24 24"><path d="M18 5v14"/><path d="M5 5.5v13L14.5 12z"/></symbol>
+ <symbol id="rep1" viewBox="0 0 24 24"><path d="M17 2.5l3 3-3 3"/><path d="M4 11v-1.5a4 4 0 0 1 4-4h12"/><path d="M7 21.5l-3-3 3-3"/><path d="M20 13v1.5a4 4 0 0 1-4 4H4"/></symbol>
+ <symbol id="book" viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></symbol>
+ <symbol id="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+ <symbol id="circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path class="fillsvg" d="M10 8.5v7l5.5-3.5z"/></symbol>
+ <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/></symbol>
+ <symbol id="contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="fillsvg" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/></symbol>
+ <symbol id="chevL" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+ <symbol id="chevR" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+ <symbol id="down" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+ <symbol id="check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.3 4.6-4.8"/></symbol>
+</svg>
+
+<template id="chrome">
+ <div class="status"><span>00:13</span><svg width="70" height="14" viewBox="0 0 70 14" style="stroke:none"><rect x="0" y="9" width="3.5" height="5" rx="1" fill="#ececec"/><rect x="5.5" y="6" width="3.5" height="8" rx="1" fill="#ececec"/><rect x="11" y="3" width="3.5" height="11" rx="1" fill="#ececec"/><rect x="16.5" y="0" width="3.5" height="14" rx="1" fill="#ececec" opacity=".35"/><rect x="40" y="1" width="25" height="12" rx="3.5" fill="none" stroke="#ececec" stroke-opacity=".5"/><rect x="42" y="3" width="15" height="8" rx="2" fill="#ececec"/></svg></div>
+ <div class="hdr"><div class="ttl">Плеер</div><div style="display:flex;gap:8px"><div class="circ" style="font-size:14px;font-weight:600">1×</div><div class="circ"><svg width="20" height="20"><use href="#list"/></svg></div><div class="circ"><svg width="22" height="22"><use href="#contrast"/></svg></div></div></div>
+</template>
+<template id="tabs">
+ <div class="tabbar"><div class="tab on"><svg><use href="#circle"/></svg>Плеер</div><div class="tab"><svg><use href="#book"/></svg>Коран</div><div class="tab"><svg><use href="#moon"/></svg>Азкары</div></div>
+</template>
+
+<!-- Дополнения к общим стилям: только для вариантов «Пульта» -->
+<style>
+.key{background:rgba(236,236,236,.06);border:1px solid var(--line);border-radius:22px;display:flex;align-items:center;gap:10px}
+.key.col{flex-direction:column;justify-content:center;gap:6px;text-align:center}
+.key.gold{background:var(--brand-soft);border-color:rgba(216,185,138,.30)}
+.key.white{background:var(--ink);color:#000;border-color:transparent}
+.cap{font-size:11px;color:var(--ink3);display:block;letter-spacing:.01em}
+.val{font-size:15px}
+.dots{display:flex;gap:4px;margin-top:5px}
+.dots i{font-style:normal;font-size:10px;line-height:16px;min-width:18px;height:16px;padding:0 4px;border-radius:8px;text-align:center;background:var(--fill);color:var(--ink3)}
+.dots i.on{background:var(--brand);color:#000;font-weight:600}
+.dots.w i.on{background:var(--ink);color:#000}
+.ticks{position:relative;height:5px;border-radius:3px;background:var(--fill2)}
+.ticks b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink)}
+.ticks s{position:absolute;top:-4px;width:2px;height:13px;border-radius:1px;background:var(--brand)}
+.blockhd{display:flex;align-items:center;justify-content:space-between;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.hint{font-size:12px;color:var(--ink3);text-align:center;line-height:1.4}
+</style>
+
+<!-- Стили для вариантов выбора чтеца -->
+<style>
+.mono{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:600;letter-spacing:.02em;background:rgba(236,236,236,.12);color:var(--ink)}
+.mono.gold{background:var(--brand);color:#000}
+.chip{height:50px;border-radius:25px;display:flex;align-items:center;gap:9px;padding:0 16px 0 8px;background:rgba(236,236,236,.06);border:1px solid var(--line);font-size:15px;white-space:nowrap;flex:none}
+.chip.on{background:var(--brand-soft);border-color:rgba(216,185,138,.35);color:var(--brand);font-weight:600}
+.scrollrow{display:flex;gap:8px;overflow:hidden;padding:0 16px;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 82%,transparent 100%);mask-image:linear-gradient(90deg,#000 0,#000 82%,transparent 100%)}
+.row{display:flex;align-items:center;gap:12px;height:56px;padding:0 4px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.small{font-size:12px;color:var(--ink3)}
+</style>
+
+<!-- Крестовина (из D3), общая для всех вариантов; размер — 252 px -->
+<template id="pad">
+ <div style="position:relative;width:252px;height:252px;margin:0 auto">
+  <svg width="252" height="252" viewBox="0 0 252 252" style="position:absolute;inset:0;stroke:none">
+   <circle cx="126" cy="126" r="125" fill="rgba(236,236,236,.06)" stroke="rgba(236,236,236,.10)" stroke-width="1"/>
+   <line x1="37.6" y1="37.6" x2="214.4" y2="214.4" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+   <line x1="214.4" y1="37.6" x2="37.6" y2="214.4" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+  </svg>
+  <div style="position:absolute;left:78px;top:78px;width:96px;height:96px;border-radius:50%;background:var(--ink);color:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 0 0 7px #0b0c0e"><svg width="28" height="28" style="margin-left:4px"><use href="#play"/></svg><span style="font-size:11px;font-weight:600">Слушать</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;top:10px;line-height:1.12"><svg width="16" height="16" style="transform:rotate(-90deg)"><use href="#chevR"/></svg><span class="cap">След. сура · 34</span><span class="val" style="font-size:14px">Саба</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;bottom:8px;line-height:1.12"><span class="cap">Пред. сура · 32</span><span class="val" style="font-size:14px">Ас-Саджда</span><br><svg width="16" height="16" style="transform:rotate(90deg)"><use href="#chevR"/></svg></div>
+  <div class="c" style="position:absolute;left:6px;top:102px;width:64px;line-height:1.2"><svg width="22" height="22"><use href="#prevA"/></svg><span class="cap" style="color:var(--ink2);font-size:12px">аят 18</span></div>
+  <div class="c" style="position:absolute;right:6px;top:102px;width:64px;line-height:1.2"><svg width="22" height="22"><use href="#nextA"/></svg><span class="cap" style="color:var(--ink2);font-size:12px">аят 20</span></div>
+ </div>
+</template>
+<template id="reps">
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">
+  <div class="key gold" style="height:70px;padding:0 12px"><svg width="22" height="22" class="brand"><use href="#rep1"/></svg><span style="line-height:1.15"><span class="cap">Повтор аята</span><span class="val brand" style="font-weight:600">3 раза</span><span class="dots"><i>1</i><i>2</i><i class="on">3</i><i>∞</i></span></span></div>
+  <div class="key" style="height:70px;padding:0 12px"><svg width="22" height="22"><use href="#book"/></svg><span style="line-height:1.15"><span class="cap">Повтор суры</span><span class="val">Выкл</span><span class="dots w"><i class="on">—</i><i>2</i><i>3</i><i>∞</i></span></span></div>
+ </div>
+ <div style="display:flex;gap:8px;padding:0 16px;margin-top:10px"><div class="pill">1×</div><div class="pill"><svg width="18" height="18"><use href="#check"/></svg>Скачано</div><div class="pill" style="margin-left:auto"><svg width="18" height="18"><use href="#list"/></svg>Все суры</div></div>
+</template>
+<!-- Крестовина E3 после правки владельца 16.11: «Слушать» намного крупнее (172 px вместо 96),
+     кольцо с остальными кнопками тоньше, подписи и значки мельче — главный акцент на воспроизведении -->
+<template id="padbig">
+ <div style="position:relative;width:316px;height:316px;margin:0 auto">
+  <svg width="316" height="316" viewBox="0 0 316 316" style="position:absolute;inset:0;stroke:none">
+   <circle cx="158" cy="158" r="157" fill="rgba(236,236,236,.05)" stroke="rgba(236,236,236,.09)" stroke-width="1"/>
+   <line x1="47" y1="47" x2="269" y2="269" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+   <line x1="269" y1="47" x2="47" y2="269" stroke="rgba(0,0,0,.55)" stroke-width="3"/>
+  </svg>
+  <div style="position:absolute;left:72px;top:72px;width:172px;height:172px;border-radius:50%;background:var(--ink);color:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:0 0 0 7px #0b0c0e,0 18px 40px rgba(0,0,0,.45)"><svg width="54" height="54" style="margin-left:8px"><use href="#play"/></svg><span style="font-size:17px;font-weight:600;letter-spacing:-.01em">Слушать</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;top:9px;line-height:1.1"><svg width="14" height="14" style="transform:rotate(-90deg);opacity:.8"><use href="#chevR"/></svg><span class="cap" style="font-size:10px">След. сура · 34</span><span style="font-size:13px;color:var(--ink2)">Саба</span></div>
+  <div class="c" style="position:absolute;left:0;right:0;bottom:8px;line-height:1.1"><span class="cap" style="font-size:10px">Пред. сура · 32</span><span style="font-size:13px;color:var(--ink2)">Ас-Саджда</span><br><svg width="14" height="14" style="transform:rotate(90deg);opacity:.8"><use href="#chevR"/></svg></div>
+  <div class="c" style="position:absolute;left:4px;top:136px;width:62px;line-height:1.2"><svg width="18" height="18" style="opacity:.85"><use href="#prevA"/></svg><span class="cap" style="font-size:11px">аят 18</span></div>
+  <div class="c" style="position:absolute;right:4px;top:136px;width:62px;line-height:1.2"><svg width="18" height="18" style="opacity:.85"><use href="#nextA"/></svg><span class="cap" style="font-size:11px">аят 20</span></div>
+ </div>
+</template>
+<!-- Повторы и пилюли для E3 — компактнее, чтобы не спорить с «Слушать» -->
+<template id="repssm">
+ <!-- 16.11 владелец: «Повтор суры» по логике неверен. Это выбор, что делать, когда сура дочитана:
+      «стоп» — тишина; «далее» — следующая сура (так плеер работает сейчас); «снова» — эта же сура по кругу.
+      Обе клавиши листают свой режим касанием; мелкие метки показывают все варианты сразу. -->
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px">
+  <div class="key gold" style="height:62px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18" class="brand" style="flex:none"><use href="#rep1"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">Повтор аята</span><span class="brand" style="font-size:13px;font-weight:600">3 раза</span><span class="dots" style="margin-top:4px"><i>—</i><i class="on">3</i><i>∞</i></span></span></div>
+  <div class="key" style="height:62px;padding:0 10px;border-radius:18px;gap:8px"><svg width="18" height="18" style="flex:none"><use href="#book"/></svg><span style="line-height:1.1"><span class="cap" style="font-size:10px">После суры</span><span style="font-size:13px">Следующая сура</span><span class="dots w" style="margin-top:4px"><i>стоп</i><i class="on">далее</i><i>снова</i></span></span></div>
+ </div>
+ <div style="display:flex;gap:6px;padding:0 16px;margin-top:8px"><div class="pill" style="height:36px;font-size:13px">1×</div><div class="pill" style="height:36px;font-size:13px"><svg width="16" height="16"><use href="#check"/></svg>Скачано</div><div class="pill" style="height:36px;font-size:13px;margin-left:auto"><svg width="16" height="16"><use href="#list"/></svg>Все суры</div></div>
+</template>
+<template id="reciterkey">
+ <div style="padding:0 16px;margin-top:12px"><div class="key gold" style="height:48px;padding:0 10px 0 8px;border-radius:16px"><span class="mono gold" style="width:30px;height:30px;font-size:11px">ЯД</span><span style="line-height:1.1;flex:1"><span class="cap" style="font-size:10px">Чтец · <span style="color:var(--brand)">✓</span> скачано</span><span class="brand" style="font-size:14px;font-weight:600">Ясир Ад-Даусари</span></span><svg width="18" height="18" class="brand"><use href="#down"/></svg></div></div>
+</template>
+<template id="title">
+ <div class="c" style="margin-top:6px"><div class="ar" style="font-size:44px;line-height:1.25">الأحزاب</div>
+  <div style="font-size:19px;font-weight:600">Аль-Ахзаб · <span class="muted" style="font-weight:400">аят 19 из 73</span></div></div>
+ <div style="padding:0 20px;margin-top:12px"><div class="ticks"><b style="width:26%"></b></div></div>
+</template>
+
+
+
+<!-- Михраб G1–G3 (16.11, владелец выбрал F3 «Михраб» и попросил: «После суры» → «Повтор суры» с иконками
+     стоп / дальше / заново; два-три доработанных варианта, где главное выделено и лишнее не зацепить пальцем). -->
+<style>
+.arch{position:relative;filter:drop-shadow(0 14px 26px rgba(0,0,0,.55))}
+.archin{position:absolute;left:0;right:0;bottom:0;top:30%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#17120a}
+.archin svg{transform:translateX(2px)}
+.archin span{font-size:16px;font-weight:600;letter-spacing:.01em}
+.sm{display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--ink2)}
+.sm .cap{font-size:11px}
+.rb{width:60px;height:60px;border-radius:50%;background:var(--fill);border:1px solid var(--line);display:grid;place-items:center;color:var(--ink)}
+.rowlbl{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px;padding-left:2px}
+.opt{display:flex;gap:4px;background:rgba(236,236,236,.05);border:1px solid var(--line);border-radius:14px;padding:3px}
+.opt span{flex:1;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--ink2)}
+.opt span.on{background:rgba(236,236,236,.15);color:var(--ink);font-weight:600}
+.opt.gold span.on{background:var(--brand-soft);color:var(--brand)}
+.hint2{font-size:12px;color:var(--ink3);margin-top:6px;padding-left:2px}
+.step{display:flex;align-items:center;height:52px;border-radius:26px;background:rgba(236,236,236,.05);border:1px solid var(--line);padding:4px}
+.step .b{height:44px;border-radius:22px;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--fill2);color:var(--ink);font-size:13px;flex:none}
+.step .mid{flex:1;text-align:center;line-height:1.15}
+.navc{width:44px;height:44px;border-radius:50%;background:var(--fill);border:1px solid var(--line);display:grid;place-items:center;color:var(--ink)}
+</style>
+<svg width="0" height="0" style="position:absolute">
+ <defs><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ecd7b2"/><stop offset=".55" stop-color="#d8b98a"/><stop offset="1" stop-color="#c29e6c"/></linearGradient></defs>
+ <!-- «Стоп» как знак «въезд запрещён»: круг с чертой -->
+ <symbol id="noentry" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M7.8 12h8.4"/></symbol>
+ <symbol id="arrowR" viewBox="0 0 24 24"><path d="M4.5 12h14"/><path d="M13 6.5l5.5 5.5-5.5 5.5"/></symbol>
+</svg>
+
+<!-- ───── G1 «Ниша»: вся арка — кнопка; аяты по бокам с широким зазором; суры парой ниже; повторы — две строки выбора ───── -->
+<div class="phone" id="G1">
+ <div class="chrome"></div>
+ <div class="title"></div>
+ <div class="reciterkey"></div>
+ <div style="position:relative;height:220px;margin-top:18px">
+  <div style="position:absolute;left:106.5px;top:0"><div class="arch" style="width:180px;height:220px">
+   <svg width="180" height="220" viewBox="0 0 196 226" preserveAspectRatio="none" style="position:absolute;inset:0;stroke:none;overflow:visible">
+    <path d="M1 225V104C1 52 48 22 98 1c50 21 97 51 97 103v121z" fill="url(#gold)" stroke="rgba(255,240,215,.55)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+    <path d="M13 225V108C13 64 54 37 98 15c44 22 85 49 85 93v117" fill="none" stroke="rgba(23,18,10,.22)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+   </svg>
+   <div class="archin"><svg width="52" height="52"><use href="#play"/></svg><span>Слушать</span></div>
+  </div></div>
+  <div class="sm" style="position:absolute;left:22px;top:90px"><div class="rb"><svg width="22" height="22"><use href="#prevA"/></svg></div><span class="cap">аят 18</span></div>
+  <div class="sm" style="position:absolute;right:22px;top:90px"><div class="rb"><svg width="22" height="22"><use href="#nextA"/></svg></div><span class="cap">аят 20</span></div>
+ </div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 16px;margin-top:14px">
+  <div class="pill" style="height:40px;font-size:13px;justify-content:center;padding:0 10px"><svg width="14" height="14"><use href="#chevL"/></svg><span class="muted">32</span> Ас-Саджда</div>
+  <div class="pill" style="height:40px;font-size:13px;justify-content:center;padding:0 10px">Саба <span class="muted">34</span><svg width="14" height="14"><use href="#chevR"/></svg></div>
+ </div>
+ <div style="margin-top:16px"> <div style="padding:0 16px">
+  <div class="rowlbl"><svg width="14" height="14"><use href="#rep1"/></svg>Повтор аята</div>
+  <div class="opt gold"><span>1</span><span>2</span><span class="on">3</span><span>5</span><span>∞</span></div>
+  <div class="rowlbl" style="margin-top:10px"><svg width="14" height="14"><use href="#book"/></svg>Повтор суры</div>
+  <div class="opt"><span><svg width="17" height="17"><use href="#noentry"/></svg>Стоп</span><span class="on"><svg width="17" height="17"><use href="#arrowR"/></svg>Дальше</span><span><svg width="17" height="17"><use href="#rep1"/></svg>Заново</span></div>
+  <div class="hint2">Сура закончится — включится следующая, Саба</div>
+ </div></div>
+ <div class="tabs"></div>
+</div>
+
+<!-- ───── G2 «Сура в заголовке»: смена суры — у названия, далеко от «Слушать»; у арки только аяты ───── -->
+<div class="phone" id="G2">
+ <div class="chrome"></div>
+ <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin-top:6px">
+  <div class="sm"><div class="navc"><svg width="18" height="18"><use href="#chevL"/></svg></div><span class="cap">сура 32</span></div>
+  <div class="c"><div class="ar" style="font-size:44px;line-height:1.25">الأحزاب</div><div style="font-size:19px;font-weight:600">Аль-Ахзаб · <span class="muted" style="font-weight:400">аят 19 из 73</span></div></div>
+  <div class="sm"><div class="navc"><svg width="18" height="18"><use href="#chevR"/></svg></div><span class="cap">сура 34</span></div>
+ </div>
+ <div style="padding:0 20px;margin-top:12px"><div class="ticks"><b style="width:26%"></b></div></div>
+ <div class="reciterkey"></div>
+ <div style="position:relative;height:246px;margin-top:22px">
+  <div style="position:absolute;left:99.5px;top:0"><div class="arch" style="width:194px;height:246px">
+   <svg width="194" height="246" viewBox="0 0 196 226" preserveAspectRatio="none" style="position:absolute;inset:0;stroke:none;overflow:visible">
+    <path d="M1 225V104C1 52 48 22 98 1c50 21 97 51 97 103v121z" fill="url(#gold)" stroke="rgba(255,240,215,.55)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+    <path d="M13 225V108C13 64 54 37 98 15c44 22 85 49 85 93v117" fill="none" stroke="rgba(23,18,10,.22)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+   </svg>
+   <div class="archin"><svg width="52" height="52"><use href="#play"/></svg><span>Слушать</span></div>
+  </div></div>
+  <div class="sm" style="position:absolute;left:16px;top:108px"><div class="rb"><svg width="22" height="22"><use href="#prevA"/></svg></div><span class="cap">аят 18</span></div>
+  <div class="sm" style="position:absolute;right:16px;top:108px"><div class="rb"><svg width="22" height="22"><use href="#nextA"/></svg></div><span class="cap">аят 20</span></div>
+ </div>
+ <div style="margin-top:26px"> <div style="padding:0 16px">
+  <div class="rowlbl"><svg width="14" height="14"><use href="#rep1"/></svg>Повтор аята</div>
+  <div class="opt gold"><span>1</span><span>2</span><span class="on">3</span><span>5</span><span>∞</span></div>
+  <div class="rowlbl" style="margin-top:10px"><svg width="14" height="14"><use href="#book"/></svg>Повтор суры</div>
+  <div class="opt"><span><svg width="17" height="17"><use href="#noentry"/></svg>Стоп</span><span class="on"><svg width="17" height="17"><use href="#arrowR"/></svg>Дальше</span><span><svg width="17" height="17"><use href="#rep1"/></svg>Заново</span></div>
+  <div class="hint2">Сура закончится — включится следующая, Саба</div>
+ </div></div>
+ <div class="tabs"></div>
+</div>
+
+<!-- ───── G3 «Ступени»: арка одна в центре; аяты и суры — две полосы-переключателя, середина не нажимается ───── -->
+<div class="phone" id="G3">
+ <div class="chrome"></div>
+ <div class="title"></div>
+ <div class="reciterkey"></div>
+ <div style="display:flex;justify-content:center;margin-top:16px"><div class="arch" style="width:152px;height:160px">
+   <svg width="152" height="160" viewBox="0 0 196 226" preserveAspectRatio="none" style="position:absolute;inset:0;stroke:none;overflow:visible">
+    <path d="M1 225V104C1 52 48 22 98 1c50 21 97 51 97 103v121z" fill="url(#gold)" stroke="rgba(255,240,215,.55)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+    <path d="M13 225V108C13 64 54 37 98 15c44 22 85 49 85 93v117" fill="none" stroke="rgba(23,18,10,.22)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+   </svg>
+   <div class="archin"><svg width="44" height="44"><use href="#play"/></svg><span>Слушать</span></div>
+  </div></div>
+ <div style="padding:0 16px;margin-top:16px">
+  <div class="step"><div class="b"><svg width="18" height="18"><use href="#prevA"/></svg>18</div><div class="mid"><span class="cap" style="font-size:10px">аят</span><span style="font-size:15px;font-weight:600">19</span></div><div class="b">20<svg width="18" height="18"><use href="#nextA"/></svg></div></div>
+  <div class="step" style="margin-top:8px;height:46px;background:none"><div class="b" style="height:36px;background:var(--fill);color:var(--ink2)"><svg width="14" height="14"><use href="#chevL"/></svg>Ас-Саджда</div><div class="mid"><span class="cap" style="font-size:10px">сура</span><span style="font-size:13px;color:var(--ink2)">33</span></div><div class="b" style="height:36px;background:var(--fill);color:var(--ink2)">Саба<svg width="14" height="14"><use href="#chevR"/></svg></div></div>
+ </div>
+ <div style="margin-top:14px"> <div style="padding:0 16px">
+  <div class="rowlbl"><svg width="14" height="14"><use href="#rep1"/></svg>Повтор аята</div>
+  <div class="opt gold"><span>1</span><span>2</span><span class="on">3</span><span>5</span><span>∞</span></div>
+  <div class="rowlbl" style="margin-top:10px"><svg width="14" height="14"><use href="#book"/></svg>Повтор суры</div>
+  <div class="opt"><span><svg width="17" height="17"><use href="#noentry"/></svg>Стоп</span><span class="on"><svg width="17" height="17"><use href="#arrowR"/></svg>Дальше</span><span><svg width="17" height="17"><use href="#rep1"/></svg>Заново</span></div>
+  
+ </div></div>
+ <div class="tabs"></div>
+</div>
+
+<script>
+const put = (p, cls, id) => p.querySelectorAll('.' + cls).forEach(n => n.replaceWith(document.getElementById(id).content.cloneNode(true)));
+for (const p of document.querySelectorAll('.phone')) {
+  put(p, 'chrome', 'chrome'); put(p, 'tabs', 'tabs'); put(p, 'title', 'title'); put(p, 'pad', 'pad'); put(p, 'reps', 'reps'); put(p, 'padbig', 'padbig'); put(p, 'repssm', 'repssm'); put(p, 'reciterkey', 'reciterkey');
+}
+</script>
+</body></html>
