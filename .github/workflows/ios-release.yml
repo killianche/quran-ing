@@ -36,6 +36,8 @@
 name: iOS release
 
 on:
+  push:
+    branches: [release/1.1-ci]
   workflow_dispatch:
     inputs:
       upload:
@@ -127,7 +129,7 @@ jobs:
       # Раньше шага здесь не было потому, что проверке нужен ключ Apple, а он
       # готовится ниже; теперь она стоит сразу после подготовки ключа.
       - name: Поезд версии свободен
-        if: ${{ inputs.upload }}
+        if: ${{ github.event_name == 'push' || inputs.upload }}
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -211,7 +213,7 @@ jobs:
       # шаг и собирает .ipa, и отправляет его в App Store Connect. Отдельный
       # вызов altool не нужен — тем лучше, он у Apple объявлен устаревшим.
       - name: Экспорт и выгрузка
-        if: ${{ inputs.upload }}
+        if: ${{ github.event_name == 'push' || inputs.upload }}
         run: |
           set -euo pipefail
           xcodebuild -exportArchive \

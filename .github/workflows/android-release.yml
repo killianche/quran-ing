@@ -19,6 +19,8 @@
 name: Android release
 
 on:
+  push:
+    branches: [release/1.1-ci]
   workflow_dispatch:
 
 concurrency:
